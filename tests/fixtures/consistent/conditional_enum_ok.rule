@@ -1,0 +1,16 @@
+# 거짓양성 회귀: 조건부 룰이 일부 enum 조합만 막는 것은 모순이 아니다.
+# sky==night → lighting==night 이면 (night, day) 조합은 의도대로 막히지만,
+# sky=night은 lighting=night으로 도달 가능하고 모든 enum 값이 도달 가능하다.
+# 한때 조인트 조합 셀 단위로 도달성을 봐서 (night, day)를 모순으로 오탐했다 →
+# 값 단위 투영으로 바꿔 해결. 조합 도달성 단언은 expects:(D10)로 명시한다.
+domain:
+  variables:
+    sky:      { type: enum, values: [day, night] }
+    lighting: { type: enum, values: [day, night] }
+
+rules:
+  - id: night_sky_needs_dark
+    author: planner_world
+    desc: "밤 하늘이면 조명도 밤"
+    when: "sky == night"
+    then: "lighting == night"

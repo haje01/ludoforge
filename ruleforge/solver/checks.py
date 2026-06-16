@@ -4,7 +4,13 @@
 검사 방법(D4): 각 enum 값 조합을 고정한 뒤, **독립 변수**(then에서 `var == ...`로
 값이 결정되지 않는 자유 변수)의 선언 범위가 룰 하에서 도달 가능한지 Optimize로 확인.
 달성 범위가 선언 범위보다 좁으면 모순으로 보고하고, 경계값을 assert_and_track 한
-Solver의 unsat_core로 범인 룰을 추출한다.
+Solver의 unsat_core로 범인 룰을 추출한다. 조인트 조합 고정은 내부(int/real/bool) 변수
+검사의 **문맥**일 뿐, 조합 셀이 unsat이어도 그 자체를 모순으로 보지 않는다 — 조건부
+룰은 본래 일부 조합을 막기 때문이다(거짓 양성 회피).
+
+enum 값의 도달성은 조인트 조합이 아니라 **값 단위 투영**으로 본다: 각 변수의 각 값이
+어떤 배정으로든 도달 가능한지 확인하고(`domain ∧ rules ∧ var==value`), unsat이면 그 값이
+봉쇄된 것으로 보고한다. 조합 단위 도달성 단언은 `expects:`(D10)로 명시한다.
 
 종속 변수(예: hp == level*100의 hp)는 값이 공식으로 결정되므로 선언 범위 미달이
 정상이다 — 거짓 양성을 피하려 검사 대상에서 제외한다(사용자 결정).
@@ -50,7 +56,11 @@ class RangeViolation:
 
 @dataclass(frozen=True)
 class UnreachableState:
-    """특정 상태(enum 값 조합 또는 자유 bool의 한 상태)가 룰 하에서 도달 불가능한 모순."""
+    """특정 상태(enum 값 또는 자유 bool의 한 상태)가 룰 하에서 도달 불가능한 모순.
+
+    enum은 값 단위 투영으로 검사하므로 assignment에 해당 변수=값 한 항목만 담긴다.
+    자유 bool은 도달 가능한 enum 문맥 안에서 보므로 enum 문맥 + bool 상태가 함께 담긴다.
+    """
 
     assignment: dict[str, str]
     culprit_rules: tuple[str, ...]
@@ -115,18 +125,32 @@ def check(ruleset: RuleSet, translation: Translation) -> CheckReport:
     bound_unreachables: list[BoundUnreachable] = []
     unknowns: list[str] = []
 
+    # 전역 도달성: domain ∧ rules 자체가 unsat이면 어떤 상태로도 도달할 수 없는 전역
+    # over-constraint다(예: 두 룰이 같은 변수를 다른 상수로 고정, 확률 합 과제약). enum
+    # 조합과 무관한 모순이라 값 단위·내부 변수 검사 전에 먼저 본다. 전역 불가면 모든 하위
+    # 검사가 자명히 불가라 노이즈만 늘므로 전역 모순 하나만 보고하고 멈춘다.
+    global_status, global_core = _feasibility(translation, [])
+    if global_status == "unsat":
+        return CheckReport(
+            unreachable_states=(UnreachableState(assignment={}, culprit_rules=global_core),)
+        )
+    if global_status == "unknown":
+        unknowns.append("전역 실행 가능성 검사에서 unknown")
+
     for assignment in _enum_assignments(ruleset):
         enum_fix = [
             translation.z3_vars[name] == translation.enum_encoding[name][value]
             for name, value in assignment.items()
         ]
 
-        status, core = _feasibility(translation, enum_fix)
+        status, _ = _feasibility(translation, enum_fix)
         if status == "unknown":
             unknowns.append(f"{assignment or '전역'} 실행 가능성 검사에서 unknown")
             continue
         if status == "unsat":
-            unreachable.append(UnreachableState(assignment=assignment, culprit_rules=core))
+            # 조건부 룰(when→then)이 일부 조인트 조합을 막는 것은 의도된 배제이므로
+            # 조합 셀 자체는 모순으로 보고하지 않는다(거짓 양성 회피). 내부 변수 검사만
+            # 건너뛴다. enum 값의 도달성은 _check_enum_reachability에서 값 단위로 본다.
             continue
 
         # 자유 bool의 각 상태(True/False)가 룰 하에서 도달 가능한지 검사한다(D6).
@@ -176,6 +200,10 @@ def check(ruleset: RuleSet, translation: Translation) -> CheckReport:
                 if b is not None:
                     bound_unreachables.append(b)
 
+    # enum 값 단위 도달성: 각 변수의 각 값이 어떤 배정으로든 도달 가능한지 본다(투영).
+    # 조인트 조합 순회와 독립적인 전역 검사라 루프 밖에서 한 번씩 본다.
+    unreachable.extend(_check_enum_reachability(ruleset, translation, unknowns))
+
     # 명시적 도달성 단언(D10): 룰과 무관한 전역 검사라 enum 조합 순회 밖에서 한 번씩 본다.
     unmet = _check_expects(ruleset, translation, unknowns)
 
@@ -207,6 +235,35 @@ def _check_expects(
                 UnmetExpectation(expect_id=expect.id, desc=expect.desc, culprit_rules=core)
             )
     return results
+
+
+def _check_enum_reachability(
+    ruleset: RuleSet, translation: Translation, unknowns: list[str]
+) -> list[UnreachableState]:
+    """각 enum 변수의 각 값이 룰 하에서 도달 가능한지 값 단위로 검사한다(투영).
+
+    조인트 조합이 아니라 값 단위로 본다: `domain ∧ rules ∧ (var == value)`가 unsat이면
+    그 값에 다른 변수의 어떤 배정으로도 도달할 수 없는 것 — 모순으로 보고한다. 조건부
+    룰이 일부 조합만 막는 것(예: sky==night → lighting==night)은 정상이라 보고하지
+    않는다(거짓 양성 회피). 조합 단위 도달성을 단언하려면 `expects:`(D10)를 쓴다. 무조건
+    룰로 한 값에 핀된 enum은 다른 값이 도달 불가여도 정상이므로(D5 bool 처리와 동형)
+    검사 대상에서 제외한다.
+    """
+    determined = _determined_enums(ruleset)
+    found: list[UnreachableState] = []
+    for var in (v for v in ruleset.variables if v.type == "enum" and v.name not in determined):
+        z3var = translation.z3_vars[var.name]
+        for value in var.values:
+            fix = [z3var == translation.enum_encoding[var.name][value]]
+            status, core = _feasibility(translation, fix)
+            if status == "unknown":
+                unknowns.append(f"'{var.name}'={value} 도달성 검사에서 unknown")
+                continue
+            if status == "unsat":
+                found.append(
+                    UnreachableState(assignment={var.name: value}, culprit_rules=core)
+                )
+    return found
 
 
 def _check_bound(
@@ -340,6 +397,42 @@ def _forced_bool_atom(node: ast.AST) -> str | None:
 
 def _is_bool_const(node: ast.AST) -> bool:
     return isinstance(node, ast.Constant) and isinstance(node.value, bool)
+
+
+def _determined_enums(ruleset: RuleSet) -> set[str]:
+    """무조건(`when` 없는) 룰로 특정 값에 핀되는 enum 집합(종속).
+
+    기획자가 명시적으로 한 값으로 고정한 enum은 나머지 값이 도달 불가여도 정상이므로
+    값 단위 도달성 검사에서 제외한다(_determined_bools와 동형, D5 거짓양성 회피).
+    """
+    enum_names = {v.name for v in ruleset.variables if v.type == "enum"}
+    var_names = {v.name for v in ruleset.variables}
+    determined: set[str] = set()
+    for rule in ruleset.rules:
+        if rule.when is not None:
+            continue
+        name = _forced_enum_atom(ast.parse(rule.then, mode="eval").body, enum_names, var_names)
+        if name is not None:
+            determined.add(name)
+    return determined
+
+
+def _forced_enum_atom(node: ast.AST, enum_names: set[str], var_names: set[str]) -> str | None:
+    """`then`이 enum을 상수 값으로 고정하면(`var == value`) 그 변수명을 돌려준다.
+
+    한쪽이 enum 변수, 다른 쪽이 변수가 아닌 이름(enum 값)일 때만 핀으로 본다 —
+    `sky == lighting` 같은 변수-변수 비교는 상수 고정이 아니라 제외한다.
+    """
+    if isinstance(node, ast.Compare) and len(node.ops) == 1 and isinstance(node.ops[0], ast.Eq):
+        for a, b in ((node.left, node.comparators[0]), (node.comparators[0], node.left)):
+            if (
+                isinstance(a, ast.Name)
+                and a.id in enum_names
+                and isinstance(b, ast.Name)
+                and b.id not in var_names
+            ):
+                return a.id
+    return None
 
 
 def _dependent_variables(ruleset: RuleSet) -> set[str]:

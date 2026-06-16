@@ -75,6 +75,54 @@ def test_unreachable_enum_value_is_reported() -> None:
     assert set(ue.culprit_rules) == {"a_sets_x", "x_floor"}
 
 
+def test_conditional_enum_exclusion_is_not_false_positive() -> None:
+    # 거짓양성 회귀: 조건부 룰이 일부 조인트 조합만 막는 것은 모순이 아니다.
+    # sky==night → lighting==night이면 (night, day)는 막히지만 모든 enum 값은 도달 가능.
+    rs = RuleSet(
+        variables=(
+            Variable(name="sky", type="enum", values=("day", "night")),
+            Variable(name="lighting", type="enum", values=("day", "night")),
+        ),
+        rules=(Rule(id="night_sky_needs_dark", when="sky == night", then="lighting == night"),),
+    )
+    report = _check(rs)
+    assert not report.has_contradiction
+    assert report.unreachable_states == ()
+    assert report.unknowns == ()
+
+
+def test_enum_value_unreachable_by_value_projection_not_per_cell() -> None:
+    # 두 룰이 sky==night일 때 lighting을 day/night로 동시 강제 → sky=night 값 자체가 봉쇄.
+    # 값 단위 투영이라 조인트 셀 둘이 아니라 sky=night 하나만 보고해야 한다.
+    rs = RuleSet(
+        variables=(
+            Variable(name="sky", type="enum", values=("day", "night")),
+            Variable(name="lighting", type="enum", values=("day", "night")),
+        ),
+        rules=(
+            Rule(id="needs_dark", when="sky == night", then="lighting == night"),
+            Rule(id="forces_day", when="sky == night", then="lighting == day"),
+        ),
+    )
+    report = _check(rs)
+    assert len(report.unreachable_states) == 1
+    ue = report.unreachable_states[0]
+    assert ue.assignment == {"sky": "night"}
+    assert set(ue.culprit_rules) == {"needs_dark", "forces_day"}
+
+
+def test_unconditionally_pinned_enum_is_not_false_positive() -> None:
+    # D5 일관: 무조건 룰로 한 값에 핀된 enum은 나머지 값이 도달 불가여도 정상.
+    rs = RuleSet(
+        variables=(Variable(name="mode", type="enum", values=("easy", "normal", "hard")),),
+        rules=(Rule(id="pin_normal", then="mode == normal"),),
+    )
+    report = _check(rs)
+    assert not report.has_contradiction
+    assert report.unreachable_states == ()
+    assert report.unknowns == ()
+
+
 def test_bool_state_blocked_by_mutex_is_reported() -> None:
     # D6: attacking이 항상 강제되고 상호 배제이므로 stealthed=true는 도달 불가.
     # attacking은 무조건 강제(종속)라 검사 대상에서 빠지고, 자유 bool인 stealthed만 잡힌다.

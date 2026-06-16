@@ -81,7 +81,7 @@ def _format_violation(index: int, v: RangeViolation) -> str:
 
 def _format_unreachable(index: int, ue: UnreachableState) -> str:
     cond = _format_assignment(ue.assignment)
-    return f"[{index}] {cond} 조합 자체가 도달 불가능합니다.\n{_format_culprits(ue.culprit_rules)}"
+    return f"[{index}] {cond} 상태에 도달할 수 없습니다.\n{_format_culprits(ue.culprit_rules)}"
 
 
 def _format_bound_unreachable(index: int, bu: BoundUnreachable) -> str:

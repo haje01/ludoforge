@@ -118,6 +118,12 @@ expects:                          # 명시적 도달성 단언(D10, 선택)
 - 각 rule은 `assert_and_track(constraint, id)` 로 등록 → unsat core가 `id`를 반환.
 - enum은 Z3 `EnumSort`(변수=Const, 값=sort 상수, D8). 서로 다른 enum이 같은 값 이름을
   써도 안전하며, `role == warrior`의 값은 비교 상대 변수의 sort로 해석한다(문맥 기반).
+  enum 도달성은 **값 단위 투영**으로 본다: 각 변수의 각 값이 *어떤* 배정으로든 도달
+  가능한지(`domain ∧ rules ∧ var==value` sat)만 검사한다. 조건부 룰이 일부 조인트 조합을
+  막는 것(`sky==night → lighting==night`이 `(night, day)`를 막음)은 정상이라 보고하지
+  않는다 — 조합 단위 도달성 단언은 `expects:`(D10)로 명시한다. 무조건 룰로 한 값에 핀된
+  enum은 나머지 값 봉쇄가 정상이라 제외(D5와 동형). enum 조합 고정은 수치/bool 내부 검사의
+  문맥일 뿐 셀 자체를 모순으로 보지 않는다.
   bool은 z3.Bool로 번역(도메인 제약 없음). `then`이 bare atom/부정/등식이면 상태 제약이
   된다. 자유 bool의 True/False 각 상태가 도달 가능한지 검사한다(D6).
 - real은 z3.Real로 번역(LRA, D7). 선언 min/max는 feasibility 제약. 나눗셈 `/`는
