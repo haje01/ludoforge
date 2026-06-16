@@ -11,6 +11,7 @@ from ruleforge.solver.checks import (
     BoundUnreachable,
     CheckReport,
     RangeViolation,
+    UnmetExpectation,
     UnreachableState,
 )
 
@@ -19,7 +20,10 @@ def format_report(report: CheckReport) -> str:
     """검사 결과를 한국어 리포트 문자열로 만든다."""
     lines: list[str] = []
     contradictions = (
-        len(report.violations) + len(report.unreachable_states) + len(report.bound_unreachables)
+        len(report.violations)
+        + len(report.unreachable_states)
+        + len(report.bound_unreachables)
+        + len(report.unmet_expectations)
     )
 
     if contradictions == 0:
@@ -36,6 +40,9 @@ def format_report(report: CheckReport) -> str:
             index += 1
         for bu in report.bound_unreachables:
             lines.append(_format_bound_unreachable(index, bu))
+            index += 1
+        for um in report.unmet_expectations:
+            lines.append(_format_unmet_expectation(index, um))
             index += 1
 
     if report.unknowns:
@@ -82,3 +89,9 @@ def _format_bound_unreachable(index: int, bu: BoundUnreachable) -> str:
     label = "최대값" if bu.bound == "max" else "최소값"
     detail = f"'{bu.variable}'의 선언 {label} {bu.declared}에 도달할 수 없습니다."
     return f"[{index}] {cond}일 때 {detail}\n{_format_culprits(bu.culprit_rules)}"
+
+
+def _format_unmet_expectation(index: int, um: UnmetExpectation) -> str:
+    desc = f" — {um.desc}" if um.desc else ""
+    detail = f"기대 '{um.expect_id}'{desc}가 충족되지 않습니다(도달 불가)."
+    return f"[{index}] {detail}\n{_format_culprits(um.culprit_rules)}"

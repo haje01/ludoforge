@@ -98,6 +98,32 @@ def test_real_accepts_float_bounds(tmp_path: Path) -> None:
     assert (v.min, v.max) == (0.05, 0.5)
 
 
+def test_loads_expects_section(tmp_path: Path) -> None:
+    f = tmp_path / "e.rule"
+    f.write_text(
+        "domain:\n  variables:\n    level: { type: int, min: 1, max: 100 }\n"
+        "rules: []\n"
+        "expects:\n"
+        "  - id: lvl_max\n    desc: '레벨 100 도달 가능'\n    that: 'level == 100'\n",
+        encoding="utf-8",
+    )
+    rs = load_rule_file(f)
+    assert len(rs.expects) == 1
+    e = rs.expects[0]
+    assert (e.id, e.that, e.desc) == ("lvl_max", "level == 100", "레벨 100 도달 가능")
+
+
+def test_expect_without_that_names_it(tmp_path: Path) -> None:
+    f = tmp_path / "bad_expect.rule"
+    f.write_text(
+        "domain:\n  variables:\n    level: { type: int }\nrules: []\n"
+        "expects:\n  - id: e1\n    desc: '설명만 있음'\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(LoaderError, match="e1"):
+        load_rule_file(f)
+
+
 def test_enum_without_values_names_the_variable(tmp_path: Path) -> None:
     f = tmp_path / "bad_enum.rule"
     f.write_text(

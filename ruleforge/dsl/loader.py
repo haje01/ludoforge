@@ -12,7 +12,7 @@ from typing import Any
 
 import yaml
 
-from ruleforge.dsl.ir import Rule, RuleSet, Variable
+from ruleforge.dsl.ir import Expect, Rule, RuleSet, Variable
 
 _VALID_TYPES = ("int", "enum", "bool", "real")
 
@@ -40,13 +40,15 @@ def _merge(rulesets: list[RuleSet]) -> RuleSet:
     """여러 RuleSet을 병합한다. 변수는 이름으로 합치되 충돌(다른 선언)은 오류."""
     variables: dict[str, Variable] = {}
     rules: list[Rule] = []
+    expects: list[Expect] = []
     for rs in rulesets:
         for v in rs.variables:
             if v.name in variables and variables[v.name] != v:
                 raise LoaderError(f"변수 '{v.name}'가 파일마다 다르게 선언되었습니다.")
             variables[v.name] = v
         rules.extend(rs.rules)
-    return RuleSet(variables=tuple(variables.values()), rules=tuple(rules))
+        expects.extend(rs.expects)
+    return RuleSet(variables=tuple(variables.values()), rules=tuple(rules), expects=tuple(expects))
 
 
 def load_rule_file(path: str | Path) -> RuleSet:
@@ -67,7 +69,8 @@ def load_rule_file(path: str | Path) -> RuleSet:
 
     variables = _parse_variables(raw.get("domain", {}), path)
     rules = _parse_rules(raw.get("rules", []), path)
-    return RuleSet(variables=variables, rules=rules)
+    expects = _parse_expects(raw.get("expects", []), path)
+    return RuleSet(variables=variables, rules=rules, expects=expects)
 
 
 def _parse_variables(domain: Any, path: Path) -> tuple[Variable, ...]:
@@ -167,6 +170,32 @@ def _parse_rule(item: Any, index: int, path: Path) -> Rule:
         author=_parse_opt_str(item.get("author"), rule_id, "author", path),
         desc=_parse_opt_str(item.get("desc"), rule_id, "desc", path),
     )
+
+
+def _parse_expects(expects: Any, path: Path) -> tuple[Expect, ...]:
+    if not isinstance(expects, list):
+        raise LoaderError(f"{path}: 'expects'는 목록이어야 합니다.")
+
+    parsed: list[Expect] = []
+    for i, item in enumerate(expects):
+        parsed.append(_parse_expect(item, i, path))
+    return tuple(parsed)
+
+
+def _parse_expect(item: Any, index: int, path: Path) -> Expect:
+    if not isinstance(item, dict):
+        raise LoaderError(f"{path}: expects[{index}]는 매핑이어야 합니다.")
+
+    expect_id = item.get("id")
+    if not isinstance(expect_id, str) or not expect_id:
+        raise LoaderError(f"{path}: expects[{index}]에 문자열 'id'가 필요합니다.")
+
+    that = item.get("that")
+    if not isinstance(that, str) or not that:
+        raise LoaderError(f"{path}: 기대 '{expect_id}'에 문자열 'that'(도달 조건)이 필요합니다.")
+
+    desc = _parse_opt_str(item.get("desc"), expect_id, "desc", path)
+    return Expect(id=expect_id, that=that, desc=desc)
 
 
 def _parse_opt_str(value: Any, rule_id: str, field: str, path: Path) -> str | None:

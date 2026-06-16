@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from ruleforge.dsl.ir import Rule, RuleSet, Variable
+from ruleforge.dsl.ir import Expect, Rule, RuleSet, Variable
 from ruleforge.dsl.loader import load_rule_file
 from ruleforge.dsl.schema import SchemaError, validate
 
@@ -83,6 +83,27 @@ def test_expression_syntax_error_names_the_rule() -> None:
         rules=(Rule(id="broken", then="hp == * 100"),),
     )
     with pytest.raises(SchemaError, match="broken"):
+        validate(rs)
+
+
+def test_duplicate_expect_id_is_reported() -> None:
+    rs = RuleSet(
+        variables=_domain(),
+        expects=(
+            Expect(id="dup", that="level == 1"),
+            Expect(id="dup", that="level == 2"),
+        ),
+    )
+    with pytest.raises(SchemaError, match="dup"):
+        validate(rs)
+
+
+def test_undefined_symbol_in_expect_is_reported() -> None:
+    rs = RuleSet(
+        variables=_domain(),
+        expects=(Expect(id="e1", that="mana == 1"),),
+    )
+    with pytest.raises(SchemaError, match="mana"):
         validate(rs)
 
 

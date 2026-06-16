@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import ast
 import itertools
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import z3
@@ -43,6 +43,7 @@ class Translation:
     domain_constraints: list[Any]
     rule_constraints: dict[str, Any]
     enum_encoding: dict[str, dict[str, Any]]  # enum 변수명 → {값: z3 EnumSort 상수} (D8)
+    expect_constraints: dict[str, Any] = field(default_factory=dict)  # expect_id → that 식 (D10)
 
 
 # ast 비교 연산자 → (좌, 우) → Z3 식
@@ -88,11 +89,21 @@ def translate(ruleset: RuleSet) -> Translation:
         except TranslationError as e:
             raise TranslationError(f"룰 '{rule.id}': {e}") from e
 
+    expect_constraints: dict[str, Any] = {}
+    for expect in ruleset.expects:
+        try:
+            expect_constraints[expect.id] = _translate_expr(
+                _parse(expect.that), symbols, enum_encoding
+            )
+        except TranslationError as e:
+            raise TranslationError(f"기대 '{expect.id}': {e}") from e
+
     return Translation(
         z3_vars=z3_vars,
         domain_constraints=domain_constraints,
         rule_constraints=rule_constraints,
         enum_encoding=enum_encoding,
+        expect_constraints=expect_constraints,
     )
 
 

@@ -106,6 +106,11 @@ rules:
     author: planner_B
     desc: "모든 캐릭터 HP는 5000을 넘지 않는다"
     then:  "hp <= 5000"
+
+expects:                          # 명시적 도달성 단언(D10, 선택)
+  - id: warrior_can_max_level
+    desc: "전사는 레벨 100까지 성장할 수 있어야 한다"
+    that: "role == warrior and level == 100"   # 이 상태가 도달 가능해야 함
 ```
 
 번역 규칙:
@@ -119,6 +124,9 @@ rules:
   **상수 분모만** 허용(`1/3` → 정확한 유리수). 변수 분모는 비선형이라 거부. real의 선언
   min/max **끝점** 도달성도 검사한다(D9): `var == 끝점`이 unsat이면 봉쇄로 보고(끝점
   feasibility, 정확한 달성값은 비계산 — Optimize/epsilon 회피).
+- `expects:`의 각 `that`는 "도달 가능해야 하는 조건"이다(D10). `domain ∧ rules ∧ that`가
+  unsat이면 단언 미충족으로 보고하고 범인 룰을 짚는다. 자동 도달성 추론의 역방향이며,
+  변수별 경계로는 안 보이는 **조합 도달성**(예: 두 스탯 동시 최대)을 검증한다.
 
 표현 가능해야 할 룰 패턴:
 - 수치 공식(LIA): 스탯/데미지/비용.

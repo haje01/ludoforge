@@ -31,6 +31,7 @@ EXAMPLE_EXPECTED = {
     "drop_rates_real": True,
     "day_night_cycle": True,
     "crit_chance": True,
+    "stat_budget": True,
     "balanced_stats": False,
 }
 

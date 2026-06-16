@@ -42,11 +42,25 @@ class Rule:
 
 
 @dataclass(frozen=True)
+class Expect:
+    """명시적 도달성 단언(D10): `that` 조건이 룰 하에서 도달 가능해야 한다.
+
+    `rules ∧ that`가 SAT이면 충족, UNSAT이면 미충족(룰이 봉쇄)으로 본다.
+    자동 도달성 추론(D3)의 역방향 — 기획자가 양의 도달성을 직접 선언한다.
+    """
+
+    id: str
+    that: str
+    desc: str | None = None
+
+
+@dataclass(frozen=True)
 class RuleSet:
-    """검사 단위: 도메인 변수들과 룰들의 묶음."""
+    """검사 단위: 도메인 변수들과 룰들, 도달성 단언(expects)의 묶음."""
 
     variables: tuple[Variable, ...] = field(default_factory=tuple)
     rules: tuple[Rule, ...] = field(default_factory=tuple)
+    expects: tuple[Expect, ...] = field(default_factory=tuple)
 
     def variable(self, name: str) -> Variable:
         """이름으로 변수를 찾는다. 없으면 KeyError."""

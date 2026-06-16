@@ -71,15 +71,33 @@ class BoundUnreachable:
 
 
 @dataclass(frozen=True)
+class UnmetExpectation:
+    """기획자가 `expects:`로 단언한 도달성을 룰이 충족하지 못한 모순(D10).
+
+    `rules ∧ that`가 unsat이면 기대 상태가 도달 불가 — 봉쇄한 룰을 unsat_core로 짚는다.
+    """
+
+    expect_id: str
+    desc: str | None
+    culprit_rules: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class CheckReport:
     violations: tuple[RangeViolation, ...] = ()
     unreachable_states: tuple[UnreachableState, ...] = ()
     bound_unreachables: tuple[BoundUnreachable, ...] = ()
+    unmet_expectations: tuple[UnmetExpectation, ...] = ()
     unknowns: tuple[str, ...] = field(default_factory=tuple)
 
     @property
     def has_contradiction(self) -> bool:
-        return bool(self.violations or self.unreachable_states or self.bound_unreachables)
+        return bool(
+            self.violations
+            or self.unreachable_states
+            or self.bound_unreachables
+            or self.unmet_expectations
+        )
 
 
 def check(ruleset: RuleSet, translation: Translation) -> CheckReport:
@@ -158,12 +176,37 @@ def check(ruleset: RuleSet, translation: Translation) -> CheckReport:
                 if b is not None:
                     bound_unreachables.append(b)
 
+    # 명시적 도달성 단언(D10): 룰과 무관한 전역 검사라 enum 조합 순회 밖에서 한 번씩 본다.
+    unmet = _check_expects(ruleset, translation, unknowns)
+
     return CheckReport(
         violations=tuple(violations),
         unreachable_states=tuple(unreachable),
         bound_unreachables=tuple(bound_unreachables),
+        unmet_expectations=tuple(unmet),
         unknowns=tuple(unknowns),
     )
+
+
+def _check_expects(
+    ruleset: RuleSet, translation: Translation, unknowns: list[str]
+) -> list[UnmetExpectation]:
+    """각 expect의 `that` 조건이 룰 하에서 도달 가능한지(sat) 검사한다(D10).
+
+    `rules ∧ that`가 unsat이면 기대가 봉쇄된 것 — 범인 룰을 unsat_core로 짚는다.
+    """
+    results: list[UnmetExpectation] = []
+    for expect in ruleset.expects:
+        constraint = translation.expect_constraints[expect.id]
+        status, core = _feasibility(translation, [constraint])
+        if status == "unknown":
+            unknowns.append(f"기대 '{expect.id}' 도달성 검사에서 unknown")
+            continue
+        if status == "unsat":
+            results.append(
+                UnmetExpectation(expect_id=expect.id, desc=expect.desc, culprit_rules=core)
+            )
+    return results
 
 
 def _check_bound(

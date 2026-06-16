@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import ast
 
-from ruleforge.dsl.ir import Rule, RuleSet
+from ruleforge.dsl.ir import RuleSet
 
 
 class SchemaError(Exception):
@@ -40,6 +40,7 @@ def validate(ruleset: RuleSet) -> None:
     errors: list[str] = []
     errors.extend(_check_variable_bounds(ruleset))
     errors.extend(_check_duplicate_rule_ids(ruleset))
+    errors.extend(_check_duplicate_expect_ids(ruleset))
     errors.extend(_check_references(ruleset))
 
     if errors:
@@ -64,11 +65,21 @@ def _check_duplicate_rule_ids(ruleset: RuleSet) -> list[str]:
     return [f"중복된 rule id: '{d}'" for d in dups]
 
 
+def _check_duplicate_expect_ids(ruleset: RuleSet) -> list[str]:
+    seen: set[str] = set()
+    dups: list[str] = []
+    for e in ruleset.expects:
+        if e.id in seen and e.id not in dups:
+            dups.append(e.id)
+        seen.add(e.id)
+    return [f"중복된 expect id: '{d}'" for d in dups]
+
+
 def _check_references(ruleset: RuleSet) -> list[str]:
-    """표현식이 참조하는 심볼이 모두 정의돼 있는지 검사한다.
+    """표현식이 참조하는 심볼이 모두 정의돼 있는지 검사한다(룰과 expect 모두).
 
     유효 심볼 = 선언된 변수명 ∪ 모든 enum 값. (enum 값이 어느 변수 소속인지까지는
-    1차에서 따지지 않는다 — 오타 탐지가 목적.)
+    여기서 따지지 않는다 — 오타 탐지가 목적. 교차 enum 오용은 번역기가 잡는다, D8.)
     """
     known: set[str] = {v.name for v in ruleset.variables}
     for v in ruleset.variables:
@@ -79,18 +90,20 @@ def _check_references(ruleset: RuleSet) -> list[str]:
         for clause, expr in (("when", rule.when), ("then", rule.then)):
             if expr is None:
                 continue
-            errors.extend(_check_expr_references(rule, clause, expr, known))
+            errors.extend(_check_expr_references(f"룰 '{rule.id}'", clause, expr, known))
+    for expect in ruleset.expects:
+        errors.extend(_check_expr_references(f"기대 '{expect.id}'", "that", expect.that, known))
     return errors
 
 
-def _check_expr_references(rule: Rule, clause: str, expr: str, known: set[str]) -> list[str]:
+def _check_expr_references(subject: str, clause: str, expr: str, known: set[str]) -> list[str]:
     try:
         tree = ast.parse(expr, mode="eval")
     except SyntaxError as e:
-        return [f"룰 '{rule.id}'의 {clause} 표현식 구문 오류: {expr!r} ({e.msg})"]
+        return [f"{subject}의 {clause} 표현식 구문 오류: {expr!r} ({e.msg})"]
 
     errors: list[str] = []
     for name in sorted({n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}):
         if name not in known:
-            errors.append(f"룰 '{rule.id}'의 {clause}가 미정의 심볼을 참조: '{name}'")
+            errors.append(f"{subject}의 {clause}가 미정의 심볼을 참조: '{name}'")
     return errors

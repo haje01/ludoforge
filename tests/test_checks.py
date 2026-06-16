@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ruleforge.dsl.ir import Rule, RuleSet, Variable
+from ruleforge.dsl.ir import Expect, Rule, RuleSet, Variable
 from ruleforge.dsl.loader import load_rule_file
 from ruleforge.solver.checks import check
 from ruleforge.solver.translator import translate
@@ -184,6 +184,41 @@ def test_real_endpoints_reachable_has_no_contradiction() -> None:
     report = _check(rs)
     assert not report.has_contradiction
     assert report.unknowns == ()
+
+
+def test_unmet_expectation_reports_culprits() -> None:
+    # D10: 전사가 레벨 100에 도달 가능해야 한다고 단언했지만 hp 상한이 막는다.
+    rs = RuleSet(
+        variables=(
+            Variable(name="level", type="int", min=1, max=100),
+            Variable(name="hp", type="int", min=0),
+            Variable(name="role", type="enum", values=("warrior", "mage")),
+        ),
+        rules=(
+            Rule(id="warrior_hp", when="role == warrior", then="hp == level * 100"),
+            Rule(id="hp_cap", then="hp <= 5000"),
+        ),
+        expects=(Expect(id="warrior_max_level", that="role == warrior and level == 100"),),
+    )
+    report = _check(rs)
+    assert report.has_contradiction
+    assert len(report.unmet_expectations) == 1
+    u = report.unmet_expectations[0]
+    assert u.expect_id == "warrior_max_level"
+    assert set(u.culprit_rules) == {"warrior_hp", "hp_cap"}
+    assert report.unknowns == ()
+
+
+def test_met_expectation_has_no_contradiction() -> None:
+    # D10: 도달 가능한 단언은 모순이 아니다.
+    rs = RuleSet(
+        variables=(Variable(name="level", type="int", min=1, max=100),),
+        rules=(Rule(id="cap", then="level <= 100"),),
+        expects=(Expect(id="reach_100", that="level == 100"),),
+    )
+    report = _check(rs)
+    assert not report.has_contradiction
+    assert report.unmet_expectations == ()
 
 
 def test_no_unknowns_in_linear_cases() -> None:

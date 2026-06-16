@@ -211,6 +211,32 @@
 
 ---
 
+## D10. 명시적 도달성 단언 `expect:`
+
+- **상태:** 확정 (2026-06-16) — D3에서 1차 비목표로 보류했던 것을 2차에 도입
+- **맥락:** 지금까지 도달성은 **선언 도메인에서 자동 추론**했다(D3~D9). 그런데 "공격과
+  방어를 동시에 최대로 찍을 수 있어야 한다" 같은 **변수 조합의 도달성**은 변수별 경계
+  검사(D4)로 안 보인다(각 변수는 단독으로 최대에 도달하므로). 기획자가 이런 양의 도달성을
+  직접 선언할 수단이 필요하다.
+- **결정:** 최상위 `expects:` 섹션을 둔다. 각 항목은 `{ id, desc?, that }`이고 `that`는
+  "도달 가능해야 하는 조건" 표현식이다. 의미론: `domain ∧ rules ∧ that`가 **SAT이면 충족**,
+  **UNSAT이면 미충족**(룰이 봉쇄) → 모순으로 보고하고 봉쇄한 룰을 unsat_core로 짚는다.
+  자동 도달성 추론(D3)의 **역방향**이다. 구현은 기존 `_feasibility`(tracked solver)를
+  그대로 재사용한다 — `that`를 untracked로 add하고 룰을 tracked로 둬 core가 범인 룰이 된다.
+  enum 조합 순회와 무관한 **전역 검사**라 루프 밖에서 expect마다 한 번씩 본다.
+- **기각한 대안:**
+  - *도달성을 계속 자동 추론만*: 변수 조합 도달성(동시 최대 등)을 표현할 수 없다. D4의
+    변수별 경계는 결합 제약(`atk+def<=budget`)이 만드는 조합 봉쇄를 못 잡는다.
+  - *expect를 룰처럼 assert*: expect는 "막혀선 안 되는 상태"라 룰(불변식)과 의미가 반대다.
+    assert하면 오히려 제약이 되어버린다 — 별도 'sat이어야 함' 질의로 둬야 한다.
+- **영향:** IR에 `Expect`/`RuleSet.expects`, 로더 `expects:` 파싱, 스키마 중복 id·참조 검증,
+  translator `expect_constraints`, checks `_check_expects`/`UnmetExpectation`, report 포맷 추가.
+  examples/stat_budget.rule로 변수별 경계로는 안 보이는 동시 도달성 모순을 보인다. 한계:
+  `that` 표현식의 변수명은 파이썬 식별자 규칙을 따른다(예약어 `def` 등은 변수명 불가 — D2의
+  ast 파싱 특성).
+
+---
+
 ## 참고
 - 결정의 도메인 배경: [concepts.md](concepts.md) (특히 §4 — 도달 가능성 검사)
 - 살아있는 계획·진행: [../PLAN.md](../PLAN.md) / [../PROGRESS.md](../PROGRESS.md)
