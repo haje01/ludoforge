@@ -1,0 +1,19 @@
+# 예시 룰셋 (의도적 모순 포함) — 빠른 시작 데모용.
+# 전사 HP 공식 + 낮은 HP 상한 → 전사는 레벨 50까지만 가능해 선언된 레벨 100과 모순.
+domain:
+  variables:
+    level: { type: int, min: 1, max: 100 }
+    hp:    { type: int, min: 0 }
+    role:  { type: enum, values: [warrior, mage, archer] }
+
+rules:
+  - id: warrior_hp_formula
+    author: planner_A
+    desc: "전사 최대 HP는 레벨당 100"
+    when: "role == warrior"
+    then: "hp == level * 100"
+
+  - id: global_hp_cap
+    author: planner_B
+    desc: "모든 캐릭터 HP는 5000을 넘지 않는다"
+    then: "hp <= 5000"
