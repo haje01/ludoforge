@@ -1,0 +1,21 @@
+# 상호 배제로 상태가 봉쇄되는 모순 (D6 — 불리언 상태 변수)
+#
+# 기획자 A: "캐릭터는 은신(stealthed) 상태를 가질 수 있다" (도메인에 선언)
+# 기획자 B: "전투 진입 시 항상 공격(attacking) 상태가 된다" + "은신과 공격은 상호 배제"
+# → 두 룰이 함께 두면 은신 상태(stealthed=true)에 영영 도달할 수 없다.
+#   RuleForge는 "선언된 상태가 봉쇄됨"을 모순으로 짚는다(D3의 bool 확장).
+domain:
+  variables:
+    stealthed: { type: bool }
+    attacking: { type: bool }
+
+rules:
+  - id: combat_forces_attack
+    author: planner_B
+    desc: "전투 진입 시 항상 공격 상태"
+    then: "attacking"
+
+  - id: stealth_attack_mutex
+    author: planner_B
+    desc: "은신과 공격은 동시에 성립할 수 없다"
+    then: "not (stealthed and attacking)"

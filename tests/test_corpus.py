@@ -27,6 +27,7 @@ EXAMPLE_EXPECTED = {
     "item_enchant": True,
     "loot_table": True,
     "starter_zone_drops": True,
+    "stealth_combat": True,
     "balanced_stats": False,
 }
 
@@ -73,9 +74,9 @@ def test_dependent_variable_not_flagged_regression() -> None:
 
 def test_unreachable_role_pins_culprits() -> None:
     report = _run(FIXTURES / "contradiction" / "unreachable_role.rule")
-    assert len(report.unreachable_enums) == 1
-    ue = report.unreachable_enums[0]
-    assert ue.enum_assignment == {"role": "ghost"}
+    assert len(report.unreachable_states) == 1
+    ue = report.unreachable_states[0]
+    assert ue.assignment == {"role": "ghost"}
     assert set(ue.culprit_rules) == {"ghost_no_hp", "must_have_hp"}
 
 
@@ -94,7 +95,7 @@ def test_examples_directory_matches_expected_set() -> None:
 
 def test_conflicting_constants_global_infeasibility() -> None:
     report = _run(FIXTURES / "contradiction" / "conflicting_constants.rule")
-    assert len(report.unreachable_enums) == 1
-    ue = report.unreachable_enums[0]
-    assert ue.enum_assignment == {}  # enum 없음 → 전역 도달 불가
+    assert len(report.unreachable_states) == 1
+    ue = report.unreachable_states[0]
+    assert ue.assignment == {}  # enum 없음 → 전역 도달 불가
     assert set(ue.culprit_rules) == {"set_low", "set_high"}

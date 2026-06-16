@@ -92,6 +92,7 @@ domain:
     level: { type: int, min: 1, max: 100 }
     hp:    { type: int, min: 0 }
     role:  { type: enum, values: [warrior, mage, archer] }
+    stealthed: { type: bool }   # 불리언 상태(D6) — 추가 필드 없음
 
 rules:
   - id: warrior_hp_formula
@@ -111,12 +112,14 @@ rules:
 - 각 rule은 `assert_and_track(constraint, id)` 로 등록 → unsat core가 `id`를 반환.
 - enum은 Z3 정수 인코딩 또는 `Datatype` 사용. 비율/확률은 정수 분수 회피 위해
   스케일링(예: 1.2배 → `*12/10`)하거나 `Real` 사용.
+- bool은 z3.Bool로 번역(도메인 제약 없음). `then`이 bare atom/부정/등식이면 상태 제약이
+  된다. 자유 bool의 True/False 각 상태가 도달 가능한지 검사한다(D6).
 
 표현 가능해야 할 룰 패턴:
 - 수치 공식(LIA): 스탯/데미지/비용.
 - 조건부 효과: `Implies` (버프 활성 시 ...).
-- 상호 배제 상태: `Not(And(stealthed, attacking))`.
-- 비율/확률(LRA): 확률 합 = 1 등.
+- 상호 배제 상태: `Not(And(stealthed, attacking))`. **(구현됨, D6)**
+- 비율/확률(LRA): 확률 합 = 1 등. (2차 후보)
 
 **주의:** 비선형 산술(변수×변수, 예 `atk * crit_mult`)은 NIA라 느리거나
 결정 불가. 가능하면 한쪽 상수화 또는 구간 분할.

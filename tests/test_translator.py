@@ -71,6 +71,33 @@ def test_warrior_hp_is_forced_by_formula() -> None:
     assert s.check() == z3.unsat
 
 
+def test_bool_variable_translates_to_z3_bool() -> None:
+    # 두 불리언 상태와 상호 배제 룰: 둘 다 True면 unsat (Not(And(...))).
+    rs = RuleSet(
+        variables=(
+            Variable(name="stealthed", type="bool"),
+            Variable(name="attacking", type="bool"),
+        ),
+        rules=(Rule(id="mutex", then="not (stealthed and attacking)"),),
+    )
+    t = translate(rs)
+    assert set(t.z3_vars) == {"stealthed", "attacking"}
+    assert z3.is_bool(t.z3_vars["stealthed"])
+    s = _solver_with(t, t.z3_vars["stealthed"], t.z3_vars["attacking"])
+    assert s.check() == z3.unsat
+
+
+def test_bool_literal_constant_allowed() -> None:
+    # True/False 리터럴은 bool 식에서 허용된다 (정수 화이트리스트의 예외).
+    rs = RuleSet(
+        variables=(Variable(name="stealthed", type="bool"),),
+        rules=(Rule(id="force", then="stealthed == True"),),
+    )
+    t = translate(rs)
+    s = _solver_with(t, z3.Not(t.z3_vars["stealthed"]))
+    assert s.check() == z3.unsat
+
+
 def test_disallowed_function_call_raises() -> None:
     rs = RuleSet(
         variables=(Variable(name="hp", type="int", min=0),),

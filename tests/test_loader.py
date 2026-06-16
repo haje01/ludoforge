@@ -66,6 +66,17 @@ def test_unknown_variable_type_names_the_variable(tmp_path: Path) -> None:
         load_rule_file(f)
 
 
+def test_loads_bool_variable(tmp_path: Path) -> None:
+    f = tmp_path / "b.rule"
+    f.write_text(
+        "domain:\n  variables:\n    stealthed: { type: bool }\nrules: []\n",
+        encoding="utf-8",
+    )
+    rs = load_rule_file(f)
+    v = rs.variable("stealthed")
+    assert (v.type, v.min, v.max, v.values) == ("bool", None, None, ())
+
+
 def test_enum_without_values_names_the_variable(tmp_path: Path) -> None:
     f = tmp_path / "bad_enum.rule"
     f.write_text(

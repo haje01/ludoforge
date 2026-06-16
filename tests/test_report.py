@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from ruleforge.solver.checks import CheckReport, RangeViolation, UnreachableEnum
+from ruleforge.solver.checks import CheckReport, RangeViolation, UnreachableState
 from ruleforge.solver.report import format_report
 
 
@@ -20,7 +20,7 @@ def test_range_violation_is_human_readable() -> None:
     report = CheckReport(
         violations=(
             RangeViolation(
-                enum_assignment={"role": "warrior"},
+                assignment={"role": "warrior"},
                 variable="level",
                 bound="max",
                 declared=100,
@@ -41,7 +41,7 @@ def test_min_bound_violation_wording() -> None:
     report = CheckReport(
         violations=(
             RangeViolation(
-                enum_assignment={},
+                assignment={},
                 variable="gold",
                 bound="min",
                 declared=0,
@@ -57,8 +57,8 @@ def test_min_bound_violation_wording() -> None:
 
 def test_unreachable_enum_is_reported() -> None:
     report = CheckReport(
-        unreachable_enums=(
-            UnreachableEnum(enum_assignment={"role": "a"}, culprit_rules=("a_sets_x", "x_floor")),
+        unreachable_states=(
+            UnreachableState(assignment={"role": "a"}, culprit_rules=("a_sets_x", "x_floor")),
         )
     )
     text = format_report(report)

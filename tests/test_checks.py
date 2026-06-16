@@ -32,7 +32,7 @@ def test_warrior_hp_contradiction_pins_level_and_culprits() -> None:
     assert v.variable == "level"
     assert v.bound == "max"
     assert (v.declared, v.achievable) == (100, 50)
-    assert v.enum_assignment == {"role": "warrior"}
+    assert v.assignment == {"role": "warrior"}
     assert set(v.culprit_rules) == {"warrior_hp_formula", "global_hp_cap"}
 
 
@@ -52,7 +52,7 @@ def test_consistent_ruleset_has_no_contradiction() -> None:
     report = _check(rs)
     assert not report.has_contradiction
     assert report.violations == ()
-    assert report.unreachable_enums == ()
+    assert report.unreachable_states == ()
 
 
 def test_unreachable_enum_value_is_reported() -> None:
@@ -69,10 +69,31 @@ def test_unreachable_enum_value_is_reported() -> None:
     )
     report = _check(rs)
     assert report.has_contradiction
-    assert len(report.unreachable_enums) == 1
-    ue = report.unreachable_enums[0]
-    assert ue.enum_assignment == {"role": "a"}
+    assert len(report.unreachable_states) == 1
+    ue = report.unreachable_states[0]
+    assert ue.assignment == {"role": "a"}
     assert set(ue.culprit_rules) == {"a_sets_x", "x_floor"}
+
+
+def test_bool_state_blocked_by_mutex_is_reported() -> None:
+    # D6: attacking이 항상 강제되고 상호 배제이므로 stealthed=true는 도달 불가.
+    # attacking은 무조건 강제(종속)라 검사 대상에서 빠지고, 자유 bool인 stealthed만 잡힌다.
+    rs = load_rule_file(FIXTURES / "contradiction" / "stealth_blocked.rule")
+    report = _check(rs)
+    assert report.has_contradiction
+    assert len(report.unreachable_states) == 1
+    ue = report.unreachable_states[0]
+    assert ue.assignment == {"stealthed": "true"}
+    assert set(ue.culprit_rules) == {"always_attacking", "stealth_mutex"}
+    assert report.unknowns == ()
+
+
+def test_free_bool_with_mutex_has_no_false_positive() -> None:
+    # D6 거짓양성 회귀: 상호 배제만 있고 둘 다 자유면 각 상태가 도달 가능 → 모순 없음.
+    rs = load_rule_file(FIXTURES / "consistent" / "stealth_mutex_ok.rule")
+    report = _check(rs)
+    assert not report.has_contradiction
+    assert report.unknowns == ()
 
 
 def test_no_unknowns_in_linear_cases() -> None:

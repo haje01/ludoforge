@@ -96,6 +96,35 @@
 
 ---
 
+## D6. 불리언 상태 변수와 상호 배제 — 도달성으로 검사
+
+- **상태:** 확정 (2026-06-16) — 2차 첫 항목, D3~D5를 bool로 확장
+- **맥락:** 상호 배제(`Not(And(stealthed, attacking))`)는 1차 비목표(D1)였다. 실제 룰엔
+  "은신과 공격 동시 불가" 같은 상태 제약이 흔해 2차 첫 항목으로 골랐다. bool 타입과
+  그 모순 검사 의미론을 정해야 한다.
+- **결정:**
+  - **타입:** `Variable.type`에 `"bool"` 추가. z3.Bool로 번역하고 도메인 제약은 없다
+    (자유 True/False). 표현식 화이트리스트(D2)에 불리언 리터럴 `True`/`False`를 허용.
+  - **모순 의미론:** bool도 D3을 따른다 — 선언된 상태(True/False 각각)가 룰 하에서
+    도달 가능해야 한다. 상호 배제 등으로 한 상태가 봉쇄되면 모순으로 보고하고 범인 룰을
+    unsat_core로 짚는다.
+  - **구현:** D4의 "데카르트 곱 회피" 정신을 따라 **자유 bool별 도달성**으로 검사한다.
+    각 enum 조합(실행 가능한 것) 안에서 자유 bool의 True/False를 각각 고정해 feasibility를
+    본다. enum×bool 전 조합을 순회하지 않으므로 조합 폭발과 중복 보고가 없다.
+  - **종속 bool 제외(D5 일관):** 무조건(`when` 없는) 룰로 상수 고정되는 bool(bare atom
+    `x` / `not x` / `x == True/False`)은 종속으로 보고 검사에서 제외한다. 조건부(`when`)로만
+    강제되는 bool은 자유로 남겨, 그 강제가 상호 배제와 충돌해 상태를 봉쇄하면 모순으로 잡는다.
+- **기각한 대안:**
+  - *표현식 지원만(도달성 검사 제외)*: bool 룰을 쓸 수는 있으나 "상태 봉쇄"를 못 잡아
+    상호 배제 모순 탐지라는 본래 가치를 놓친다(PLAN의 동기와 불일치).
+  - *enum×bool 데카르트 곱으로 도달성 검사*: enum 값이 전역 불가일 때 그 bool 조합 전부가
+    중복 보고되고 조합이 폭발한다 — D4가 이미 기각한 함정의 재현.
+- **영향:** checks.py에 `_check_bool_states`/`_determined_bools` 추가. `UnreachableState`
+  (구 `UnreachableEnum`)와 `assignment`(구 `enum_assignment`) 필드가 enum·bool 상태를
+  공통 표현. 남은 검증 포인트: 종속 bool 휴리스틱이 의도 외 bool을 오분류하지 않는지 코퍼스로 확인.
+
+---
+
 ## 참고
 - 결정의 도메인 배경: [concepts.md](concepts.md) (특히 §4 — 도달 가능성 검사)
 - 살아있는 계획·진행: [../PLAN.md](../PLAN.md) / [../PROGRESS.md](../PROGRESS.md)

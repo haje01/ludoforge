@@ -1,7 +1,8 @@
 """중간표현(IR): DSL 텍스트와 Z3 번역 사이의 불변 자료구조.
 
 설계 원칙(CLAUDE.md §7): IR은 frozen 데이터클래스. 순수 데이터만 담고 IO는 없다.
-1차 범위(D1)는 LIA 수치 변수(int)와 enum 변수, `when`/`then` 룰만 표현한다.
+1차 범위(D1)는 LIA 수치 변수(int)와 enum 변수, `when`/`then` 룰만 표현했고,
+2차(D6)에서 불리언 상태 변수(bool)를 추가했다.
 """
 
 from __future__ import annotations
@@ -9,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-VariableType = Literal["int", "enum"]
+VariableType = Literal["int", "enum", "bool"]
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,7 @@ class Variable:
 
     - int: `min`/`max`로 선언 범위를 둔다(없으면 None = 무한).
     - enum: `values`에 허용 값 목록을 둔다.
+    - bool: 추가 필드 없음. True/False 두 상태를 자유롭게 가진다(상호 배제 등, D6).
     """
 
     name: str

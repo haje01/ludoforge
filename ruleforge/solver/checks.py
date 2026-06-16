@@ -9,6 +9,10 @@ Solver의 unsat_core로 범인 룰을 추출한다.
 종속 변수(예: hp == level*100의 hp)는 값이 공식으로 결정되므로 선언 범위 미달이
 정상이다 — 거짓 양성을 피하려 검사 대상에서 제외한다(사용자 결정).
 
+불리언 상태 변수(D6)도 같은 틀로 검사한다: 자유 bool의 True/False 각 상태가 룰 하에서
+도달 가능한지 확인하고(상호 배제 등으로) 봉쇄되면 모순으로 보고한다. 무조건 강제로
+값이 고정된 bool은 종속으로 보고 제외한다.
+
 Z3가 unknown(타임아웃/비선형)을 반환하면 sat/unsat으로 뭉개지 않고 별도 보고한다
 (CLAUDE.md §8).
 """
@@ -30,7 +34,7 @@ from ruleforge.solver.translator import Translation
 class RangeViolation:
     """독립 변수의 선언 경계가 룰에 의해 도달 불가능해진 모순."""
 
-    enum_assignment: dict[str, str]
+    assignment: dict[str, str]
     variable: str
     bound: Literal["min", "max"]
     declared: int
@@ -39,31 +43,35 @@ class RangeViolation:
 
 
 @dataclass(frozen=True)
-class UnreachableEnum:
-    """특정 enum 값 조합 자체가 룰 하에서 도달 불가능한 모순."""
+class UnreachableState:
+    """특정 상태(enum 값 조합 또는 자유 bool의 한 상태)가 룰 하에서 도달 불가능한 모순."""
 
-    enum_assignment: dict[str, str]
+    assignment: dict[str, str]
     culprit_rules: tuple[str, ...]
 
 
 @dataclass(frozen=True)
 class CheckReport:
     violations: tuple[RangeViolation, ...] = ()
-    unreachable_enums: tuple[UnreachableEnum, ...] = ()
+    unreachable_states: tuple[UnreachableState, ...] = ()
     unknowns: tuple[str, ...] = field(default_factory=tuple)
 
     @property
     def has_contradiction(self) -> bool:
-        return bool(self.violations or self.unreachable_enums)
+        return bool(self.violations or self.unreachable_states)
 
 
 def check(ruleset: RuleSet, translation: Translation) -> CheckReport:
     """룰셋의 도달성 모순을 검사한다."""
     dependent = _dependent_variables(ruleset)
     target_vars = [v for v in ruleset.variables if v.type == "int" and v.name not in dependent]
+    determined_bools = _determined_bools(ruleset)
+    target_bools = [
+        v for v in ruleset.variables if v.type == "bool" and v.name not in determined_bools
+    ]
 
     violations: list[RangeViolation] = []
-    unreachable: list[UnreachableEnum] = []
+    unreachable: list[UnreachableState] = []
     unknowns: list[str] = []
 
     for assignment in _enum_assignments(ruleset):
@@ -77,8 +85,15 @@ def check(ruleset: RuleSet, translation: Translation) -> CheckReport:
             unknowns.append(f"{assignment or '전역'} 실행 가능성 검사에서 unknown")
             continue
         if status == "unsat":
-            unreachable.append(UnreachableEnum(enum_assignment=assignment, culprit_rules=core))
+            unreachable.append(UnreachableState(assignment=assignment, culprit_rules=core))
             continue
+
+        # 자유 bool의 각 상태(True/False)가 룰 하에서 도달 가능한지 검사한다(D6).
+        # int 경계 검사(D4)와 동형 — enum×bool 데카르트 곱 대신 변수별 도달성으로 본다.
+        for bvar in target_bools:
+            unreachable.extend(
+                _check_bool_states(translation, enum_fix, assignment, bvar.name, unknowns)
+            )
 
         for var in target_vars:
             z3var = translation.z3_vars[var.name]
@@ -97,7 +112,7 @@ def check(ruleset: RuleSet, translation: Translation) -> CheckReport:
 
     return CheckReport(
         violations=tuple(violations),
-        unreachable_enums=tuple(unreachable),
+        unreachable_states=tuple(unreachable),
         unknowns=tuple(unknowns),
     )
 
@@ -126,13 +141,84 @@ def _check_bound(
 
     core = _culprit(translation, enum_fix, z3var, declared)
     return RangeViolation(
-        enum_assignment=assignment,
+        assignment=assignment,
         variable=var_name,
         bound=bound,
         declared=declared,
         achievable=achievable,
         culprit_rules=core,
     )
+
+
+def _check_bool_states(
+    translation: Translation,
+    enum_fix: list[Any],
+    assignment: dict[str, str],
+    bvar_name: str,
+    unknowns: list[str],
+) -> list[UnreachableState]:
+    """한 자유 bool의 True/False 각각이 도달 가능한지 검사한다(D6).
+
+    실행 가능한 enum 조합 안에서는 둘 중 최소 하나는 반드시 도달 가능하므로,
+    봉쇄되는 상태는 많아야 하나다. 봉쇄되면 범인 룰을 unsat_core로 짚는다.
+    """
+    z3b = translation.z3_vars[bvar_name]
+    found: list[UnreachableState] = []
+    for value in (True, False):
+        status, core = _feasibility(translation, [*enum_fix, z3b == z3.BoolVal(value)])
+        label = "true" if value else "false"
+        if status == "unknown":
+            unknowns.append(
+                f"{assignment or '전역'} 변수 '{bvar_name}'={label} 도달성 검사에서 unknown"
+            )
+            continue
+        if status == "unsat":
+            found.append(
+                UnreachableState(assignment={**assignment, bvar_name: label}, culprit_rules=core)
+            )
+    return found
+
+
+def _determined_bools(ruleset: RuleSet) -> set[str]:
+    """무조건(`when` 없는) 룰로 상수 강제되는 bool 집합(종속).
+
+    기획자가 명시적으로 값을 고정한 bool은 반대 상태가 도달 불가여도 정상이므로
+    도달성 검사에서 제외한다(D5와 같은 거짓양성 회피). 조건부(`when`)로만 강제되는
+    bool은 자유로 남겨, 그 강제가 상호 배제와 충돌해 상태를 봉쇄하면 모순으로 잡는다.
+    """
+    bool_names = {v.name for v in ruleset.variables if v.type == "bool"}
+    determined: set[str] = set()
+    for rule in ruleset.rules:
+        if rule.when is not None:
+            continue
+        name = _forced_bool_atom(ast.parse(rule.then, mode="eval").body)
+        if name in bool_names:
+            determined.add(name)
+    return determined
+
+
+def _forced_bool_atom(node: ast.AST) -> str | None:
+    """`then`이 bool을 상수로 고정하면 그 변수명을 돌려준다(아니면 None).
+
+    인식 형태: bare atom(`x`), 부정(`not x`), 불리언 등식(`x == True`/`False == x`).
+    """
+    if isinstance(node, ast.Name):
+        return node.id
+    if (
+        isinstance(node, ast.UnaryOp)
+        and isinstance(node.op, ast.Not)
+        and isinstance(node.operand, ast.Name)
+    ):
+        return node.operand.id
+    if isinstance(node, ast.Compare) and len(node.ops) == 1 and isinstance(node.ops[0], ast.Eq):
+        for a, b in ((node.left, node.comparators[0]), (node.comparators[0], node.left)):
+            if isinstance(a, ast.Name) and _is_bool_const(b):
+                return a.id
+    return None
+
+
+def _is_bool_const(node: ast.AST) -> bool:
+    return isinstance(node, ast.Constant) and isinstance(node.value, bool)
 
 
 def _dependent_variables(ruleset: RuleSet) -> set[str]:

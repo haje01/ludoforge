@@ -95,6 +95,11 @@ def _build_domain(
     enum_encoding: dict[str, dict[str, int]] = {}
 
     for v in ruleset.variables:
+        if v.type == "bool":
+            # 불리언 상태(D6): z3.Bool. 자유 True/False라 도메인 제약은 없다.
+            z3_vars[v.name] = z3.Bool(v.name)
+            continue
+
         var = z3.Int(v.name)
         z3_vars[v.name] = var
         if v.type == "int":
@@ -149,8 +154,10 @@ def _translate_expr(node: ast.AST, symbols: dict[str, Any]) -> Any:
         return symbols[node.id]
 
     if isinstance(node, ast.Constant):
-        if isinstance(node.value, bool) or not isinstance(node.value, int):
-            raise TranslationError(f"지원하지 않는 상수: {node.value!r} (정수만 허용)")
+        if isinstance(node.value, bool):
+            return z3.BoolVal(node.value)  # 불리언 리터럴(D6)
+        if not isinstance(node.value, int):
+            raise TranslationError(f"지원하지 않는 상수: {node.value!r} (정수/불리언만 허용)")
         return node.value
 
     raise TranslationError(f"지원하지 않는 표현식 요소: {type(node).__name__}")

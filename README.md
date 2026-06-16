@@ -131,8 +131,9 @@ uv run mypy            # 타입 검사 (strict)
 
 ## 문서
 
-- [소개 슬라이드 (docs/intro-slides.md)](docs/intro-slides.md) — 기획자·프로그래머
-  대상 발표 자료(Marp). `.pptx`/`.pdf`로 내보낼 수 있다.
+- [소개 슬라이드 (docs/build_slides.py)](docs/build_slides.py) — 기획자·프로그래머
+  대상 발표 자료. `uv run docs/build_slides.py`로 `docs/intro-slides.pptx`를
+  생성한다(python-pptx, 네이티브 편집 가능 슬라이드). 콘텐츠는 스크립트에 내장.
 - [예제 모음 (examples/)](examples/README.md) — 아이템 강화·드롭 확률·등급 등
   실제 게임 기획에서 나올 법한 모순 예제와 정합 예제.
 - [기본 개념 설명 (일반 프로그래머용)](docs/concepts.md) — SMT/Z3, unsat core,
@@ -142,4 +143,6 @@ uv run mypy            # 타입 검사 (strict)
 - [PLAN.md](PLAN.md) / [PROGRESS.md](PROGRESS.md) — 구현 계획과 진행 상태.
 
 > 1차 마일스톤(수직 슬라이스) 완료: 정수 선형 수치 공식 + 조건부(`when`) 룰 + enum을
-> 지원한다. 상호 배제·확률(LRA)·CI PR 코멘트 연동은 후속 단계다.
+> 지원한다. 2차에서 불리언 상태 변수(상호 배제, D6)를 추가했다 —
+> `not (stealthed and attacking)` 류 룰로 봉쇄되는 상태를 모순으로 짚는다.
+> 확률(LRA)·CI PR 코멘트 연동은 후속 단계다.

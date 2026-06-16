@@ -14,7 +14,7 @@ import yaml
 
 from ruleforge.dsl.ir import Rule, RuleSet, Variable
 
-_VALID_TYPES = ("int", "enum")
+_VALID_TYPES = ("int", "enum", "bool")
 
 
 class LoaderError(Exception):
@@ -100,6 +100,9 @@ def _parse_variable(name: str, spec: Any, path: Path) -> Variable:
             min=_parse_opt_int(spec.get("min"), name, "min", path),
             max=_parse_opt_int(spec.get("max"), name, "max", path),
         )
+
+    if vtype == "bool":
+        return Variable(name=name, type="bool")
 
     # enum
     values = spec.get("values")
