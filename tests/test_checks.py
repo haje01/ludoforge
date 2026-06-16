@@ -135,6 +135,57 @@ def test_duplicate_enum_names_contradiction_resolved_by_context() -> None:
     assert any(s.get("gate") == "on" for s in states)
 
 
+def test_real_declared_max_blocked_is_reported() -> None:
+    # D9: prob∈[0,1]인데 룰이 prob<=0.5로 막으면 선언 max=1.0 끝점에 도달 불가.
+    rs = RuleSet(
+        variables=(Variable(name="prob", type="real", min=0.0, max=1.0),),
+        rules=(Rule(id="cap_half", then="prob <= 0.5"),),
+    )
+    report = _check(rs)
+    assert report.has_contradiction
+    assert len(report.bound_unreachables) == 1
+    b = report.bound_unreachables[0]
+    assert (b.variable, b.bound, b.declared) == ("prob", "max", 1.0)
+    assert set(b.culprit_rules) == {"cap_half"}
+    assert report.unknowns == ()
+
+
+def test_real_declared_min_blocked_is_reported() -> None:
+    # D9: 룰이 prob>=0.6이면 선언 min=0.0 끝점에 도달 불가.
+    rs = RuleSet(
+        variables=(Variable(name="prob", type="real", min=0.0, max=1.0),),
+        rules=(Rule(id="floor", then="prob >= 0.6"),),
+    )
+    report = _check(rs)
+    bounds = {(b.variable, b.bound) for b in report.bound_unreachables}
+    assert ("prob", "min") in bounds
+    assert all(set(b.culprit_rules) == {"floor"} for b in report.bound_unreachables)
+
+
+def test_dependent_real_excluded_from_bound_check() -> None:
+    # D9: 공식으로 값이 결정되는 종속 real은 끝점 미달이 정상 → 거짓양성 없음(D5 일관).
+    rs = RuleSet(
+        variables=(Variable(name="ratio", type="real", min=0.0, max=1.0),),
+        rules=(Rule(id="fixed", then="ratio == 1"),),
+    )
+    report = _check(rs)
+    assert report.bound_unreachables == ()
+
+
+def test_real_endpoints_reachable_has_no_contradiction() -> None:
+    # 합=1만 있으면 common은 0(rare=1)·1(rare=0) 양 끝점에 도달 가능 → 모순 없음.
+    rs = RuleSet(
+        variables=(
+            Variable(name="common", type="real", min=0.0, max=1.0),
+            Variable(name="rare", type="real", min=0.0, max=1.0),
+        ),
+        rules=(Rule(id="sum_one", then="common + rare == 1.0"),),
+    )
+    report = _check(rs)
+    assert not report.has_contradiction
+    assert report.unknowns == ()
+
+
 def test_no_unknowns_in_linear_cases() -> None:
     report = _check(load_rule_file(FIXTURES / "warrior_hp.rule"))
     assert report.unknowns == ()

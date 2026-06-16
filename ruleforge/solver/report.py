@@ -7,13 +7,20 @@ unknown은 절대 숨기지 않는다.
 
 from __future__ import annotations
 
-from ruleforge.solver.checks import CheckReport, RangeViolation, UnreachableState
+from ruleforge.solver.checks import (
+    BoundUnreachable,
+    CheckReport,
+    RangeViolation,
+    UnreachableState,
+)
 
 
 def format_report(report: CheckReport) -> str:
     """검사 결과를 한국어 리포트 문자열로 만든다."""
     lines: list[str] = []
-    contradictions = len(report.violations) + len(report.unreachable_states)
+    contradictions = (
+        len(report.violations) + len(report.unreachable_states) + len(report.bound_unreachables)
+    )
 
     if contradictions == 0:
         lines.append("✅ 모순이 발견되지 않았습니다.")
@@ -26,6 +33,9 @@ def format_report(report: CheckReport) -> str:
             index += 1
         for v in report.violations:
             lines.append(_format_violation(index, v))
+            index += 1
+        for bu in report.bound_unreachables:
+            lines.append(_format_bound_unreachable(index, bu))
             index += 1
 
     if report.unknowns:
@@ -65,3 +75,10 @@ def _format_violation(index: int, v: RangeViolation) -> str:
 def _format_unreachable(index: int, ue: UnreachableState) -> str:
     cond = _format_assignment(ue.assignment)
     return f"[{index}] {cond} 조합 자체가 도달 불가능합니다.\n{_format_culprits(ue.culprit_rules)}"
+
+
+def _format_bound_unreachable(index: int, bu: BoundUnreachable) -> str:
+    cond = _format_assignment(bu.assignment)
+    label = "최대값" if bu.bound == "max" else "최소값"
+    detail = f"'{bu.variable}'의 선언 {label} {bu.declared}에 도달할 수 없습니다."
+    return f"[{index}] {cond}일 때 {detail}\n{_format_culprits(bu.culprit_rules)}"

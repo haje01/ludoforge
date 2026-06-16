@@ -30,6 +30,7 @@ EXAMPLE_EXPECTED = {
     "stealth_combat": True,
     "drop_rates_real": True,
     "day_night_cycle": True,
+    "crit_chance": True,
     "balanced_stats": False,
 }
 
@@ -93,6 +94,15 @@ def test_examples_directory_matches_expected_set() -> None:
     # 예제 파일이 추가/삭제되면 기대표(EXAMPLE_EXPECTED)도 함께 갱신하도록 강제.
     actual = {p.stem for p in EXAMPLES.glob("*.rule")}
     assert actual == set(EXAMPLE_EXPECTED), f"examples/ 변경됨: {actual}"
+
+
+def test_real_cap_blocks_declared_max() -> None:
+    # D9: real 끝점 검사 — 선언 max=1.0이 룰(<=0.3)로 봉쇄됨을 정확히 짚는다.
+    report = _run(FIXTURES / "contradiction" / "real_cap_blocks_max.rule")
+    assert len(report.bound_unreachables) == 1
+    b = report.bound_unreachables[0]
+    assert (b.variable, b.bound, b.declared) == ("drop_rate", "max", 1.0)
+    assert set(b.culprit_rules) == {"rate_capped"}
 
 
 def test_conflicting_constants_global_infeasibility() -> None:

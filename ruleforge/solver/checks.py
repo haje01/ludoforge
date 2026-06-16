@@ -13,10 +13,11 @@ Solver의 unsat_core로 범인 룰을 추출한다.
 도달 가능한지 확인하고(상호 배제 등으로) 봉쇄되면 모순으로 보고한다. 무조건 강제로
 값이 고정된 bool은 종속으로 보고 제외한다.
 
-실수 변수(real, LRA, D7)는 reachability 선택자(int/enum/bool)에 들지 않아 도달성을
-직접 검사하지 않는다 — domain·rule 제약으로 feasibility에만 참여한다. 따라서 "확률 합=1"
-류의 over-constraint/enum 조건부 모순은 잡지만, 선언 min/max gap(범위 도달성)은 비대상이다
-(Optimize-on-real의 비-도달 상한 문제 때문, D7에서 후속으로 미룸).
+실수 변수(real, LRA, D7)는 feasibility에 참여해 "확률 합=1" 류 over-constraint/enum
+조건부 모순을 잡는다. 더해 선언 min/max **끝점** 도달성을 검사한다(D9, A-i): `var ==
+선언끝점`이 unsat이면 봉쇄로 보고한다. int(D4)과 달리 Optimize로 정확한 달성값을 구하지
+않고 끝점 sat 여부만 본다(비-도달 상한 epsilon 문제 회피 — 정밀 gap은 후속 A-ii). 종속
+real(공식으로 결정)은 끝점 미달이 정상이라 제외한다(D5 일관).
 
 Z3가 unknown(타임아웃/비선형)을 반환하면 sat/unsat으로 뭉개지 않고 별도 보고한다
 (CLAUDE.md §8).
@@ -56,20 +57,36 @@ class UnreachableState:
 
 
 @dataclass(frozen=True)
+class BoundUnreachable:
+    """real 변수의 선언 경계(min/max) 끝점이 룰에 의해 도달 불가능한 모순(D9, 끝점 검사).
+
+    int(D4)과 달리 정확한 달성값은 구하지 않는다 — 선언 끝점이 sat인지만 본다(A-i).
+    """
+
+    assignment: dict[str, str]
+    variable: str
+    bound: Literal["min", "max"]
+    declared: float
+    culprit_rules: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class CheckReport:
     violations: tuple[RangeViolation, ...] = ()
     unreachable_states: tuple[UnreachableState, ...] = ()
+    bound_unreachables: tuple[BoundUnreachable, ...] = ()
     unknowns: tuple[str, ...] = field(default_factory=tuple)
 
     @property
     def has_contradiction(self) -> bool:
-        return bool(self.violations or self.unreachable_states)
+        return bool(self.violations or self.unreachable_states or self.bound_unreachables)
 
 
 def check(ruleset: RuleSet, translation: Translation) -> CheckReport:
     """룰셋의 도달성 모순을 검사한다."""
     dependent = _dependent_variables(ruleset)
     target_vars = [v for v in ruleset.variables if v.type == "int" and v.name not in dependent]
+    real_targets = [v for v in ruleset.variables if v.type == "real" and v.name not in dependent]
     determined_bools = _determined_bools(ruleset)
     target_bools = [
         v for v in ruleset.variables if v.type == "bool" and v.name not in determined_bools
@@ -77,6 +94,7 @@ def check(ruleset: RuleSet, translation: Translation) -> CheckReport:
 
     violations: list[RangeViolation] = []
     unreachable: list[UnreachableState] = []
+    bound_unreachables: list[BoundUnreachable] = []
     unknowns: list[str] = []
 
     for assignment in _enum_assignments(ruleset):
@@ -123,9 +141,27 @@ def check(ruleset: RuleSet, translation: Translation) -> CheckReport:
                 if v is not None:
                     violations.append(v)
 
+        # real 변수(D9): 선언 min/max 끝점이 도달 가능한지 feasibility로 검사한다(A-i).
+        # int 경계 검사와 대칭이되 달성값은 구하지 않고 끝점 sat 여부만 본다(epsilon 회피).
+        for var in real_targets:
+            z3rvar = translation.z3_vars[var.name]
+            rbounds: tuple[tuple[Literal["min", "max"], float | None], ...] = (
+                ("max", var.max),
+                ("min", var.min),
+            )
+            for bound, declared in rbounds:
+                if declared is None:
+                    continue
+                b = _check_real_bound(
+                    translation, enum_fix, assignment, var.name, z3rvar, bound, declared, unknowns
+                )
+                if b is not None:
+                    bound_unreachables.append(b)
+
     return CheckReport(
         violations=tuple(violations),
         unreachable_states=tuple(unreachable),
+        bound_unreachables=tuple(bound_unreachables),
         unknowns=tuple(unknowns),
     )
 
@@ -159,6 +195,35 @@ def _check_bound(
         bound=bound,
         declared=declared,
         achievable=achievable,
+        culprit_rules=core,
+    )
+
+
+def _check_real_bound(
+    translation: Translation,
+    enum_fix: list[Any],
+    assignment: dict[str, str],
+    var_name: str,
+    z3var: Any,
+    bound: Literal["min", "max"],
+    declared: float,
+    unknowns: list[str],
+) -> BoundUnreachable | None:
+    """real 변수의 선언 끝점(var == declared)이 도달 가능한지 feasibility로 검사한다(D9, A-i).
+
+    끝점이 unsat이면 봉쇄로 보고 범인 룰을 unsat_core로 짚는다. 달성값은 구하지 않는다.
+    """
+    status, core = _feasibility(translation, [*enum_fix, z3var == declared])
+    if status == "unknown":
+        unknowns.append(f"{assignment or '전역'} 변수 '{var_name}' {bound} 끝점 검사에서 unknown")
+        return None
+    if status != "unsat":
+        return None
+    return BoundUnreachable(
+        assignment=assignment,
+        variable=var_name,
+        bound=bound,
+        declared=declared,
         culprit_rules=core,
     )
 

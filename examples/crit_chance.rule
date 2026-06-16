@@ -1,0 +1,16 @@
+# 실수 확률의 선언 상한이 룰로 봉쇄되는 모순 (LRA, D9 — 끝점 도달성 검사)
+#
+# 크리티컬 확률을 [0, 1] 실수로 선언했지만, 수확체감 룰이 0.5로 막아
+# 선언 최대값 1.0(=100%)에는 어떤 값으로도 도달할 수 없다.
+# RuleForge는 선언 끝점이 봉쇄됐음을 모순으로 짚는다(정수 경계 검사 D4의 실수 대칭).
+#
+# 검사: ruleforge check examples/crit_chance.rule  (모순 1건, 종료코드 1)
+domain:
+  variables:
+    crit_chance: { type: real, min: 0, max: 1 }
+
+rules:
+  - id: diminishing_returns
+    author: planner_combat
+    desc: "크리티컬 확률은 수확체감으로 0.5를 넘지 못한다"
+    then: "crit_chance <= 0.5"

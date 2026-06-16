@@ -51,13 +51,23 @@ LIA 수치 공식 + 조건부(`when`) 룰 + enum을 지원하고, 세 가지 모
   변수의 sort로 해석. 교차 enum 오용은 친절한 에러. sort 라벨은 프로세스 단위 유일.
 - checks는 실질 변경 없음(enum_fix가 `const == const`). examples/day_night_cycle.rule.
 
+### ✅ 완료: Real 범위 도달성 (끝점 feasibility) — D9 (2026-06-16)
+
+D7이 미룬 조각. real 변수의 선언 min/max **끝점**이 룰 하에서 도달 가능한지 검사한다
+(사용자 결정: **A-i 끝점 feasibility** — Optimize/epsilon 회피). 확정 설계는
+[docs/decisions.md](docs/decisions.md) D9 참조. 핵심:
+
+- `check()`에 real 끝점 검사(`var == 끝점` sat?) + 새 보고 타입 `BoundUnreachable`.
+- 종속 real은 제외(D5 일관). 정확한 달성값은 비계산(정밀 gap은 후속 A-ii).
+- prob_ok.rule을 진짜 정합으로 정정 + examples/crit_chance.rule.
+
 ## 2차 후보 (대기 — 우선순위·범위 미확정)
 
 1차에서 의도적으로 미룬 것들. 실제 룰에서 병목이 되는 순서로 골라 진행한다.
 각 항목은 착수 시 별도 설계 결정(D번호)과 테스트 코퍼스를 동반한다.
 
-- **Real 범위 도달성**: 선언 min/max gap을 Optimize로(epsilon/비-도달 상한 처리). D7의 후속.
-- **경계 검사 확장**: Optimize로 이론적 최대/최소 vs 기획 의도 상한을 더 폭넓게.
+- **Real 범위 도달성 — 완전 Optimize(A-ii)**: 정확한 달성값·gap·접근(`<`) 구분. D9의 후속.
+- **경계 검사 확장**: 종속 변수 정보성 리포트 / 선언 도메인과 별개의 기획 의도 상한.
 - **CI 통합**: PR마다 자동 실행 + 모순을 PR 코멘트로 리포트.
 - **명시적 도달성 단언(`expect:`)**: 기획자가 "이 상태는 도달 가능해야 한다"를
   직접 선언(D3에서 1차 비목표로 보류).

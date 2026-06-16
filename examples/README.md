@@ -1,7 +1,8 @@
 # 예제 룰셋 모음
 
-실제 게임 기획에서 나올 법한 모순을 담은 예제다. RuleForge가 잡아내는 네 가지
-모순 유형(범위 봉쇄 / enum 도달 불가 / 전역 over-constraint / 상태 봉쇄)과 정합 케이스를 보여준다.
+실제 게임 기획에서 나올 법한 모순을 담은 예제다. RuleForge가 잡아내는 모순 유형
+(범위 봉쇄 / enum 도달 불가 / 전역 over-constraint / 상태 봉쇄 / 실수 끝점 봉쇄)과
+정합 케이스를 보여준다.
 
 각 파일은 **자기완결적**(domain + rules)이라 개별로 검사한다.
 서로 도메인이 달라 함께 병합하면 안 되므로 `ruleforge check examples/`처럼
@@ -12,6 +13,7 @@
 | [`item_enchant.rule`](item_enchant.rule) | 범위 봉쇄 | 전설 아이템 강화 한도(0~10)가 파워 상한(500)에 막혀 5까지만 가능 |
 | [`loot_table.rule`](loot_table.rule) | 전역 over-constraint | 드롭 확률 합 100% 제약과 "common≥90%·epic≥15%"가 동시 성립 불가(105%) |
 | [`drop_rates_real.rule`](drop_rates_real.rule) | 전역 over-constraint (실수) | 위 모순을 정수 스케일링 없이 실수 확률(합=1.0)로 직접 표현 (LRA, D7) |
+| [`crit_chance.rule`](crit_chance.rule) | 실수 끝점 봉쇄 | 크리율을 [0,1]로 선언했지만 수확체감 룰(≤0.5)이 선언 최대값 1.0을 막음 (D9) |
 | [`starter_zone_drops.rule`](starter_zone_drops.rule) | enum 도달 불가 | 레벨 상한 40인 초보 존에서 레벨 50+ 를 요구하는 unique 등급은 등장 불가 |
 | [`stealth_combat.rule`](stealth_combat.rule) | 상태 봉쇄 | "항상 공격" 룰과 "은신·공격 상호 배제"가 함께 두면 은신 상태에 영영 도달 불가 (D6) |
 | [`day_night_cycle.rule`](day_night_cycle.rule) | enum 도달 불가 (중복 값) | sky·lighting이 같은 값 이름(day/night)을 쓰며, 두 시스템이 밤 조명을 상충 강제해 sky=night 봉쇄 (D8) |
@@ -36,8 +38,8 @@ $ ruleforge check examples/balanced_stats.rule
 ✅ 모순이 발견되지 않았습니다.
 ```
 
-네 가지 모순이 각각 다른 경로로 탐지된다는 점에 주목하자. `item_enchant`는
-독립 변수(강화 레벨)의 선언 범위가 봉쇄된 경우, `starter_zone_drops`는 특정 enum
-값(unique) 조합이 통째로 불가능한 경우, `loot_table`은 enum 없이 전역적으로 어떤
-값 조합도 제약을 만족 못 하는 경우, `stealth_combat`은 자유 불리언 상태(은신=true)가
-상호 배제로 봉쇄된 경우다(D6).
+각 모순이 다른 경로로 탐지된다는 점에 주목하자. `item_enchant`는 독립 변수(강화 레벨)의
+선언 범위가 봉쇄된 경우, `starter_zone_drops`는 특정 enum 값(unique) 조합이 통째로
+불가능한 경우, `loot_table`은 enum 없이 전역적으로 어떤 값 조합도 제약을 만족 못 하는
+경우, `stealth_combat`은 자유 불리언 상태(은신=true)가 상호 배제로 봉쇄된 경우(D6),
+`crit_chance`는 실수 변수의 선언 끝점(최대 1.0)이 룰로 봉쇄된 경우다(D9).

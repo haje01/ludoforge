@@ -116,8 +116,9 @@ rules:
   bool은 z3.Bool로 번역(도메인 제약 없음). `then`이 bare atom/부정/등식이면 상태 제약이
   된다. 자유 bool의 True/False 각 상태가 도달 가능한지 검사한다(D6).
 - real은 z3.Real로 번역(LRA, D7). 선언 min/max는 feasibility 제약. 나눗셈 `/`는
-  **상수 분모만** 허용(`1/3` → 정확한 유리수). 변수 분모는 비선형이라 거부. real 변수는
-  feasibility에만 참여하고 범위 도달성(min/max gap)은 비검사다(D7 결정).
+  **상수 분모만** 허용(`1/3` → 정확한 유리수). 변수 분모는 비선형이라 거부. real의 선언
+  min/max **끝점** 도달성도 검사한다(D9): `var == 끝점`이 unsat이면 봉쇄로 보고(끝점
+  feasibility, 정확한 달성값은 비계산 — Optimize/epsilon 회피).
 
 표현 가능해야 할 룰 패턴:
 - 수치 공식(LIA): 스탯/데미지/비용.

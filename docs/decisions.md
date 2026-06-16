@@ -185,6 +185,32 @@
 
 ---
 
+## D9. Real 범위 도달성 = 끝점 feasibility (A-i)
+
+- **상태:** 확정 (2026-06-16) — D7이 미룬 조각
+- **맥락:** D7은 real을 feasibility에만 참여시키고 선언 min/max **범위 도달성**은 미뤘다.
+  이유는 Z3 Optimize로 실수 최적값을 구하면 비-도달 상한(strict `<`)이 `1 - ε`(무한소)·
+  `oo` 같은 특수 산술로 나와 `.as_long()`이 안 통하기 때문. int(D4)은 Optimize로 정확한
+  달성값을 구하지만 real은 그 길이 험하다.
+- **결정(사용자):** **끝점 feasibility(A-i)** — real 변수의 선언 끝점이 도달 가능한지
+  `var == 선언끝점`의 sat 여부로만 검사한다. unsat이면 봉쇄로 보고하고 범인 룰을
+  unsat_core로 짚는다. 정확한 달성값(예: "0.5까지만")은 구하지 않는다. Optimize/epsilon을
+  전혀 쓰지 않아 안전하고, 기존 feasibility 기계(`_feasibility`)를 그대로 재사용한다.
+  종속 real(공식으로 값 결정)은 끝점 미달이 정상이라 제외한다(D5 일관).
+- **기각한 대안:**
+  - *완전 Optimize(A-ii)*: 정확한 gap·"접근(`<`) vs 봉쇄" 구분까지 주지만 ε·∞·Fraction
+    해석이 필요해 비용·위험이 크다. 끝점 검사만으로 "선언 범위가 봉쇄됐다"는 핵심 신호는
+    이미 잡히므로 점진 전략으로 A-ii를 후속(PLAN "2차 후보")으로 둔다.
+  - *real 도달성 계속 미검사(D7 상태 유지)*: int과 비대칭이고, "[0,1] 선언 후 룰이
+    0.3으로 막음" 같은 흔한 모순을 놓친다.
+- **영향:** checks.py에 `_check_real_bound`와 새 보고 타입 `BoundUnreachable`(달성값 필드
+  없음 — A-i가 안 구함) 추가. report.py에 끝점 봉쇄 포맷 추가. **부수효과:** D7 때
+  정합으로 뒀던 prob_ok.rule이 사실 선언 끝점(common min 0)을 floor 룰로 막고 있어
+  D9에선 모순이 된다 — 룰을 정정해 진짜 정합으로 바꿨다. examples/crit_chance.rule로
+  실수 끝점 봉쇄를 보인다.
+
+---
+
 ## 참고
 - 결정의 도메인 배경: [concepts.md](concepts.md) (특히 §4 — 도달 가능성 검사)
 - 살아있는 계획·진행: [../PLAN.md](../PLAN.md) / [../PROGRESS.md](../PROGRESS.md)
