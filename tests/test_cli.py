@@ -57,6 +57,18 @@ def test_missing_path_exits_2(tmp_path: Path) -> None:
     assert result.exit_code == 2
 
 
+def test_rules_only_file_alone_gives_directory_hint(tmp_path: Path) -> None:
+    # rules만 있는 파일을 단독 검사하면 디렉토리 검사를 안내한다.
+    f = tmp_path / "planner_a.rule"
+    f.write_text(
+        "rules:\n  - id: warrior_hp\n    when: 'role == warrior'\n    then: 'hp == level * 100'\n",
+        encoding="utf-8",
+    )
+    result = runner.invoke(app, ["check", str(f)])
+    assert result.exit_code == 2
+    assert "디렉토리" in result.output
+
+
 def test_directory_merges_files_for_cross_file_contradiction(tmp_path: Path) -> None:
     # 기획자 A: 도메인 + 전사 공식. 기획자 B: HP 상한. 따로 보면 정상, 합치면 모순.
     (tmp_path / "a.rule").write_text(

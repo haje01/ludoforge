@@ -28,6 +28,15 @@ class SchemaError(Exception):
 
 def validate(ruleset: RuleSet) -> None:
     """룰셋의 참조 무결성을 검사한다. 문제가 있으면 SchemaError를 던진다."""
+    # 룰은 있는데 domain 변수가 전혀 없으면, rules-only 파일을 단독 검사한 경우가
+    # 대부분이다. 미정의 심볼 에러를 쏟아내는 대신 디렉토리 검사를 안내한다.
+    if ruleset.rules and not ruleset.variables:
+        raise SchemaError(
+            f"룰 {len(ruleset.rules)}개가 있지만 domain 변수 선언이 없습니다.\n"
+            "이 파일이 rules만 담고 있다면, 공유 domain 파일이 함께 있는 "
+            "디렉토리를 검사하세요 (예: ruleforge check <폴더>)."
+        )
+
     errors: list[str] = []
     errors.extend(_check_variable_bounds(ruleset))
     errors.extend(_check_duplicate_rule_ids(ruleset))

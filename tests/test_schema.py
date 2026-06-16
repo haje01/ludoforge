@@ -43,6 +43,13 @@ def test_duplicate_rule_id_is_reported() -> None:
         validate(rs)
 
 
+def test_rules_without_any_domain_gives_directory_hint() -> None:
+    # rules만 있고 domain 변수가 없으면(= rules-only 파일 단독 검사) 디렉토리 검사를 안내.
+    rs = RuleSet(variables=(), rules=(Rule(id="r1", then="hp <= 5000"),))
+    with pytest.raises(SchemaError, match="디렉토리"):
+        validate(rs)
+
+
 def test_undefined_variable_reference_is_reported() -> None:
     rs = RuleSet(
         variables=_domain(),
