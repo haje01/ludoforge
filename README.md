@@ -131,6 +131,8 @@ uv run mypy            # 타입 검사 (strict)
 
 ## 문서
 
+- [소개 슬라이드 (docs/intro-slides.md)](docs/intro-slides.md) — 기획자·프로그래머
+  대상 발표 자료(Marp). `.pptx`/`.pdf`로 내보낼 수 있다.
 - [예제 모음 (examples/)](examples/README.md) — 아이템 강화·드롭 확률·등급 등
   실제 게임 기획에서 나올 법한 모순 예제와 정합 예제.
 - [기본 개념 설명 (일반 프로그래머용)](docs/concepts.md) — SMT/Z3, unsat core,
