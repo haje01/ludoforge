@@ -29,6 +29,7 @@ ruleforge/
   solver/     # translator.py(IR→Z3) checks.py(검사) report.py(리포트)
   cli.py      # 진입점
 rules/        # 실제 기획 룰 (.rule), git SSOT
+examples/     # 게임 기획 모순/정합 예제 (.rule)
 tests/        # 모순/정합 코퍼스 포함
 docs/         # 문서
 ```
