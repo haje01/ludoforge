@@ -155,6 +155,36 @@
 
 ---
 
+## D8. enum 인코딩 = Z3 EnumSort, 중복 값 이름은 문맥 해석
+
+- **상태:** 확정 (2026-06-16) — 2차, 1차 enum 한계 해소
+- **맥락:** 1차는 enum을 0,1,2… 정수로 인코딩하고 변수는 `[0, n-1]` Int로 뒀다. 이 방식은
+  (a) `role < mage` 같은 무의미한 순서 비교/산술이 우연히 허용되고, (b) enum 값 이름을
+  전역으로 해석해 **서로 다른 enum이 같은 값 이름**(예: 두 enum 모두 `active`)을 쓰면
+  충돌했다. 실제 룰에서 상태 enum이 같은 라벨을 공유하는 일은 흔하다.
+- **결정:**
+  - **인코딩:** 각 enum 변수를 고유 `z3.EnumSort`로 만든다(변수=Const, 값=sort 상수).
+    유한·상호 배타라 도메인 제약이 불필요하고, 순서 비교/산술은 sort상 자연히 막힌다.
+    (조사 결과 기존 룰은 모두 `enum_var == value` 동등 비교뿐이라 순서 제거가 안전.)
+  - **중복 값 disambiguation = 문맥 기반(사용자 결정):** 바깥 문법(`role == warrior`)을
+    유지한다. 비교에서 한쪽이 enum 변수면 다른쪽 bare 값 이름을 그 변수의 enum sort
+    값으로 해석한다(`_translate_compare`). 전역 유일한 값만 심볼표에 두고, 중복 이름은
+    문맥으로만 푼다. 다른 enum의 값을 잘못 비교하면 원시 z3 sort 에러 대신 친절한
+    TranslationError를 낸다.
+  - **sort 라벨 유일성:** z3 전역 컨텍스트는 같은 이름의 enum sort 재선언을 거부하므로,
+    sort 라벨에 프로세스 단위 일련번호를 붙여 `translate()` 반복 호출(테스트 등) 충돌을
+    막는다. 라벨은 내부용이라 의미에 영향 없음.
+- **기각한 대안:**
+  - *정규화 문법 `role.warrior`*: 모호함은 0이나 ast.Attribute 도입 + 기존 모든 룰
+    마이그레이션(비호환). 모든 사용처가 `var == value`라 문맥 해석으로 충분.
+  - *정수 인코딩 유지(타입 안전만)*: 중복 값 이름 지원이라는 본래 목표를 못 채운다.
+- **영향:** `Translation.enum_encoding`이 {값: 정수}에서 {값: z3 sort 상수}로 바뀜. checks.py는
+  enum_fix가 `const == const`로 그대로 동작해 실질 변경 없음. examples/day_night_cycle.rule로
+  중복 값 이름 시나리오를 보인다. 한계: 서로 다른 enum 변수끼리 직접 비교(`var1 == var2`,
+  다른 sort)는 타입 오류다(의도적 — 의미가 없음).
+
+---
+
 ## 참고
 - 결정의 도메인 배경: [concepts.md](concepts.md) (특히 §4 — 도달 가능성 검사)
 - 살아있는 계획·진행: [../PLAN.md](../PLAN.md) / [../PROGRESS.md](../PROGRESS.md)

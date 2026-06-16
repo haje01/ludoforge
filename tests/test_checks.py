@@ -115,6 +115,26 @@ def test_real_probability_consistent_has_no_contradiction() -> None:
     assert report.unknowns == ()
 
 
+def test_duplicate_enum_names_contradiction_resolved_by_context() -> None:
+    # D8: 두 enum이 같은 값 이름(on/off). gate==on이면 valve==off 강제인데 valve는 항상 on.
+    # 비교 문맥으로 각 값을 제 sort로 풀어 gate==on 상태 봉쇄를 정확히 잡는다.
+    rs = RuleSet(
+        variables=(
+            Variable(name="gate", type="enum", values=("on", "off")),
+            Variable(name="valve", type="enum", values=("on", "off")),
+        ),
+        rules=(
+            Rule(id="gate_closes_valve", when="gate == on", then="valve == off"),
+            Rule(id="valve_forced_on", then="valve == on"),
+        ),
+    )
+    report = _check(rs)
+    assert report.has_contradiction
+    assert report.unknowns == ()
+    states = [ue.assignment for ue in report.unreachable_states]
+    assert any(s.get("gate") == "on" for s in states)
+
+
 def test_no_unknowns_in_linear_cases() -> None:
     report = _check(load_rule_file(FIXTURES / "warrior_hp.rule"))
     assert report.unknowns == ()

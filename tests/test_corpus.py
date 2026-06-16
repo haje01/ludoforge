@@ -29,6 +29,7 @@ EXAMPLE_EXPECTED = {
     "starter_zone_drops": True,
     "stealth_combat": True,
     "drop_rates_real": True,
+    "day_night_cycle": True,
     "balanced_stats": False,
 }
 

@@ -41,6 +41,16 @@ LIA 수치 공식 + 조건부(`when`) 룰 + enum을 지원하고, 세 가지 모
 - Real 범위 도달성(선언 min/max gap)은 Optimize-on-real의 epsilon 문제로 후속 미룸.
 - examples/drop_rates_real.rule로 정수 스케일링 없는 표현을 보임.
 
+### ✅ 완료: enum 인코딩 고도화 (정수 → Z3 EnumSort) — D8 (2026-06-16)
+
+정수 인코딩을 Z3 `EnumSort`로 교체해 타입 안전성을 얻고, **서로 다른 enum이 같은 값
+이름**을 쓰는 1차 한계를 해소했다. 확정 설계는 [docs/decisions.md](docs/decisions.md) D8 참조. 핵심:
+
+- enum→EnumSort(변수=Const, 값=sort 상수). 정수 순서/산술 우연 허용 제거(쓰는 곳 없음).
+- 중복 값 disambiguation = **문맥 기반**(사용자 결정): `role == warrior`의 값을 비교 상대
+  변수의 sort로 해석. 교차 enum 오용은 친절한 에러. sort 라벨은 프로세스 단위 유일.
+- checks는 실질 변경 없음(enum_fix가 `const == const`). examples/day_night_cycle.rule.
+
 ## 2차 후보 (대기 — 우선순위·범위 미확정)
 
 1차에서 의도적으로 미룬 것들. 실제 룰에서 병목이 되는 순서로 골라 진행한다.
@@ -49,8 +59,6 @@ LIA 수치 공식 + 조건부(`when`) 룰 + enum을 지원하고, 세 가지 모
 - **Real 범위 도달성**: 선언 min/max gap을 Optimize로(epsilon/비-도달 상한 처리). D7의 후속.
 - **경계 검사 확장**: Optimize로 이론적 최대/최소 vs 기획 의도 상한을 더 폭넓게.
 - **CI 통합**: PR마다 자동 실행 + 모순을 PR 코멘트로 리포트.
-- **enum 인코딩 고도화**: 정수 인코딩 → Z3 `Datatype`. 서로 다른 enum이 같은 값
-  이름을 쓰는 경우 지원(현재 1차 한계).
 - **명시적 도달성 단언(`expect:`)**: 기획자가 "이 상태는 도달 가능해야 한다"를
   직접 선언(D3에서 1차 비목표로 보류).
 

@@ -111,9 +111,10 @@ rules:
 번역 규칙:
 - `when` → `Implies(when_expr, then_expr)`.
 - 각 rule은 `assert_and_track(constraint, id)` 로 등록 → unsat core가 `id`를 반환.
-- enum은 Z3 정수 인코딩. bool은 z3.Bool로 번역(도메인 제약 없음). `then`이 bare
-  atom/부정/등식이면 상태 제약이 된다. 자유 bool의 True/False 각 상태가 도달 가능한지
-  검사한다(D6).
+- enum은 Z3 `EnumSort`(변수=Const, 값=sort 상수, D8). 서로 다른 enum이 같은 값 이름을
+  써도 안전하며, `role == warrior`의 값은 비교 상대 변수의 sort로 해석한다(문맥 기반).
+  bool은 z3.Bool로 번역(도메인 제약 없음). `then`이 bare atom/부정/등식이면 상태 제약이
+  된다. 자유 bool의 True/False 각 상태가 도달 가능한지 검사한다(D6).
 - real은 z3.Real로 번역(LRA, D7). 선언 min/max는 feasibility 제약. 나눗셈 `/`는
   **상수 분모만** 허용(`1/3` → 정확한 유리수). 변수 분모는 비선형이라 거부. real 변수는
   feasibility에만 참여하고 범위 도달성(min/max gap)은 비검사다(D7 결정).

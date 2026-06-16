@@ -1,0 +1,27 @@
+# 서로 다른 enum이 같은 값 이름을 쓰는 모순 (D8 — EnumSort + 문맥 해석)
+#
+# sky와 lighting은 둘 다 [day, night] 값을 쓴다. 1차(정수 인코딩)에서는 같은 값
+# 이름을 전역으로 해석해 이런 룰셋을 지원하지 못했다. EnumSort는 각 enum을 별도
+# sort로 두고, `sky == night`의 night를 비교 상대 sky의 값으로 해석한다.
+#
+# 기획 모순: 두 시스템이 '밤 하늘'일 때 조명을 서로 반대로 강제한다(낮 ↔ 밤).
+# 그 결과 'sky=night' 상태에는 어떤 조명 값으로도 도달할 수 없다.
+#
+# 검사: ruleforge check examples/day_night_cycle.rule  (모순 발견, 종료코드 1)
+domain:
+  variables:
+    sky:      { type: enum, values: [day, night] }
+    lighting: { type: enum, values: [day, night] }
+
+rules:
+  - id: night_sky_needs_dark
+    author: planner_world
+    desc: "밤 하늘이면 조명도 밤"
+    when: "sky == night"
+    then: "lighting == night"
+
+  - id: night_combat_forces_day
+    author: planner_combat
+    desc: "밤 전투 가시성을 위해 조명을 낮으로 강제(상충 룰)"
+    when: "sky == night"
+    then: "lighting == day"

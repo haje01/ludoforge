@@ -4,27 +4,33 @@
 `eval`은 절대 쓰지 않으며, 허용 외 노드는 명시적 TranslationError를 던진다.
 
 산출물(Translation):
-- z3_vars:           변수명 → Z3 정수 변수
-- domain_constraints: 선언 범위(min/max, enum 범위) 제약 목록
+- z3_vars:           변수명 → Z3 변수(int/real/bool/enum sort 상수)
+- domain_constraints: 선언 범위(int/real min/max) 제약 목록
 - rule_constraints:  rule_id → 룰 제약(`when`이면 Implies(when, then))
-- enum_encoding:     enum 변수명 → {값: 정수}
+- enum_encoding:     enum 변수명 → {값: z3 EnumSort 상수}
 
 assert_and_track(Solver 작업)은 여기서 하지 않는다 — 검사 단계(S5)의 책임이다.
 
-enum 인코딩: 값을 0,1,2... 정수로 매핑하고 변수는 [0, n-1] 범위의 Int로 둔다.
-1차에서는 서로 다른 enum 변수가 같은 값 이름을 쓰는 경우를 지원하지 않는다
-(표현식의 enum 값을 전역 이름으로 해석하기 때문). 필요해지면 그때 한정한다.
+enum(D8): 각 enum 변수를 고유 z3 EnumSort로 만든다(상호 배타·유한이라 도메인 제약 불필요).
+sort가 다르므로 서로 다른 enum이 같은 값 이름을 써도 안전하다. 표현식의 bare 값 이름은
+비교 문맥에서 상대 변수의 enum sort로 해석한다(`_translate_compare`).
 """
 
 from __future__ import annotations
 
 import ast
+import itertools
 from dataclasses import dataclass
 from typing import Any
 
 import z3
 
 from ruleforge.dsl.ir import RuleSet
+
+# z3는 전역 컨텍스트에서 같은 이름의 enum sort를 두 번 선언하면 예외를 던진다.
+# translate()가 여러 번 호출돼도(테스트 등) 충돌하지 않도록 sort 라벨을 프로세스 단위로
+# 유일하게 만든다. 라벨은 내부용이며 제약식의 의미(satisfiability)에는 영향이 없다(D8).
+_enum_sort_seq = itertools.count()
 
 
 class TranslationError(Exception):
@@ -36,7 +42,7 @@ class Translation:
     z3_vars: dict[str, Any]
     domain_constraints: list[Any]
     rule_constraints: dict[str, Any]
-    enum_encoding: dict[str, dict[str, int]]
+    enum_encoding: dict[str, dict[str, Any]]  # enum 변수명 → {값: z3 EnumSort 상수} (D8)
 
 
 # ast 비교 연산자 → (좌, 우) → Z3 식
@@ -61,18 +67,21 @@ def translate(ruleset: RuleSet) -> Translation:
     """검증된 RuleSet을 Z3 제약식으로 번역한다."""
     z3_vars, domain_constraints, enum_encoding = _build_domain(ruleset)
 
-    # 표현식 번역용 심볼표: 변수명 → Z3 변수, enum 값 이름 → 정수.
+    # 표현식 번역용 심볼표: 변수명 → Z3 변수. enum 값은 전역 유일한 것만 심볼로 둔다.
+    # 중복 이름(서로 다른 enum이 같은 값)은 비교 문맥에서 상대 변수의 sort로 해석한다(D8).
     symbols: dict[str, Any] = dict(z3_vars)
+    counts = _value_counts(enum_encoding)
     for encoding in enum_encoding.values():
-        for value, code in encoding.items():
-            symbols[value] = code
+        for value, const in encoding.items():
+            if counts[value] == 1 and value not in symbols:
+                symbols[value] = const
 
     rule_constraints: dict[str, Any] = {}
     for rule in ruleset.rules:
         try:
-            then_expr = _translate_expr(_parse(rule.then), symbols)
+            then_expr = _translate_expr(_parse(rule.then), symbols, enum_encoding)
             if rule.when is not None:
-                when_expr = _translate_expr(_parse(rule.when), symbols)
+                when_expr = _translate_expr(_parse(rule.when), symbols, enum_encoding)
                 rule_constraints[rule.id] = z3.Implies(when_expr, then_expr)
             else:
                 rule_constraints[rule.id] = then_expr
@@ -89,10 +98,10 @@ def translate(ruleset: RuleSet) -> Translation:
 
 def _build_domain(
     ruleset: RuleSet,
-) -> tuple[dict[str, Any], list[Any], dict[str, dict[str, int]]]:
+) -> tuple[dict[str, Any], list[Any], dict[str, dict[str, Any]]]:
     z3_vars: dict[str, Any] = {}
     domain_constraints: list[Any] = []
-    enum_encoding: dict[str, dict[str, int]] = {}
+    enum_encoding: dict[str, dict[str, Any]] = {}
 
     for v in ruleset.variables:
         if v.type == "bool":
@@ -110,18 +119,21 @@ def _build_domain(
                 domain_constraints.append(rvar <= v.max)
             continue
 
+        if v.type == "enum":
+            # enum(D8): z3 EnumSort. 각 enum이 고유 sort라 값이 sort로 구별된다
+            # (서로 다른 enum이 같은 값 이름을 써도 안전). 유한·상호 배타라 도메인 제약 불필요.
+            sort_label = f"{v.name}__enum{next(_enum_sort_seq)}"
+            sort, consts = z3.EnumSort(sort_label, list(v.values))
+            z3_vars[v.name] = z3.Const(v.name, sort)
+            enum_encoding[v.name] = dict(zip(v.values, consts, strict=True))
+            continue
+
         var = z3.Int(v.name)
         z3_vars[v.name] = var
-        if v.type == "int":
-            if v.min is not None:
-                domain_constraints.append(var >= v.min)
-            if v.max is not None:
-                domain_constraints.append(var <= v.max)
-        else:  # enum: 0..n-1 정수 인코딩
-            encoding = {value: i for i, value in enumerate(v.values)}
-            enum_encoding[v.name] = encoding
-            domain_constraints.append(var >= 0)
-            domain_constraints.append(var <= len(v.values) - 1)
+        if v.min is not None:
+            domain_constraints.append(var >= v.min)
+        if v.max is not None:
+            domain_constraints.append(var <= v.max)
 
     return z3_vars, domain_constraints, enum_encoding
 
@@ -131,10 +143,21 @@ def _parse(expr: str) -> ast.expr:
     return ast.parse(expr, mode="eval").body
 
 
-def _translate_expr(node: ast.AST, symbols: dict[str, Any]) -> Any:
+def _value_counts(enum_encoding: dict[str, dict[str, Any]]) -> dict[str, int]:
+    """enum 값 이름이 전체 enum에서 몇 번 등장하는지 센다(중복 이름 판별용, D8)."""
+    counts: dict[str, int] = {}
+    for encoding in enum_encoding.values():
+        for value in encoding:
+            counts[value] = counts.get(value, 0) + 1
+    return counts
+
+
+def _translate_expr(
+    node: ast.AST, symbols: dict[str, Any], enums: dict[str, dict[str, Any]]
+) -> Any:
     """화이트리스트 노드만 Z3 식으로 재귀 변환한다. 그 외는 TranslationError."""
     if isinstance(node, ast.BoolOp):
-        parts = [_translate_expr(v, symbols) for v in node.values]
+        parts = [_translate_expr(v, symbols, enums) for v in node.values]
         if isinstance(node.op, ast.And):
             return z3.And(*parts)
         if isinstance(node.op, ast.Or):
@@ -142,7 +165,7 @@ def _translate_expr(node: ast.AST, symbols: dict[str, Any]) -> Any:
         raise TranslationError("지원하지 않는 불리언 연산자")
 
     if isinstance(node, ast.UnaryOp):
-        operand = _translate_expr(node.operand, symbols)
+        operand = _translate_expr(node.operand, symbols, enums)
         if isinstance(node.op, ast.Not):
             return z3.Not(operand)
         if isinstance(node.op, ast.USub):
@@ -151,14 +174,16 @@ def _translate_expr(node: ast.AST, symbols: dict[str, Any]) -> Any:
 
     if isinstance(node, ast.BinOp):
         if isinstance(node.op, ast.Div):
-            return _translate_div(node, symbols)
+            return _translate_div(node, symbols, enums)
         op = _BIN_OPS.get(type(node.op))
         if op is None:
             raise TranslationError(f"지원하지 않는 산술 연산자: {type(node.op).__name__}")
-        return op(_translate_expr(node.left, symbols), _translate_expr(node.right, symbols))
+        left = _translate_expr(node.left, symbols, enums)
+        right = _translate_expr(node.right, symbols, enums)
+        return op(left, right)
 
     if isinstance(node, ast.Compare):
-        return _translate_compare(node, symbols)
+        return _translate_compare(node, symbols, enums)
 
     if isinstance(node, ast.Name):
         if node.id not in symbols:
@@ -177,22 +202,56 @@ def _translate_expr(node: ast.AST, symbols: dict[str, Any]) -> Any:
     raise TranslationError(f"지원하지 않는 표현식 요소: {type(node).__name__}")
 
 
-def _translate_compare(node: ast.Compare, symbols: dict[str, Any]) -> Any:
-    """단일/연쇄 비교를 And로 묶어 번역한다 (예: 1 <= x <= 3 → x>=1 ∧ x<=3)."""
-    operands = [_translate_expr(node.left, symbols)]
-    operands.extend(_translate_expr(c, symbols) for c in node.comparators)
+def _translate_compare(
+    node: ast.Compare, symbols: dict[str, Any], enums: dict[str, dict[str, Any]]
+) -> Any:
+    """단일/연쇄 비교를 And로 묶어 번역한다 (예: 1 <= x <= 3 → x>=1 ∧ x<=3).
+
+    enum 비교는 문맥으로 값을 해석한다(D8): `role == warrior`에서 `warrior`는 상대
+    피연산자 `role`의 enum sort 값으로 푼다. 서로 다른 enum의 같은 값 이름을 구별하고,
+    다른 enum의 값을 잘못 쓰면 친절한 에러를 낸다.
+    """
+    operand_nodes = [node.left, *node.comparators]
 
     comparisons = []
     for i, op in enumerate(node.ops):
         fn = _COMPARE_OPS.get(type(op))
         if fn is None:
             raise TranslationError(f"지원하지 않는 비교 연산자: {type(op).__name__}")
-        comparisons.append(fn(operands[i], operands[i + 1]))
+        left, right = _resolve_compare_pair(operand_nodes[i], operand_nodes[i + 1], symbols, enums)
+        comparisons.append(fn(left, right))
 
     return comparisons[0] if len(comparisons) == 1 else z3.And(*comparisons)
 
 
-def _translate_div(node: ast.BinOp, symbols: dict[str, Any]) -> Any:
+def _resolve_compare_pair(
+    a_node: ast.expr, b_node: ast.expr, symbols: dict[str, Any], enums: dict[str, dict[str, Any]]
+) -> tuple[Any, Any]:
+    """비교 한 쌍을 번역하되, 한쪽이 enum 변수면 다른쪽 bare 값을 그 enum sort로 해석한다."""
+    a_enum = a_node.id if isinstance(a_node, ast.Name) and a_node.id in enums else None
+    b_enum = b_node.id if isinstance(b_node, ast.Name) and b_node.id in enums else None
+    a = _resolve_operand(a_node, symbols, enums, hint=b_enum)
+    b = _resolve_operand(b_node, symbols, enums, hint=a_enum)
+    return a, b
+
+
+def _resolve_operand(
+    node: ast.expr, symbols: dict[str, Any], enums: dict[str, dict[str, Any]], hint: str | None
+) -> Any:
+    """hint(상대 enum 변수명)가 있으면 bare 값 이름을 그 enum의 sort 상수로 해석한다."""
+    if hint is not None and isinstance(node, ast.Name) and node.id not in enums:
+        hint_values = enums[hint]
+        if node.id in hint_values:
+            return hint_values[node.id]
+        # 다른 enum의 값을 이 enum과 비교한 오용 → 친절한 에러(원시 z3 sort 에러 방지).
+        if any(node.id in vals for vals in enums.values()):
+            raise TranslationError(f"'{node.id}'은(는) enum '{hint}'의 값이 아닙니다")
+    return _translate_expr(node, symbols, enums)
+
+
+def _translate_div(
+    node: ast.BinOp, symbols: dict[str, Any], enums: dict[str, dict[str, Any]]
+) -> Any:
     """상수 분모 나눗셈만 허용한다(선형 LRA, D7).
 
     변수 분모(a/b)는 비선형(NIA/NRA)이라 거부한다. 분자는 Real로 올려 나눗셈을
@@ -206,7 +265,7 @@ def _translate_div(node: ast.BinOp, symbols: dict[str, Any]) -> Any:
     assert isinstance(divisor, ast.Constant)
     if divisor.value == 0:
         raise TranslationError("0으로 나눌 수 없습니다")
-    numerator = _as_real(_translate_expr(node.left, symbols))
+    numerator = _as_real(_translate_expr(node.left, symbols, enums))
     return numerator / z3.RealVal(divisor.value)
 
 

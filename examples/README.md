@@ -14,6 +14,7 @@
 | [`drop_rates_real.rule`](drop_rates_real.rule) | 전역 over-constraint (실수) | 위 모순을 정수 스케일링 없이 실수 확률(합=1.0)로 직접 표현 (LRA, D7) |
 | [`starter_zone_drops.rule`](starter_zone_drops.rule) | enum 도달 불가 | 레벨 상한 40인 초보 존에서 레벨 50+ 를 요구하는 unique 등급은 등장 불가 |
 | [`stealth_combat.rule`](stealth_combat.rule) | 상태 봉쇄 | "항상 공격" 룰과 "은신·공격 상호 배제"가 함께 두면 은신 상태에 영영 도달 불가 (D6) |
+| [`day_night_cycle.rule`](day_night_cycle.rule) | enum 도달 불가 (중복 값) | sky·lighting이 같은 값 이름(day/night)을 쓰며, 두 시스템이 밤 조명을 상충 강제해 sky=night 봉쇄 (D8) |
 | [`balanced_stats.rule`](balanced_stats.rule) | (정합) | 공격력=레벨×10, 상한 500, 레벨 상한 50이 정확히 맞아떨어져 모순 없음 |
 | [`team_example/`](team_example/) | (협업 패턴) | 공유 `_domain.rule` + 기획자별 rules 파일을 디렉토리로 병합 검사 |
 

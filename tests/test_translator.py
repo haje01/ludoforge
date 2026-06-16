@@ -37,9 +37,14 @@ def test_translate_produces_vars_and_rule_constraints() -> None:
     assert set(t.rule_constraints) == {"warrior_hp_formula", "global_hp_cap"}
 
 
-def test_enum_encoding_maps_values_to_ints() -> None:
+def test_enum_values_map_to_sort_constants() -> None:
+    # D8: 정수 인코딩 대신 z3 EnumSort 상수로 매핑한다.
     t = translate(load_rule_file(FIXTURES / "warrior_hp.rule"))
-    assert t.enum_encoding["role"] == {"warrior": 0, "mage": 1, "archer": 2}
+    enc = t.enum_encoding["role"]
+    assert set(enc) == {"warrior", "mage", "archer"}
+    role = t.z3_vars["role"]
+    assert z3.is_const(role) and not z3.is_int(role)  # EnumSort 상수(정수 인코딩 아님)
+    assert all(c.sort() == role.sort() for c in enc.values())
 
 
 def test_arithmetic_and_implies_semantics() -> None:
@@ -137,6 +142,39 @@ def test_variable_divisor_raises() -> None:
         rules=(Rule(id="nonlinear", then="a / b == 1.0"),),
     )
     with pytest.raises(TranslationError, match="상수 분모"):
+        translate(rs)
+
+
+def test_duplicate_enum_value_names_resolved_by_context() -> None:
+    # D8: 서로 다른 enum이 같은 값 이름(active/inactive)을 써도 비교 문맥으로 구분된다.
+    rs = RuleSet(
+        variables=(
+            Variable(name="role", type="enum", values=("active", "inactive")),
+            Variable(name="status", type="enum", values=("active", "inactive")),
+        ),
+        rules=(Rule(id="link", when="role == active", then="status == inactive"),),
+    )
+    t = translate(rs)
+    ra = t.enum_encoding["role"]["active"]
+    sa = t.enum_encoding["status"]["active"]
+    si = t.enum_encoding["status"]["inactive"]
+    assert ra.sort() != sa.sort()  # 별도 sort의 구별된 상수
+    # role==active이면 status==inactive 강제 → status==active와 함께면 unsat
+    assert _solver_with(t, t.z3_vars["role"] == ra, t.z3_vars["status"] == sa).check() == z3.unsat
+    # role==active, status==inactive 는 sat
+    assert _solver_with(t, t.z3_vars["role"] == ra, t.z3_vars["status"] == si).check() == z3.sat
+
+
+def test_cross_enum_value_misuse_raises() -> None:
+    # D8: 다른 enum의 값으로 비교하면 친절한 에러(원시 z3 sort 에러 아님).
+    rs = RuleSet(
+        variables=(
+            Variable(name="role", type="enum", values=("warrior", "mage")),
+            Variable(name="status", type="enum", values=("active", "idle")),
+        ),
+        rules=(Rule(id="bad", then="role == active"),),
+    )
+    with pytest.raises(TranslationError, match="active"):
         translate(rs)
 
 

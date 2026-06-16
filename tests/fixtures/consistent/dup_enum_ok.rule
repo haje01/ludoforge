@@ -1,0 +1,13 @@
+# 서로 다른 enum이 같은 값 이름(open/closed)을 써도 모순이 없는 정합 케이스 (D8)
+# 비교 문맥으로 door/window의 open을 각각 제 sort로 해석한다. 어떤 조합도 봉쇄하지 않음.
+domain:
+  variables:
+    door:   { type: enum, values: [open, closed] }
+    window: { type: enum, values: [open, closed] }
+
+rules:
+  - id: door_open_window_state
+    author: planner_A
+    desc: "문이 열려 있으면 창은 열림/닫힘 어느 쪽이든 가능"
+    when: "door == open"
+    then: "window == open or window == closed"
