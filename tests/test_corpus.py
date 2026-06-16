@@ -33,6 +33,7 @@ EXAMPLE_EXPECTED = {
     "crit_chance": True,
     "stat_budget": True,
     "balanced_stats": False,
+    "balanced_build": False,
 }
 
 
