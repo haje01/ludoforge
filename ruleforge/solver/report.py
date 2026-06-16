@@ -1,0 +1,67 @@
+"""리포터(S6): CheckReport를 사람용 한국어 리포트 문자열로 변환한다.
+
+순수 함수만 둔다 — 출력(IO)은 CLI(S7)의 책임이다.
+리포트 원칙(CLAUDE.md §2.4, §10): 범인 룰과 깨지는 조건을 함께 제시하고,
+unknown은 절대 숨기지 않는다.
+"""
+
+from __future__ import annotations
+
+from ruleforge.solver.checks import CheckReport, RangeViolation, UnreachableEnum
+
+
+def format_report(report: CheckReport) -> str:
+    """검사 결과를 한국어 리포트 문자열로 만든다."""
+    lines: list[str] = []
+    contradictions = len(report.violations) + len(report.unreachable_enums)
+
+    if contradictions == 0:
+        lines.append("✅ 모순이 발견되지 않았습니다.")
+    else:
+        lines.append(f"❌ 모순 {contradictions}건이 발견되었습니다.")
+        lines.append("")
+        index = 1
+        for ue in report.unreachable_enums:
+            lines.append(_format_unreachable(index, ue))
+            index += 1
+        for v in report.violations:
+            lines.append(_format_violation(index, v))
+            index += 1
+
+    if report.unknowns:
+        lines.append("")
+        lines.append(f"⚠️ 판단 불가(unknown) {len(report.unknowns)}건 — 별도 확인이 필요합니다:")
+        lines.extend(f"    - {u}" for u in report.unknowns)
+
+    return "\n".join(lines)
+
+
+def _format_assignment(assignment: dict[str, str]) -> str:
+    if not assignment:
+        return "모든 경우"
+    return ", ".join(f"{name}={value}" for name, value in assignment.items())
+
+
+def _format_culprits(culprit_rules: tuple[str, ...]) -> str:
+    if not culprit_rules:
+        return "    → 범인 룰을 특정하지 못했습니다(도메인 제약 단독 가능성)."
+    return "    → 범인 룰: " + ", ".join(culprit_rules)
+
+
+def _format_violation(index: int, v: RangeViolation) -> str:
+    cond = _format_assignment(v.enum_assignment)
+    if v.bound == "max":
+        detail = (
+            f"'{v.variable}'은(는) 최대 {v.achievable}까지만 도달 가능합니다 "
+            f"(선언 max={v.declared})."
+        )
+    else:
+        detail = (
+            f"'{v.variable}'은(는) 최소 {v.achievable} 이상만 가능합니다 (선언 min={v.declared})."
+        )
+    return f"[{index}] {cond}일 때 {detail}\n{_format_culprits(v.culprit_rules)}"
+
+
+def _format_unreachable(index: int, ue: UnreachableEnum) -> str:
+    cond = _format_assignment(ue.enum_assignment)
+    return f"[{index}] {cond} 조합 자체가 도달 불가능합니다.\n{_format_culprits(ue.culprit_rules)}"
