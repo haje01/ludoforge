@@ -13,6 +13,10 @@
 | [`loot_table.rule`](loot_table.rule) | 전역 over-constraint | 드롭 확률 합 100% 제약과 "common≥90%·epic≥15%"가 동시 성립 불가(105%) |
 | [`starter_zone_drops.rule`](starter_zone_drops.rule) | enum 도달 불가 | 레벨 상한 40인 초보 존에서 레벨 50+ 를 요구하는 unique 등급은 등장 불가 |
 | [`balanced_stats.rule`](balanced_stats.rule) | (정합) | 공격력=레벨×10, 상한 500, 레벨 상한 50이 정확히 맞아떨어져 모순 없음 |
+| [`team_example/`](team_example/) | (협업 패턴) | 공유 `_domain.rule` + 기획자별 rules 파일을 디렉토리로 병합 검사 |
+
+`team_example/`만은 여러 파일을 병합해야 하므로 **디렉토리째** 검사한다:
+`ruleforge check examples/team_example/`. 나머지는 자기완결 파일이라 개별로 검사한다.
 
 ## 실행 예
 

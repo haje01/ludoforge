@@ -71,16 +71,21 @@ ruleforge check 내룰폴더          # 폴더 안 모든 .rule을 병합해 함
 ruleforge check 내룰폴더\some.rule  # 파일 하나만 검사
 ```
 
-모순이 있으면 어떤 룰들이 충돌하는지 한국어로 알려준다. 예를 들어 전사 HP
-공식(`hp == level*100`)과 HP 상한(`hp <= 5000`)이 함께 있으면, 전사는 레벨
-50까지만 가능한데 도메인은 레벨 100을 허용하므로 모순이다:
+모순이 있으면 어떤 룰들이 충돌하는지 한국어로 알려준다. 저장소에 포함된 예제로
+바로 확인해 볼 수 있다(아이템 강화 한도가 파워 상한에 막히는 경우):
+
+```bash
+ruleforge check examples/item_enchant.rule
+```
 
 ```text
 ❌ 모순 1건이 발견되었습니다.
 
-[1] role=warrior일 때 'level'은(는) 최대 50까지만 도달 가능합니다 (선언 max=100).
-    → 범인 룰: global_hp_cap, warrior_hp_formula
+[1] rarity=legendary일 때 'enchant_level'은(는) 최대 5까지만 도달 가능합니다 (선언 max=10).
+    → 범인 룰: global_power_cap, legendary_power_formula
 ```
+
+다양한 기획 모순/정합 예제는 [`examples/`](examples/README.md)에 있다.
 
 **종료코드:** `0` 정합 · `1` 모순 발견 · `2` 로드/검증 오류 · `3` 판단 불가(unknown).
 CI에서 PR마다 실행해 모순 시 빌드를 실패시키는 용도로 쓴다.
@@ -100,23 +105,20 @@ rules/
 
 `ruleforge check rules/` 한 번이면 공유 도메인 위에서 A·B의 룰을 합쳐 검사하므로,
 **서로 다른 파일에 흩어진 룰 사이의 모순**까지 잡아낸다(별도 import 구문 불필요).
-이 저장소의 `rules/team_example/`에 위 구조 그대로의 실제 예시가 있다 —
-`ruleforge check rules/team_example/`로 동작을 확인해 볼 수 있다.
+이 저장소의 [`examples/team_example/`](examples/team_example/)에 위 구조 그대로의
+예시가 있다 — `ruleforge check examples/team_example/`로 동작을 확인해 볼 수 있다.
 
 > 참고: `rules`만 담은 파일을 단독으로 검사하면 변수 선언이 없어 오류가 난다.
 > 이때는 공유 도메인 파일이 함께 있는 **디렉토리**를 검사하면 된다(도구가 안내해 준다).
 > 같은 변수를 두 파일에서 서로 다르게 선언하면 충돌로 보고된다.
-
-> 처음 써 본다면, 이 저장소를 내려받아 포함된 예시 룰(`rules/example_warrior.rule`,
-> 의도적 모순 포함)로 `ruleforge check rules/`를 실행해 출력을 확인해 보면 좋다.
 
 ### 개발자용 — 소스에서 실행
 
 저장소를 클론해 기여하거나 직접 고쳐 쓸 때:
 
 ```bash
-uv sync                              # 의존성 설치 (.venv 생성)
-uv run ruleforge check rules/        # 설치 없이 소스에서 바로 실행
+uv sync                                       # 의존성 설치 (.venv 생성)
+uv run ruleforge check examples/item_enchant.rule  # 설치 없이 소스에서 바로 실행
 ```
 
 ## 테스트 하기
