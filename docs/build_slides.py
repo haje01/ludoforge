@@ -512,14 +512,52 @@ SLIDES = [
         ],
     },
     {
+        "title": "표현력 확장 — 2차",
+        "kicker": "더 많은 룰을 형식화",
+        "blocks": [
+            ("bullets", [
+                ("**불리언 상태 · 상호 배제** — `not (stealthed and attacking)`. 봉쇄된 상태를 찾는다. (D6)", 0),
+                ("**확률 · 실수(LRA)** — `type: real`로 \"확률 합 = 1\"을 직접. `1/3`은 정확한 유리수. (D7)", 0),
+                ("**enum 타입 안전(EnumSort)** — 서로 다른 enum이 같은 값 이름을 써도 안전. (D8)", 0),
+                ("**실수 끝점 도달성** — \"[0,1]로 선언했는데 룰이 0.5로 막음\" 류 봉쇄를 잡는다. (D9)", 0),
+                ("**명시적 도달성 단언 `expect:`** — \"두 스탯 동시 최대\"처럼 조합 도달성을 직접 검증. (D10)", 0),
+            ]),
+            ("note", "도달성 검사가 정수 → 불리언 · 실수 · 변수 조합으로 확장됐다 — 핵심 원리(Z3 · unsat core)는 그대로", BLUE),
+        ],
+    },
+    {
+        "title": "예제 — enum · 불리언 · expect 함께",
+        "kicker": "한 룰셋에서 같이 쓰기",
+        "blocks": [
+            ("code", "yaml", None, [
+                "domain:",
+                "  variables:",
+                "    role:      { type: enum, values: [rogue, mage] }   # enum",
+                "    stealthed: { type: bool }                          # 불리언 상태",
+                "    attacking: { type: bool }",
+                "rules:",
+                "  - id: stealth_mutex",
+                "    then: \"not (stealthed and attacking)\"     # 상호 배제",
+                "expects:                                       # 도달성 단언",
+                "  - id: rogue_ambush",
+                "    that: \"role == rogue and stealthed and attacking\"",
+            ]),
+            ("code", "text", None, [
+                "❌ 모순 1건이 발견되었습니다.",
+                "[1] 기대 'rogue_ambush'가 충족되지 않습니다(도달 불가).",
+                "    → 범인 룰: stealth_mutex",
+            ]),
+        ],
+    },
+    {
         "title": "한계 (현재)",
         "blocks": [
             ("bullets", [
-                ("**정수 선형 산술(LIA) 중심** — `level * 100`은 OK, 변수 × 변수(비선형)는 느리거나 판단 불가.", 0),
+                ("**선형 산술(LIA · LRA) 중심** — `level * 100`은 OK, 변수 × 변수(비선형)는 느리거나 판단 불가.", 0),
                 ("우회(상수화·구간분할)를 안내한다.", 2),
                 ("**비목표** — 밸런스의 \"재미\" 평가(시뮬레이션 영역), 런타임 서버 검증 아님.", 0),
                 ("기획 단계 정적 검증 도구다.", 2),
-                ("**아직(2차 예정)** — 상호 배제 상태, 확률/실수(LRA), Datatype enum, CI PR 코멘트 연동.", 0),
+                ("**아직(후속)** — 실수 범위 정밀 분석(Optimize), 경계 검사 확장, CI PR 코멘트 연동.", 0),
             ]),
         ],
     },
