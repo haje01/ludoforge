@@ -13,3 +13,7 @@ dist/
 
 # 환경
 .env
+
+# 슬라이드 내보내기 산출물 (원본은 docs/intro-slides.md)
+*.pptx
+*.pdf
