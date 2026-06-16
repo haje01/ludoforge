@@ -39,14 +39,16 @@ docs/         # 문서
 
 ### 1단계 — 사전 준비 (한 번만)
 
-1. **uv 설치** (이 도구를 설치·실행하는 핵심 도구):
-   설치 안내 → <https://docs.astral.sh/uv/getting-started/installation/>
-   Windows는 PowerShell을 열고 그 페이지의 한 줄 명령을 붙여넣으면 된다.
-   설치 후에는 PowerShell 창을 **새로 열어야** 명령이 인식된다.
+준비물은 **uv 하나뿐이다.** Python은 따로 설치할 필요가 없다 — uv가 필요한
+Python(3.11 이상)을 자동으로 내려받아 이 도구 전용으로 쓴다.
 
-2. **Python** (3.11 이상): 보통 uv가 필요한 Python을 자동으로 받아오므로 따로
-   설치하지 않아도 된다. 수동 설치를 원하면 → <https://www.python.org/>
-   (Windows 설치 시 "Add python.exe to PATH" 항목을 체크).
+**uv 설치** → <https://docs.astral.sh/uv/getting-started/installation/>
+Windows는 PowerShell을 열고 그 페이지의 한 줄 명령을 붙여넣으면 된다.
+설치 후에는 PowerShell 창을 **새로 열어야** 명령이 인식된다.
+
+> 참고(선택): 이미 Python이 있거나 직접 설치·관리하고 싶다면
+> <https://www.python.org/> (Windows 설치 시 "Add python.exe to PATH" 체크).
+> 없어도 무방하다.
 
 ### 2단계 — RuleForge 설치
 
