@@ -1,0 +1,7 @@
+# 공유 도메인 — 모든 기획자가 합의하는 변수 정의 (domain만 담는다).
+# 협업 패턴 예시: 이 파일 1개를 공유하고, 기획자별로 rules 파일을 따로 둔다.
+domain:
+  variables:
+    level: { type: int, min: 1, max: 100 }
+    hp:    { type: int, min: 0 }
+    role:  { type: enum, values: [warrior, mage, archer] }
