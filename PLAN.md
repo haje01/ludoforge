@@ -2,7 +2,7 @@
 
 > 진행 상태는 [PROGRESS.md](PROGRESS.md), 설계 결정의 "왜"는
 > [docs/decisions.md](docs/decisions.md), 아키텍처 SSOT는 [CLAUDE.md](CLAUDE.md).
-> 완료된 1차 작업의 상세 이력은 git 커밋(S0~S8)과 decisions.md에 있다.
+> 완료된 작업의 상세 이력은 git 커밋과 decisions.md에 있다.
 
 ---
 
@@ -17,68 +17,33 @@ LIA 수치 공식 + 조건부(`when`) 룰 + enum을 지원하고, 세 가지 모
 
 ---
 
-## 2차 마일스톤 — 진행 항목
+## 2차 마일스톤 — ✅ 완료 (2026-06-16)
 
-### ✅ 완료: 불리언 상태 변수 (상호 배제) — D6 (2026-06-16)
+표현력과 검사 범위를 확장했다. 확정 설계는 decisions.md D6~D10, 상세 이력은 git 커밋 참조.
 
-`Not(And(stealthed, attacking))` 류 상호 배제 룰을 표현·검사한다. bool을 도달성
-변수로 취급해 "상태 봉쇄" 모순을 잡는다(D3 의미론의 bool 확장). 확정 설계는
-[docs/decisions.md](docs/decisions.md) D6 참조. 핵심:
+- **불리언 상태 / 상호 배제 (D6)**: `type: bool` + `not (a and b)`. 자유 bool의
+  True/False 도달성 검사 → "상태 봉쇄" 모순.
+- **비율/확률 LRA (D7)**: `type: real` + 상수 분모 나눗셈(`1/3`=정확한 유리수).
+  feasibility 참여로 "확률 합=1" over-constraint 탐지.
+- **enum EnumSort 고도화 (D8)**: 정수 인코딩→EnumSort. 서로 다른 enum이 같은 값
+  이름을 써도 안전(문맥 기반 disambiguation).
+- **Real 끝점 도달성 (D9)**: real 선언 min/max 끝점 봉쇄 검사(A-i 끝점 feasibility).
+- **명시적 도달성 단언 `expect:` (D10)**: 기획자가 조합 도달성을 직접 선언, `rules ∧
+  that`가 unsat이면 미충족 모순.
 
-- bool 타입 도입(z3.Bool, 도메인 제약 없음) + 불리언 리터럴 허용.
-- 자유 bool의 True/False 각 상태 도달성을 **변수별로** 검사(D4 일관, 데카르트 곱 회피).
-- 무조건 강제로 고정된 bool은 종속으로 제외(D5 일관, 거짓양성 회피).
-- 네 번째 모순 유형 "상태 봉쇄" + examples/stealth_combat.rule.
+탐지하는 모순 유형: 범위 봉쇄 / enum 도달 불가 / 전역 over-constraint / 상태 봉쇄 /
+실수 끝점 봉쇄 / 도달성 단언 미충족. 예제는 [examples/](examples/README.md).
 
-### ✅ 완료: 비율/확률 (LRA, 실수 제약) — D7 (2026-06-16)
+---
 
-`prob: {type: real}` + `합 == 1.0` 류를 정수 스케일링 우회 없이 직접 표현한다.
-확정 설계는 [docs/decisions.md](docs/decisions.md) D7 참조. 핵심:
+## 다음 후보 (대기 — 우선순위·범위 미확정)
 
-- real 타입(z3.Real) + 실수 리터럴 + **상수 분모 나눗셈**(`1/3` → 정확한 유리수).
-- 범위는 **피저빌리티만**(사용자 결정) — real은 reachability 선택자에 안 걸리고
-  feasibility에만 참여. "확률 합=1" over-constraint를 잡음.
-- Real 범위 도달성(선언 min/max gap)은 Optimize-on-real의 epsilon 문제로 후속 미룸.
-- examples/drop_rates_real.rule로 정수 스케일링 없는 표현을 보임.
+착수 시 별도 설계 결정(D번호)과 테스트 코퍼스를 동반한다.
 
-### ✅ 완료: enum 인코딩 고도화 (정수 → Z3 EnumSort) — D8 (2026-06-16)
-
-정수 인코딩을 Z3 `EnumSort`로 교체해 타입 안전성을 얻고, **서로 다른 enum이 같은 값
-이름**을 쓰는 1차 한계를 해소했다. 확정 설계는 [docs/decisions.md](docs/decisions.md) D8 참조. 핵심:
-
-- enum→EnumSort(변수=Const, 값=sort 상수). 정수 순서/산술 우연 허용 제거(쓰는 곳 없음).
-- 중복 값 disambiguation = **문맥 기반**(사용자 결정): `role == warrior`의 값을 비교 상대
-  변수의 sort로 해석. 교차 enum 오용은 친절한 에러. sort 라벨은 프로세스 단위 유일.
-- checks는 실질 변경 없음(enum_fix가 `const == const`). examples/day_night_cycle.rule.
-
-### ✅ 완료: Real 범위 도달성 (끝점 feasibility) — D9 (2026-06-16)
-
-D7이 미룬 조각. real 변수의 선언 min/max **끝점**이 룰 하에서 도달 가능한지 검사한다
-(사용자 결정: **A-i 끝점 feasibility** — Optimize/epsilon 회피). 확정 설계는
-[docs/decisions.md](docs/decisions.md) D9 참조. 핵심:
-
-- `check()`에 real 끝점 검사(`var == 끝점` sat?) + 새 보고 타입 `BoundUnreachable`.
-- 종속 real은 제외(D5 일관). 정확한 달성값은 비계산(정밀 gap은 후속 A-ii).
-- prob_ok.rule을 진짜 정합으로 정정 + examples/crit_chance.rule.
-
-### ✅ 완료: 명시적 도달성 단언 (`expect:`) — D10 (2026-06-16)
-
-기획자가 "이 상태는 도달 가능해야 한다"를 직접 선언한다(자동 도달성 추론 D3의 역방향).
-확정 설계는 [docs/decisions.md](docs/decisions.md) D10 참조. 핵심:
-
-- 최상위 `expects:` 섹션, 각 항목 `{ id, desc?, that }`. `domain ∧ rules ∧ that`가
-  UNSAT이면 미충족 → 모순(UnmetExpectation), 범인 룰을 unsat_core로 짚음.
-- 기존 `_feasibility`(tracked solver) 재사용. enum 순회 밖 전역 검사.
-- 변수별 경계로는 안 보이는 **조합 도달성** 검증. examples/stat_budget.rule.
-
-## 2차 후보 (대기 — 우선순위·범위 미확정)
-
-1차에서 의도적으로 미룬 것들. 실제 룰에서 병목이 되는 순서로 골라 진행한다.
-각 항목은 착수 시 별도 설계 결정(D번호)과 테스트 코퍼스를 동반한다.
-
+- **CI 통합** *(다음 재개 예정)*: PR마다 `ruleforge check` 자동 실행 + 모순을 PR
+  코멘트로 리포트, 모순 시 fail.
 - **Real 범위 도달성 — 완전 Optimize(A-ii)**: 정확한 달성값·gap·접근(`<`) 구분. D9의 후속.
 - **경계 검사 확장**: 종속 변수 정보성 리포트 / 선언 도메인과 별개의 기획 의도 상한.
-- **CI 통합**: PR마다 자동 실행 + 모순을 PR 코멘트로 리포트.
 
 ## 남은 열린 질문 (검증 필요)
 
