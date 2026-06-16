@@ -1,0 +1,13 @@
+# 정합: HP 상한이 10000이라 전사 레벨 100(hp=10000)도 도달 가능 → 모순 없음.
+domain:
+  variables:
+    level: { type: int, min: 1, max: 100 }
+    hp:    { type: int, min: 0 }
+    role:  { type: enum, values: [warrior, mage, archer] }
+
+rules:
+  - id: warrior_hp_formula
+    when: "role == warrior"
+    then: "hp == level * 100"
+  - id: global_hp_cap
+    then: "hp <= 10000"

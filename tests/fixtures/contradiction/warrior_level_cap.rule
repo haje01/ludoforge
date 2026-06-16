@@ -1,0 +1,14 @@
+# 모순(range violation): 전사 HP 공식 + 낮은 상한 → 전사는 레벨 50까지만 가능.
+# 범인 룰: warrior_hp_formula, global_hp_cap. 종속 변수 hp는 거짓양성으로 잡히면 안 됨.
+domain:
+  variables:
+    level: { type: int, min: 1, max: 100 }
+    hp:    { type: int, min: 0 }
+    role:  { type: enum, values: [warrior, mage, archer] }
+
+rules:
+  - id: warrior_hp_formula
+    when: "role == warrior"
+    then: "hp == level * 100"
+  - id: global_hp_cap
+    then: "hp <= 5000"
