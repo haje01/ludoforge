@@ -21,6 +21,15 @@ FIXTURES = Path(__file__).parent / "fixtures"
 CONSISTENT = sorted((FIXTURES / "consistent").glob("*.rule"))
 CONTRADICTION = sorted((FIXTURES / "contradiction").glob("*.rule"))
 
+# docs용 예제(examples/)도 회귀로 잠근다 — README/예제가 실제 동작과 어긋나지 않게.
+EXAMPLES = Path(__file__).parent.parent / "examples"
+EXAMPLE_EXPECTED = {
+    "item_enchant": True,
+    "loot_table": True,
+    "starter_zone_drops": True,
+    "balanced_stats": False,
+}
+
 
 def _run(path: Path) -> CheckReport:
     rs = load_rules(path)
@@ -68,6 +77,19 @@ def test_unreachable_role_pins_culprits() -> None:
     ue = report.unreachable_enums[0]
     assert ue.enum_assignment == {"role": "ghost"}
     assert set(ue.culprit_rules) == {"ghost_no_hp", "must_have_hp"}
+
+
+@pytest.mark.parametrize("stem,expect_contradiction", sorted(EXAMPLE_EXPECTED.items()))
+def test_examples_match_documented_outcome(stem: str, expect_contradiction: bool) -> None:
+    report = _run(EXAMPLES / f"{stem}.rule")
+    assert report.has_contradiction is expect_contradiction, format_report(report)
+    assert report.unknowns == ()
+
+
+def test_examples_directory_matches_expected_set() -> None:
+    # 예제 파일이 추가/삭제되면 기대표(EXAMPLE_EXPECTED)도 함께 갱신하도록 강제.
+    actual = {p.stem for p in EXAMPLES.glob("*.rule")}
+    assert actual == set(EXAMPLE_EXPECTED), f"examples/ 변경됨: {actual}"
 
 
 def test_conflicting_constants_global_infeasibility() -> None:

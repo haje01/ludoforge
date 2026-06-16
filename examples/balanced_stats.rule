@@ -1,0 +1,23 @@
+# 정합 예제 (모순 없음): 공식과 상한, 도메인이 서로 맞아떨어진다.
+#
+# 전사 공격력은 "레벨 × 10"이고 공격력 상한은 500, 레벨 상한은 50.
+# 레벨 50 전사의 공격력은 정확히 500으로 상한과 일치 → 봉쇄되는 구간이 없다.
+#
+# 검사: ruleforge check examples/balanced_stats.rule  (모순 없음, 종료코드 0)
+domain:
+  variables:
+    level:  { type: int, min: 1, max: 50 }
+    attack: { type: int, min: 1, max: 500 }
+    role:   { type: enum, values: [warrior, mage] }
+
+rules:
+  - id: warrior_attack_formula
+    author: planner_combat
+    desc: "전사 공격력은 레벨당 10"
+    when: "role == warrior"
+    then: "attack == level * 10"
+
+  - id: global_attack_cap
+    author: planner_balance
+    desc: "모든 공격력은 500을 넘지 않는다"
+    then: "attack <= 500"
