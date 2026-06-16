@@ -1,14 +1,29 @@
 """RuleForge CLI 진입점.
 
-S0 단계에서는 골격만 둔다. 실제 파이프라인(로드→스키마→번역→검사→리포트)은
-이후 단계(S2~S7)에서 채운다.
+`ruleforge check <path>` 한 줄로 파이프라인을 실행한다:
+  로드 → 스키마·참조 검증 → Z3 번역 → 도달성 검사 → 한국어 리포트.
+
+종료코드: 0=정합, 1=모순 발견, 2=로드/검증/번역 오류, 3=unknown(판단 불가).
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 
+from ruleforge.dsl.loader import LoaderError, load_rules
+from ruleforge.dsl.schema import SchemaError, validate
+from ruleforge.solver.checks import check as run_checks
+from ruleforge.solver.report import format_report
+from ruleforge.solver.translator import TranslationError, translate
+
 app = typer.Typer(help="MMORPG 룰 정합성 검증기")
+
+_EXIT_OK = 0
+_EXIT_CONTRADICTION = 1
+_EXIT_ERROR = 2
+_EXIT_UNKNOWN = 3
 
 
 @app.callback()
@@ -17,10 +32,24 @@ def main() -> None:
 
 
 @app.command()
-def check(rules_dir: str = typer.Argument(..., help="검사할 .rule 파일이 있는 디렉토리")) -> None:
-    """룰셋의 정합성을 검사한다 (S2~S7에서 구현 예정)."""
-    typer.echo(f"[미구현] '{rules_dir}' 검사는 이후 단계에서 구현됩니다.")
-    raise typer.Exit(code=2)
+def check(path: str = typer.Argument(..., help="검사할 .rule 파일 또는 디렉토리")) -> None:
+    """룰셋의 정합성을 검사한다. 디렉토리면 모든 .rule을 병합해 함께 검사한다."""
+    try:
+        ruleset = load_rules(Path(path))
+        validate(ruleset)
+        translation = translate(ruleset)
+    except (LoaderError, SchemaError, TranslationError) as e:
+        typer.echo(f"검사를 진행할 수 없습니다:\n{e}", err=True)
+        raise typer.Exit(_EXIT_ERROR) from e
+
+    report = run_checks(ruleset, translation)
+    typer.echo(format_report(report))
+
+    if report.has_contradiction:
+        raise typer.Exit(_EXIT_CONTRADICTION)
+    if report.unknowns:
+        raise typer.Exit(_EXIT_UNKNOWN)
+    raise typer.Exit(_EXIT_OK)
 
 
 if __name__ == "__main__":

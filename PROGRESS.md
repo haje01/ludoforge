@@ -14,7 +14,7 @@
 | S4 | 표현식 번역기 (`solver/translator.py`) | ✅ 완료 | ast 화이트리스트→Z3, Implies, enum 정수인코딩 |
 | S5 | 검사 로직 (`solver/checks.py`) | ✅ 완료 | Optimize 도달성, 독립변수만, unsat_core 범인추출, unknown 별도보고 |
 | S6 | 리포터 (`solver/report.py`) | ✅ 완료 | 한국어, 모순/도달불가/unknown 표시, 순수함수 |
-| S7 | CLI (`cli.py`) | ⬜ 대기 | |
+| S7 | CLI (`cli.py`) | ✅ 완료 | check 파이프라인, 디렉토리 병합, 종료코드 0/1/2/3 |
 | S8 | 테스트 코퍼스 (`tests/fixtures/`) | ⬜ 대기 | |
 
 상태 범례: ⬜ 대기 / 🔵 진행중 / ✅ 완료 / ⚠️ 막힘
@@ -29,3 +29,4 @@
 - 2026-06-16: S5 결정 — 도달성 검사는 '독립 변수만' 대상(종속 변수 hp=0 같은 거짓양성 회피). 사용자 확인.
 - 2026-06-16: S5 완료 — 검사 로직(D3/D4). enum 값 조합 고정 × 독립 변수의 선언 경계를 Optimize로 도달성 확인, 봉쇄 시 경계값 assert_and_track→unsat_core로 범인 룰 추출. enum 조합 자체 실행불가도 보고. unknown은 별도 보고. CheckReport(violations/unreachable_enums/unknowns). 테스트 4건(flagship warrior 모순=level/max/범인2룰, 정합셋, unreachable enum, unknown없음). 전체 게이트 통과.
 - 2026-06-16: S6 완료 — 리포터(CheckReport→한국어 문자열, 순수함수). 모순 건수·enum조건·달성vs선언·범인룰 제시, unreachable enum 표시, unknown은 ⚠️ 별도 섹션으로 노출. 출력(IO)은 S7 CLI로 분리. 테스트 5건. flagship 리포트 육안 확인. 전체 게이트 통과.
+- 2026-06-16: S7 완료 — CLI 통합. `ruleforge check <path>`로 로드→스키마→번역→검사→리포트. loader.load_rules로 단일파일/디렉토리 모두 지원, 디렉토리는 .rule 병합(변수 충돌 오류, 파일 간 모순 탐지). 종료코드 0=정합/1=모순/2=오류/3=unknown. 실제 엔트리포인트 동작 확인. 테스트 5건(단일/디렉토리병합/스키마오류/없는경로). 전체 게이트 통과.

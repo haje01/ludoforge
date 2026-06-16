@@ -21,6 +21,34 @@ class LoaderError(Exception):
     """룰 파일 로딩 실패. 메시지에 문제 위치(파일/필드)를 담는다."""
 
 
+def load_rules(path: str | Path) -> RuleSet:
+    """경로를 로드한다. 파일이면 단일 RuleSet, 디렉토리면 모든 .rule을 병합한다.
+
+    디렉토리 병합은 여러 기획자가 각자 파일에 쓴 룰을 함께 검사하기 위함이다
+    (CLAUDE.md §1 — 파일 간 모순 탐지가 본 도구의 핵심 가치).
+    """
+    path = Path(path)
+    if path.is_dir():
+        files = sorted(path.glob("*.rule"))
+        if not files:
+            raise LoaderError(f"디렉토리에 .rule 파일이 없습니다: {path}")
+        return _merge([load_rule_file(f) for f in files])
+    return load_rule_file(path)
+
+
+def _merge(rulesets: list[RuleSet]) -> RuleSet:
+    """여러 RuleSet을 병합한다. 변수는 이름으로 합치되 충돌(다른 선언)은 오류."""
+    variables: dict[str, Variable] = {}
+    rules: list[Rule] = []
+    for rs in rulesets:
+        for v in rs.variables:
+            if v.name in variables and variables[v.name] != v:
+                raise LoaderError(f"변수 '{v.name}'가 파일마다 다르게 선언되었습니다.")
+            variables[v.name] = v
+        rules.extend(rs.rules)
+    return RuleSet(variables=tuple(variables.values()), rules=tuple(rules))
+
+
 def load_rule_file(path: str | Path) -> RuleSet:
     """단일 .rule 파일을 읽어 RuleSet으로 변환한다."""
     path = Path(path)
