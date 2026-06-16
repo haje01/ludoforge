@@ -1,0 +1,50 @@
+[project]
+name = "ruleforge"
+version = "0.0.1"
+description = "MMORPG 룰 정합성 검증기 — DSL 룰을 Z3로 번역해 논리적 모순을 결정론적으로 탐지"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "z3-solver>=4.13",
+    "pyyaml>=6.0",
+    "typer>=0.12",
+]
+
+[project.scripts]
+ruleforge = "ruleforge.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "types-pyyaml>=6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ruleforge"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_configs = true
+files = ["ruleforge", "tests"]
+
+# z3-solver는 타입 스텁(py.typed)을 제공하지 않으므로 import 검사만 완화한다.
+[[tool.mypy.overrides]]
+module = ["z3"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

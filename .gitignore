@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+
+# 도구 캐시
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# 환경
+.env
