@@ -30,12 +30,23 @@ LIA 수치 공식 + 조건부(`when`) 룰 + enum을 지원하고, 세 가지 모
 - 무조건 강제로 고정된 bool은 종속으로 제외(D5 일관, 거짓양성 회피).
 - 네 번째 모순 유형 "상태 봉쇄" + examples/stealth_combat.rule.
 
+### ✅ 완료: 비율/확률 (LRA, 실수 제약) — D7 (2026-06-16)
+
+`prob: {type: real}` + `합 == 1.0` 류를 정수 스케일링 우회 없이 직접 표현한다.
+확정 설계는 [docs/decisions.md](docs/decisions.md) D7 참조. 핵심:
+
+- real 타입(z3.Real) + 실수 리터럴 + **상수 분모 나눗셈**(`1/3` → 정확한 유리수).
+- 범위는 **피저빌리티만**(사용자 결정) — real은 reachability 선택자에 안 걸리고
+  feasibility에만 참여. "확률 합=1" over-constraint를 잡음.
+- Real 범위 도달성(선언 min/max gap)은 Optimize-on-real의 epsilon 문제로 후속 미룸.
+- examples/drop_rates_real.rule로 정수 스케일링 없는 표현을 보임.
+
 ## 2차 후보 (대기 — 우선순위·범위 미확정)
 
 1차에서 의도적으로 미룬 것들. 실제 룰에서 병목이 되는 순서로 골라 진행한다.
 각 항목은 착수 시 별도 설계 결정(D번호)과 테스트 코퍼스를 동반한다.
 
-- **비율/확률 (LRA)**: 실수 제약(확률 합 = 1 등). 현재는 정수 스케일링으로 우회 중.
+- **Real 범위 도달성**: 선언 min/max gap을 Optimize로(epsilon/비-도달 상한 처리). D7의 후속.
 - **경계 검사 확장**: Optimize로 이론적 최대/최소 vs 기획 의도 상한을 더 폭넓게.
 - **CI 통합**: PR마다 자동 실행 + 모순을 PR 코멘트로 리포트.
 - **enum 인코딩 고도화**: 정수 인코딩 → Z3 `Datatype`. 서로 다른 enum이 같은 값

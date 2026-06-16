@@ -13,6 +13,11 @@ Solver의 unsat_core로 범인 룰을 추출한다.
 도달 가능한지 확인하고(상호 배제 등으로) 봉쇄되면 모순으로 보고한다. 무조건 강제로
 값이 고정된 bool은 종속으로 보고 제외한다.
 
+실수 변수(real, LRA, D7)는 reachability 선택자(int/enum/bool)에 들지 않아 도달성을
+직접 검사하지 않는다 — domain·rule 제약으로 feasibility에만 참여한다. 따라서 "확률 합=1"
+류의 over-constraint/enum 조건부 모순은 잡지만, 선언 min/max gap(범위 도달성)은 비대상이다
+(Optimize-on-real의 비-도달 상한 문제 때문, D7에서 후속으로 미룸).
+
 Z3가 unknown(타임아웃/비선형)을 반환하면 sat/unsat으로 뭉개지 않고 별도 보고한다
 (CLAUDE.md §8).
 """
@@ -97,15 +102,23 @@ def check(ruleset: RuleSet, translation: Translation) -> CheckReport:
 
         for var in target_vars:
             z3var = translation.z3_vars[var.name]
-            bounds: tuple[tuple[Literal["min", "max"], int | None], ...] = (
+            bounds: tuple[tuple[Literal["min", "max"], float | None], ...] = (
                 ("max", var.max),
                 ("min", var.min),
             )
             for bound, declared in bounds:
                 if declared is None:
                     continue
+                # int 변수의 경계는 정수다(real은 도달성 검사 비대상, D7). int로 좁혀 전달.
                 v = _check_bound(
-                    translation, enum_fix, assignment, var.name, z3var, bound, declared, unknowns
+                    translation,
+                    enum_fix,
+                    assignment,
+                    var.name,
+                    z3var,
+                    bound,
+                    int(declared),
+                    unknowns,
                 )
                 if v is not None:
                     violations.append(v)

@@ -49,7 +49,7 @@ def validate(ruleset: RuleSet) -> None:
 def _check_variable_bounds(ruleset: RuleSet) -> list[str]:
     errors: list[str] = []
     for v in ruleset.variables:
-        if v.type == "int" and v.min is not None and v.max is not None and v.min > v.max:
+        if v.type in ("int", "real") and v.min is not None and v.max is not None and v.min > v.max:
             errors.append(f"변수 '{v.name}': min({v.min}) > max({v.max})")
     return errors
 

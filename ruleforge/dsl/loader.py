@@ -14,7 +14,7 @@ import yaml
 
 from ruleforge.dsl.ir import Rule, RuleSet, Variable
 
-_VALID_TYPES = ("int", "enum", "bool")
+_VALID_TYPES = ("int", "enum", "bool", "real")
 
 
 class LoaderError(Exception):
@@ -104,6 +104,14 @@ def _parse_variable(name: str, spec: Any, path: Path) -> Variable:
     if vtype == "bool":
         return Variable(name=name, type="bool")
 
+    if vtype == "real":
+        return Variable(
+            name=name,
+            type="real",
+            min=_parse_opt_float(spec.get("min"), name, "min", path),
+            max=_parse_opt_float(spec.get("max"), name, "max", path),
+        )
+
     # enum
     values = spec.get("values")
     if not isinstance(values, list) or not values:
@@ -119,6 +127,15 @@ def _parse_opt_int(value: Any, var_name: str, field: str, path: Path) -> int | N
     if not isinstance(value, int) or isinstance(value, bool):
         raise LoaderError(f"{path}: 변수 '{var_name}'의 {field}는 정수여야 합니다: {value!r}")
     return value
+
+
+def _parse_opt_float(value: Any, var_name: str, field: str, path: Path) -> float | None:
+    """real 변수의 경계. 정수/실수 모두 받아 float로 정규화한다(bool 제외)."""
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise LoaderError(f"{path}: 변수 '{var_name}'의 {field}는 실수여야 합니다: {value!r}")
+    return float(value)
 
 
 def _parse_rules(rules: Any, path: Path) -> tuple[Rule, ...]:

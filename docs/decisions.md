@@ -125,6 +125,36 @@
 
 ---
 
+## D7. 실수 변수(LRA) — 피저빌리티만, 상수 분모 나눗셈만
+
+- **상태:** 확정 (2026-06-16) — 2차, 비율/확률 도입
+- **맥락:** 확률 합=1 같은 비율 제약은 정수 스케일링(loot_table은 0~100 퍼센트)으로
+  우회 중이었다. 실수(real) 변수를 도입해 `prob: {type: real}` + `합 == 1.0`을 직접
+  표현하고자 한다. 단, Z3 Optimize로 실수 변수의 달성 범위를 구하면 상한이 비-도달
+  (strict `<`)일 때 epsilon(무한소) 값을 돌려줘 `.as_long()`도 못 쓰는 어려움이 있다.
+- **결정:**
+  - **타입:** `Variable.type`에 `"real"` 추가, z3.Real로 번역. 선언 min/max는
+    feasibility 제약(`>=`/`<=`)으로 둔다. 화이트리스트(D2)에 실수 리터럴을 허용.
+  - **도달성 범위 = 피저빌리티만(사용자 결정):** real 변수는 reachability 선택자
+    (int/enum/bool)에 들지 않아 도달성을 직접 검사하지 않는다. domain·rule 제약으로
+    feasibility에만 참여 → "확률 합=1" 류 over-constraint와 enum 조건부 모순은 잡고,
+    선언 min/max gap(범위 도달성)은 비목표로 둔다.
+  - **나눗셈 = 상수 분모만(사용자 결정):** `p == 1/3`처럼 분모가 상수 리터럴일 때만
+    허용한다(선형 LRA 유지). 분자는 Real로 올려 **정확한 유리수**로 다룬다(파이썬 float
+    0.333… 아님). 변수 분모(`a/b`)는 비선형이라 명시적 TranslationError로 거부한다.
+- **기각한 대안:**
+  - *완전한 실수 도달성(Optimize on real)*: epsilon(비-도달 상한)과 Fraction 보고 처리가
+    필요해 비용·위험이 크다. feasibility만으로 핵심 가치(확률 합=1)가 이미 커버되므로
+    "점진적 형식화"(CLAUDE.md §2.5)에 따라 후속으로 미룬다(PLAN "2차 후보").
+  - *변수 분모 나눗셈 허용*: NRA(비선형 실수)라 느리거나 unknown. CLAUDE.md §10 비선형
+    우회 원칙과 충돌.
+- **영향:** `Variable.min/max`를 `float | None`으로 넓힘(int 경계는 여전히 정수 런타임).
+  translator에 real 도메인·실수 리터럴·`_translate_div`(상수 분모) 추가. checks.py는
+  실질 변경 없음(real이 feasibility에만 참여). examples/drop_rates_real.rule로 정수
+  스케일링 없는 표현을 보인다.
+
+---
+
 ## 참고
 - 결정의 도메인 배경: [concepts.md](concepts.md) (특히 §4 — 도달 가능성 검사)
 - 살아있는 계획·진행: [../PLAN.md](../PLAN.md) / [../PROGRESS.md](../PROGRESS.md)

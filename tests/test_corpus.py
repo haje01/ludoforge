@@ -28,6 +28,7 @@ EXAMPLE_EXPECTED = {
     "loot_table": True,
     "starter_zone_drops": True,
     "stealth_combat": True,
+    "drop_rates_real": True,
     "balanced_stats": False,
 }
 

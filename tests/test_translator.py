@@ -98,6 +98,48 @@ def test_bool_literal_constant_allowed() -> None:
     assert s.check() == z3.unsat
 
 
+def test_real_variable_translates_to_z3_real_and_detects_over_constraint() -> None:
+    # 확률 합=1인데 pa,pb 각각 0.6 이상이면 합 1.2 > 1 → 전역 unsat (LRA, D7).
+    rs = RuleSet(
+        variables=(
+            Variable(name="pa", type="real", min=0.0, max=1.0),
+            Variable(name="pb", type="real", min=0.0, max=1.0),
+        ),
+        rules=(
+            Rule(id="sum_one", then="pa + pb == 1.0"),
+            Rule(id="a_floor", then="pa >= 0.6"),
+            Rule(id="b_floor", then="pb >= 0.6"),
+        ),
+    )
+    t = translate(rs)
+    assert z3.is_real(t.z3_vars["pa"])
+    assert _solver_with(t).check() == z3.unsat
+
+
+def test_constant_division_is_exact_rational() -> None:
+    # 1/3은 z3 유리수로 정확히 표현되어야 한다(파이썬 float 0.333… 아님).
+    rs = RuleSet(
+        variables=(Variable(name="p", type="real", min=0.0, max=1.0),),
+        rules=(Rule(id="third", then="p == 1 / 3"),),
+    )
+    t = translate(rs)
+    s = _solver_with(t, t.z3_vars["p"] * 3 != 1)
+    assert s.check() == z3.unsat
+
+
+def test_variable_divisor_raises() -> None:
+    # 변수 분모(a/b)는 비선형이라 거부한다(상수 분모만 허용, D7).
+    rs = RuleSet(
+        variables=(
+            Variable(name="a", type="real", min=0.0, max=1.0),
+            Variable(name="b", type="real", min=0.0, max=1.0),
+        ),
+        rules=(Rule(id="nonlinear", then="a / b == 1.0"),),
+    )
+    with pytest.raises(TranslationError, match="상수 분모"):
+        translate(rs)
+
+
 def test_disallowed_function_call_raises() -> None:
     rs = RuleSet(
         variables=(Variable(name="hp", type="int", min=0),),

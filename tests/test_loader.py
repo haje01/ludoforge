@@ -77,6 +77,27 @@ def test_loads_bool_variable(tmp_path: Path) -> None:
     assert (v.type, v.min, v.max, v.values) == ("bool", None, None, ())
 
 
+def test_loads_real_variable(tmp_path: Path) -> None:
+    f = tmp_path / "r.rule"
+    f.write_text(
+        "domain:\n  variables:\n    prob: { type: real, min: 0, max: 1 }\nrules: []\n",
+        encoding="utf-8",
+    )
+    rs = load_rule_file(f)
+    v = rs.variable("prob")
+    assert (v.type, v.min, v.max) == ("real", 0.0, 1.0)
+
+
+def test_real_accepts_float_bounds(tmp_path: Path) -> None:
+    f = tmp_path / "r2.rule"
+    f.write_text(
+        "domain:\n  variables:\n    drop: { type: real, min: 0.05, max: 0.5 }\nrules: []\n",
+        encoding="utf-8",
+    )
+    v = load_rule_file(f).variable("drop")
+    assert (v.min, v.max) == (0.05, 0.5)
+
+
 def test_enum_without_values_names_the_variable(tmp_path: Path) -> None:
     f = tmp_path / "bad_enum.rule"
     f.write_text(

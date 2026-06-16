@@ -143,6 +143,7 @@ uv run mypy            # 타입 검사 (strict)
 - [PLAN.md](PLAN.md) / [PROGRESS.md](PROGRESS.md) — 구현 계획과 진행 상태.
 
 > 1차 마일스톤(수직 슬라이스) 완료: 정수 선형 수치 공식 + 조건부(`when`) 룰 + enum을
-> 지원한다. 2차에서 불리언 상태 변수(상호 배제, D6)를 추가했다 —
-> `not (stealthed and attacking)` 류 룰로 봉쇄되는 상태를 모순으로 짚는다.
-> 확률(LRA)·CI PR 코멘트 연동은 후속 단계다.
+> 지원한다. 2차에서 불리언 상태 변수(상호 배제, D6)와 실수 변수(비율/확률 LRA, D7)를
+> 추가했다 — `not (stealthed and attacking)` 류 상태 봉쇄와 `확률 합 == 1.0` 류
+> over-constraint를 모순으로 짚는다(실수는 피저빌리티 범위, 상수 분모 나눗셈).
+> CI PR 코멘트 연동은 후속 단계다.

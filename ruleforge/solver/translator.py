@@ -100,6 +100,16 @@ def _build_domain(
             z3_vars[v.name] = z3.Bool(v.name)
             continue
 
+        if v.type == "real":
+            # 실수 변수(LRA, D7): z3.Real. 선언 min/max는 feasibility 제약으로 둔다.
+            rvar = z3.Real(v.name)
+            z3_vars[v.name] = rvar
+            if v.min is not None:
+                domain_constraints.append(rvar >= v.min)
+            if v.max is not None:
+                domain_constraints.append(rvar <= v.max)
+            continue
+
         var = z3.Int(v.name)
         z3_vars[v.name] = var
         if v.type == "int":
@@ -140,6 +150,8 @@ def _translate_expr(node: ast.AST, symbols: dict[str, Any]) -> Any:
         raise TranslationError("지원하지 않는 단항 연산자")
 
     if isinstance(node, ast.BinOp):
+        if isinstance(node.op, ast.Div):
+            return _translate_div(node, symbols)
         op = _BIN_OPS.get(type(node.op))
         if op is None:
             raise TranslationError(f"지원하지 않는 산술 연산자: {type(node.op).__name__}")
@@ -156,8 +168,10 @@ def _translate_expr(node: ast.AST, symbols: dict[str, Any]) -> Any:
     if isinstance(node, ast.Constant):
         if isinstance(node.value, bool):
             return z3.BoolVal(node.value)  # 불리언 리터럴(D6)
+        if isinstance(node.value, float):
+            return z3.RealVal(node.value)  # 실수 리터럴(LRA, D7)
         if not isinstance(node.value, int):
-            raise TranslationError(f"지원하지 않는 상수: {node.value!r} (정수/불리언만 허용)")
+            raise TranslationError(f"지원하지 않는 상수: {node.value!r} (정수/실수/불리언만 허용)")
         return node.value
 
     raise TranslationError(f"지원하지 않는 표현식 요소: {type(node).__name__}")
@@ -176,3 +190,36 @@ def _translate_compare(node: ast.Compare, symbols: dict[str, Any]) -> Any:
         comparisons.append(fn(operands[i], operands[i + 1]))
 
     return comparisons[0] if len(comparisons) == 1 else z3.And(*comparisons)
+
+
+def _translate_div(node: ast.BinOp, symbols: dict[str, Any]) -> Any:
+    """상수 분모 나눗셈만 허용한다(선형 LRA, D7).
+
+    변수 분모(a/b)는 비선형(NIA/NRA)이라 거부한다. 분자는 Real로 올려 나눗셈을
+    정확한 유리수로 다룬다(예: 1/3은 파이썬 float가 아닌 z3 유리수 1/3).
+    """
+    divisor = node.right
+    if not _is_numeric_const(divisor):
+        raise TranslationError(
+            "나눗셈은 상수 분모만 허용합니다(변수 분모는 비선형). 곱셈/스케일링으로 우회하세요."
+        )
+    assert isinstance(divisor, ast.Constant)
+    if divisor.value == 0:
+        raise TranslationError("0으로 나눌 수 없습니다")
+    numerator = _as_real(_translate_expr(node.left, symbols))
+    return numerator / z3.RealVal(divisor.value)
+
+
+def _is_numeric_const(node: ast.AST) -> bool:
+    if not isinstance(node, ast.Constant):
+        return False
+    return isinstance(node.value, (int, float)) and not isinstance(node.value, bool)
+
+
+def _as_real(value: Any) -> Any:
+    """정수 리터럴/Int식을 Real로 올린다(나눗셈을 정확한 유리수로 다루기 위함)."""
+    if isinstance(value, (int, float)):
+        return z3.RealVal(value)
+    if z3.is_int(value):
+        return z3.ToReal(value)
+    return value

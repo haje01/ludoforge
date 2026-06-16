@@ -96,6 +96,25 @@ def test_free_bool_with_mutex_has_no_false_positive() -> None:
     assert report.unknowns == ()
 
 
+def test_real_probability_over_constraint_is_reported() -> None:
+    # LRA(D7): 실수 확률 합=1과 두 하한(0.7)이 충돌 → 전역 도달 불가, 세 룰이 범인.
+    rs = load_rule_file(FIXTURES / "contradiction" / "prob_sum.rule")
+    report = _check(rs)
+    assert report.has_contradiction
+    assert len(report.unreachable_states) == 1
+    ue = report.unreachable_states[0]
+    assert ue.assignment == {}  # enum 없음 → 전역 over-constraint
+    assert set(ue.culprit_rules) == {"prob_sum_one", "common_floor", "rare_floor"}
+    assert report.unknowns == ()
+
+
+def test_real_probability_consistent_has_no_contradiction() -> None:
+    rs = load_rule_file(FIXTURES / "consistent" / "prob_ok.rule")
+    report = _check(rs)
+    assert not report.has_contradiction
+    assert report.unknowns == ()
+
+
 def test_no_unknowns_in_linear_cases() -> None:
     report = _check(load_rule_file(FIXTURES / "warrior_hp.rule"))
     assert report.unknowns == ()
