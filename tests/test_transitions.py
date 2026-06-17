@@ -57,7 +57,7 @@ def test_loads_dungeon_properties() -> None:
     assert by_id["gold_nonneg"].kind == "invariant"
     likely = by_id["likely_win"]
     assert likely.kind == "prob"
-    assert likely.spec is not None and likely.spec.startswith("P>=0.95")
+    assert likely.spec is not None and likely.spec.startswith("Pmax>=0.95")
     assert likely.that is None
 
 

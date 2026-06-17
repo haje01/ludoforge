@@ -26,7 +26,7 @@
 | Phase 1 | `forge-core` 추출 (loader·schema·ir 공유 패키지화) | ✅ | 순수 리팩터, 105건 통과·mypy clean |
 | Phase 2 | 전이 시스템 확장 (init·transitions·properties) | ✅ | 프론트엔드만(로더·스키마). 던전! 픽스처, 126건 |
 | Phase 3 | RuleForge BMC 백엔드 (k 언롤링·도달성·불변식·데드락) | ✅ | 반례 경로·k-bound 명시. `ruleforge bmc`, 136건 |
-| Phase 4 | `probforge` 스켈레톤 (IR → PRISM, PCTL 속성) | ⬜ | 유한 상태 강제 |
+| Phase 4 | `probforge` 스켈레톤 (IR → PRISM, PCTL 속성) | 🔵 | 모델 생성·게이트·CLI 완료. 실제 PRISM 실행 미검증(바이너리 부재) |
 | Phase 5 | (선택) 저엄밀 export (Machinations/몬테카를로) | ⬜ | 증명 아님 라벨 |
 
 상태 범례: ⬜ 대기 / 🔵 진행중 / ✅ 완료 / ⚠️ 막힘
@@ -60,4 +60,11 @@
   호출자가 Name 치환. CLI `ruleforge bmc <path> --k N`(종료코드 0/1/2/3). 던전!을
   examples/로 승격(+전투 보상 조정으로 작은 k 시연), README·examples/README 갱신. BMC
   테스트 9건(총 136). prob 속성은 ProbForge(Phase 4) 몫이라 건너뜀. (기존 ruff format
-  드리프트 checks.py·report.py는 Phase 3 범위 밖이라 유지.)
+  드리프트 checks.py·report.py는 Phase 3 범위 밖이라 유지.) 커밋 965679e.
+- 2026-06-17: Phase 4 부분 완료(ProbForge 스켈레톤). decisions.md D16(IR→PRISM 매핑).
+  probforge/ 신설 — prism_gen.py(enum const·init+rules 인코딩·확률 명령·속성 매핑,
+  유한 상태 게이트), runner.py(prism 발견·실행·파싱, 미설치 시 graceful). CLI
+  `ruleforge prob`. 던전! prob spec을 PRISM 문법(Pmax/&/=)으로 정정. 테스트 10건+통합
+  1건(skip, 총 146). **검증 범위: 모델 생성·게이트·오류·CLI graceful은 통과. 실제 PRISM
+  실행(승리 확률 계산)은 바이너리 부재로 미검증** — 통합 테스트는 prism 있을 때만 실행.
+  설치 스크립트 실행이 보안 가드로 차단됨 → 사용자 승인/설치 후 e2e 확인 필요.

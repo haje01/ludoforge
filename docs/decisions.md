@@ -363,6 +363,43 @@
 
 ---
 
+## D16. ProbForge — IR→PRISM 매핑 (스켈레톤)
+
+- **상태:** 확정 (2026-06-17) — 다중 백엔드 Phase 4 (ProbForge 스켈레톤). 실제 PRISM
+  실행은 바이너리 부재로 본 커밋에서 미검증 — 모델 생성까지만 검증(아래 영향).
+- **맥락:** 공유 IR(가중치 보존)을 PRISM guarded-command 모델로 번역해야 한다. PRISM은
+  유한 상태·정수/불리언만 다루고, enum·정적 rules·확률 가중치를 어떻게 매핑할지 정해야 한다.
+- **결정:**
+  - **유한 상태 게이트:** 번역 전에 `check_finite_state()`(D13)로 무한 int·real을 거부한다.
+  - **enum = 정수 인덱스 + 전역 const:** `const int <값> = <idx>;`를 emit하고 변수는
+    `[0..n-1]`. 값 이름을 그대로 PRISM 식에 쓴다(`room=center`). **값 이름은 전역 유일해야**
+    한다(중복 시 ProbForge 오류) — D8의 문맥 disambiguation은 PRISM 스켈레톤에선 미지원.
+  - **정적 rules = init 술어로 인코딩:** rules와 `init`을 `init…endinit` 블록에 conjoin한다.
+    전이가 바꾸지 않는 변수(프레임 불변, 예 role·win_gold)는 init에서 고정되면 영구 유지되어
+    **그 경우에 한해 건전**하다. 전이가 바꾸는 변수에 대한 rule은 매 스텝 강제되지 않는다
+    (스켈레톤 한계, 후속). PRISM 갱신 의미가 곧 D15 프레임이라 프레임은 자동.
+  - **확률 가중치 = 정규화:** 전이별 weight를 합=1로 정규화해 `p:(update)` 분기로 emit.
+    bare `then`(weight 1.0)은 분기 없는 결정적 명령.
+  - **outcome.then = 배정형만:** `next.X == 식`(And 결합) 형태만 PRISM 갱신 `(X'=식)`으로
+    번역한다. 부등식 등 비배정 then은 거부(PRISM 갱신은 배정이라).
+  - **속성 매핑:** reachable→`Pmax=? [ F (that) ]`, invariant→`Pmin=? [ G (that) ]`,
+    prob→`spec` 그대로(PRISM PCTL 원문, ProbForge 전용 escape hatch, D11). no_deadlock는
+    PRISM이 자동 탐지하므로 prop 미생성(리포트에 안내). 모델 타입은 **mdp**(비결정 가능).
+  - **실행 연동:** `prism` 바이너리를 PATH 또는 `PRISM` 환경변수로 찾는다. 없으면 모델만
+    생성·출력하고 안내한다(graceful). 설치되면 model+props를 실행해 `Result:`를 파싱.
+- **기각한 대안:**
+  - *enum 값을 인라인 정수로*: 생성 모델·PCTL이 `room=1`처럼 읽기 어렵다. const가 명확.
+  - *rules를 매 상태에 강제(예 라벨/모듈)*: 일반 해법은 복잡. 프레임 불변 변수 한정 init
+    인코딩이 던전!엔 충분하고 단순. 일반화는 후속.
+  - *dtmc 강제*: 비결정(전이 다중 활성·자유 enum)을 못 담는다. mdp가 일반.
+- **영향:** `probforge/` 신설(`prism_gen.py` 번역, `runner.py` 실행/파싱). CLI `ruleforge
+  prob <path>`. 던전! prob spec을 PRISM 문법으로 정정(`&`/`=`). 생성 텍스트는 골든 테스트로
+  검증, 실제 PRISM 실행은 `shutil.which("prism")` 게이트 통합테스트(바이너리 없으면 skip).
+  **본 커밋 한계: PRISM 미설치로 승리 확률 실계산은 미검증 — 모델 생성·게이트·CLI graceful만
+  검증.** 설치 후 `ruleforge prob examples/dungeon.rule`로 e2e 확인 예정.
+
+---
+
 ## 참고
 - 결정의 도메인 배경: [concepts.md](concepts.md) (특히 §4 — 도달 가능성 검사)
 - 살아있는 계획·진행: [../PLAN.md](../PLAN.md) / [../PROGRESS.md](../PROGRESS.md)

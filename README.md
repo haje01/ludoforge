@@ -17,6 +17,8 @@
 - **사람이 읽는 리포트**: 어떤 룰이 충돌하는지, 어떤 입력에서 깨지는지 한국어로 출력.
 - **전이 시스템 검사(BMC)**: 턴·이동·누적이 있는 동역학을 `transitions`로 기술하고,
   도달성·불변식·데드락을 k 스텝 BMC로 검증 — 반례 경로를 함께 제시(`ruleforge bmc`).
+- **확률 검사(ProbForge/PRISM)**: 같은 전이 시스템을 PRISM 확률 모델로 번역해 승리
+  확률·기대값 등 PCTL 속성을 검사(`ruleforge prob`, PRISM 설치 시).
 
 ## 실행 환경
 
@@ -28,8 +30,9 @@
 ```
 forge_core/   # 공유 DSL 프론트엔드(SSOT): schema.py(검증) loader.py(.rule→IR) ir.py(중간표현)
 ruleforge/    # 논리 증명 백엔드(Z3)
-  solver/     # translator.py(IR→Z3) checks.py(검사) report.py(리포트)
-  cli.py      # 진입점
+  solver/     # translator.py(IR→Z3) checks.py(정적 검사) bmc.py(전이 BMC) report.py(리포트)
+  cli.py      # 진입점 (check / bmc / prob)
+probforge/    # 확률 증명 백엔드(PRISM): prism_gen.py(IR→PRISM) runner.py(실행·파싱)
 rules/        # 실제 기획 룰 (.rule), git SSOT
 examples/     # 게임 기획 모순/정합 예제 (.rule)
 tests/        # 모순/정합 코퍼스 포함
@@ -114,6 +117,21 @@ ruleforge bmc examples/dungeon.rule --k 10
 `k`까지의 **유계 검사**다(무한 지평 증명 아님 — 리포트에 명시). 확률(`prob`) 속성은
 ProbForge(PRISM) 백엔드 몫이라 건너뛴다. **종료코드:** `0` 정상 · `1` 증명된 위반
 (불변식/데드락) · `2` 오류 · `3` k 한계 미확인.
+
+### 확률 검사 (ProbForge / PRISM)
+
+같은 전이 시스템을 **PRISM 확률 모델**로 번역해, BMC로는 못 보는 *정량* 질문(승리
+확률, 기대 게임 길이)을 검사한다 — 공유 DSL 하나에서 논리 증명(Z3/BMC)과 확률
+증명(PRISM)을 각각의 백엔드로(다중 백엔드 아키텍처).
+
+```bash
+ruleforge prob examples/dungeon.rule          # PRISM 모델 생성 + (설치 시) 실행
+```
+
+[PRISM](https://www.prismmodelchecker.org/)이 설치돼 PATH(또는 `PRISM` 환경변수)에
+있으면 PCTL 속성을 계산한다. 없으면 생성된 PRISM 모델만 출력한다(직접 PRISM에 넣어
+실행 가능). 유한 상태가 전제라 경계 없는 int·real 변수는 거부한다. **종료코드:**
+`0` 정상 · `2` 오류 · `3` PRISM 미설치(미계산).
 
 ### 여러 기획자가 함께 쓸 때
 

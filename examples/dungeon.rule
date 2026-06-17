@@ -47,5 +47,5 @@ properties:
     that: "gold >= 0"
   - id: likely_win
     kind: prob
-    desc: "승리 확률 95% 이상(ProbForge 전용)"
-    spec: "P>=0.95 [ F (gold >= win_gold and room == center) ]"
+    desc: "승리 확률 95% 이상(ProbForge 전용, PRISM PCTL 원문)"
+    spec: "Pmax>=0.95 [ F (gold>=win_gold & room=center) ]"

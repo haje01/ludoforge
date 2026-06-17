@@ -14,6 +14,8 @@ import typer
 
 from forge_core.loader import LoaderError, load_rules
 from forge_core.schema import SchemaError, validate
+from probforge.prism_gen import ProbForgeError, generate
+from probforge.runner import format_prob_report, run_prism
 from ruleforge.solver.bmc import format_bmc_report, run_bmc
 from ruleforge.solver.checks import check as run_checks
 from ruleforge.solver.report import format_report
@@ -89,6 +91,44 @@ def bmc(
         raise typer.Exit(_EXIT_CONTRADICTION)
     if report.has_unconfirmed:
         raise typer.Exit(_EXIT_UNKNOWN)
+    raise typer.Exit(_EXIT_OK)
+
+
+@app.command()
+def prob(
+    path: str = typer.Argument(..., help="검사할 .rule 파일 또는 디렉토리"),
+    show_model: bool = typer.Option(False, "--show-model", help="생성된 PRISM 모델도 출력"),
+) -> None:
+    """전이 시스템을 PRISM 확률 모델로 번역해 검사한다(ProbForge, D16).
+
+    유한 상태가 전제다. `prism` 바이너리가 없으면 모델만 생성·출력한다(graceful).
+    종료코드: 0=정상 · 2=로드/검증/번역 오류 · 3=PRISM 미설치(미계산).
+    """
+    try:
+        ruleset = load_rules(Path(path))
+        validate(ruleset)
+    except (LoaderError, SchemaError) as e:
+        typer.echo(f"검사를 진행할 수 없습니다:\n{e}", err=True)
+        raise typer.Exit(_EXIT_ERROR) from e
+
+    if not ruleset.transitions:
+        typer.echo("전이(transitions)가 없어 ProbForge 대상이 아닙니다.", err=True)
+        raise typer.Exit(_EXIT_ERROR)
+
+    try:
+        program = generate(ruleset)  # 유한 상태 게이트(D13) 포함
+    except (SchemaError, ProbForgeError) as e:
+        typer.echo(f"PRISM 모델 생성 실패:\n{e}", err=True)
+        raise typer.Exit(_EXIT_ERROR) from e
+
+    report = run_prism(program)
+    typer.echo(format_prob_report(report))
+    if show_model and report.available:
+        typer.echo("")
+        typer.echo(program.model)
+
+    if not report.available:
+        raise typer.Exit(_EXIT_UNKNOWN)  # 미설치 — 계산 미수행
     raise typer.Exit(_EXIT_OK)
 
 

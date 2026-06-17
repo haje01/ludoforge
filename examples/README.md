@@ -27,8 +27,9 @@
 `ruleforge check examples/team_example/`. 나머지는 자기완결 파일이라 개별로 검사한다.
 
 `dungeon.rule`은 정적 모순이 아니라 **전이 시스템**(init/transitions/properties) 예제다.
-정적 `check`로는 모순이 없고, 동역학(도달성·불변식·데드락)은 BMC로 검사한다:
-`ruleforge bmc examples/dungeon.rule --k 10` (D15 — k까지 유계 검사, prob 속성은 ProbForge 몫).
+정적 `check`로는 모순이 없고, 동역학은 두 백엔드로 검사한다:
+- 논리(도달성·불변식·데드락): `ruleforge bmc examples/dungeon.rule --k 10` (D15, k 유계)
+- 확률(승리 확률 등 PCTL): `ruleforge prob examples/dungeon.rule` (D16, PRISM 설치 시)
 
 ## 실행 예
 
