@@ -44,7 +44,7 @@ def test_loads_dungeon_transition_system() -> None:
     # 확률 전이 → 가중치 보존
     fight = rs.transitions[1]
     assert len(fight.outcomes) == 2
-    assert (fight.outcomes[0].weight, fight.outcomes[0].then) == (0.7, "next.gold == gold + 5000")
+    assert (fight.outcomes[0].weight, fight.outcomes[0].then) == (0.7, "next.gold == gold + 5")
     assert fight.outcomes[1].weight == 0.3
 
 
@@ -57,7 +57,7 @@ def test_loads_dungeon_properties() -> None:
     assert by_id["gold_nonneg"].kind == "invariant"
     likely = by_id["likely_win"]
     assert likely.kind == "prob"
-    assert likely.spec is not None and likely.spec.startswith("Pmax>=0.95")
+    assert likely.spec is not None and likely.spec.startswith("Pmax=?")
     assert likely.that is None
 
 

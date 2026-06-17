@@ -1,22 +1,23 @@
-# 던전!(WotC) 미니 전이 시스템 예제 — Phase 2 프론트엔드 파싱/검증용 픽스처.
+# 던전!(WotC) 미니 전이 시스템 예제 — 다중 백엔드 시연(BMC + PRISM).
 #
 # 골드를 모아 승리 목표에 도달한 뒤 중앙 방(center)으로 귀환하면 승리. 전투는 확률
-# 분기(outcomes)로 모델링한다. 이 파일은 init/transitions/properties를 모두 써서
-# 로더·스키마 검증을 시연한다. 실제 BMC/PRISM 검사는 Phase 3/4에서 붙는다.
+# 분기(outcomes). 같은 모델을 `ruleforge bmc`(논리)와 `ruleforge prob`(PRISM 확률)로
+# 검사한다. 수치는 PRISM 상태공간을 작게 유지하려 축약했다(gold 0~20). 실제 기획에선
+# 더 큰 수치도 BMC는 무방하나 PRISM은 상태 폭발에 주의(D13·D16).
 domain:
   variables:
-    gold:     { type: int, min: 0, max: 30000 }
+    gold:     { type: int, min: 0, max: 20 }
     room:     { type: enum, values: [center, l1, l2, l3] }
     role:     { type: enum, values: [fighter, wizard] }
-    win_gold: { type: int, min: 0, max: 30000 }
+    win_gold: { type: int, min: 0, max: 20 }
 
 rules:
   - id: wizard_win_target
     when: "role == wizard"
-    then: "win_gold == 20000"
+    then: "win_gold == 20"
   - id: fighter_win_target
     when: "role == fighter"
-    then: "win_gold == 10000"
+    then: "win_gold == 10"
 
 init: "gold == 0 and room == center"
 
@@ -26,10 +27,10 @@ transitions:
     when: "room == center"
     then: "next.room == l1"
   - id: fight_l1
-    desc: "1층 전투 — 70% 승리(골드 획득), 30% 무소득"
-    when: "room == l1"
+    desc: "1층 전투 — 70% 승리(+5 골드), 30% 무소득. 상한 넘지 않게 가드."
+    when: "room == l1 and gold <= 15"
     outcomes:
-      - { weight: 0.7, then: "next.gold == gold + 5000" }
+      - { weight: 0.7, then: "next.gold == gold + 5" }
       - { weight: 0.3, then: "next.gold == gold" }
   - id: return_to_center
     desc: "승리 목표 달성 시 중앙으로 귀환"
@@ -47,5 +48,5 @@ properties:
     that: "gold >= 0"
   - id: likely_win
     kind: prob
-    desc: "승리 확률 95% 이상(ProbForge 전용, PRISM PCTL 원문)"
-    spec: "Pmax>=0.95 [ F (gold>=win_gold & room=center) ]"
+    desc: "최적 전략의 승리 확률(ProbForge 전용, PRISM PCTL 원문)"
+    spec: "Pmax=? [ F (gold>=win_gold & room=center) ]"

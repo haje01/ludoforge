@@ -365,8 +365,8 @@
 
 ## D16. ProbForge — IR→PRISM 매핑 (스켈레톤)
 
-- **상태:** 확정 (2026-06-17) — 다중 백엔드 Phase 4 (ProbForge 스켈레톤). 실제 PRISM
-  실행은 바이너리 부재로 본 커밋에서 미검증 — 모델 생성까지만 검증(아래 영향).
+- **상태:** 확정 (2026-06-17) — 다중 백엔드 Phase 4 (ProbForge). PRISM 4.8.1로 e2e
+  **검증 완료**(아래 검증 후기).
 - **맥락:** 공유 IR(가중치 보존)을 PRISM guarded-command 모델로 번역해야 한다. PRISM은
   유한 상태·정수/불리언만 다루고, enum·정적 rules·확률 가중치를 어떻게 매핑할지 정해야 한다.
 - **결정:**
@@ -395,8 +395,15 @@
 - **영향:** `probforge/` 신설(`prism_gen.py` 번역, `runner.py` 실행/파싱). CLI `ruleforge
   prob <path>`. 던전! prob spec을 PRISM 문법으로 정정(`&`/`=`). 생성 텍스트는 골든 테스트로
   검증, 실제 PRISM 실행은 `shutil.which("prism")` 게이트 통합테스트(바이너리 없으면 skip).
-  **본 커밋 한계: PRISM 미설치로 승리 확률 실계산은 미검증 — 모델 생성·게이트·CLI graceful만
-  검증.** 설치 후 `ruleforge prob examples/dungeon.rule`로 e2e 확인 예정.
+- **검증 후기(PRISM 4.8.1 e2e):** 던전!에서 `Pmax=?/Pmin=?`가 실제로 계산됨(승리 확률
+  Pmax [F win] = 1.0 — 0.7 성공·무제한 재도전이라 결국 승리). 실행 중 두 가지를 고침:
+  - **상태 폭발:** gold·win_gold가 `[0..30000]`이면 PRISM 상태공간이 ~70억 → 빌드 멈춤
+    (D13 천장 실증). 던전! 수치를 `[0..20]`로 축약하고 전투 상한 가드를 추가(BMC는 영향
+    없음 — k 스텝만 펼치므로). 큰 수치는 BMC 전용으로 두고 PRISM은 축약본.
+  - **prob spec 문법:** PRISM은 `Pmax>=0.95`를 거부 — 바운드 아닌 **쿼리형 `Pmax=?`**
+    를 쓴다(실제 확률값을 보고). 던전! spec을 쿼리형으로 정정.
+  - 자유 enum(role)으로 초기 상태가 둘 → PRISM은 결과를 `[min,max]` 범위로 보고(파서가
+    문자열로 수용). 다중 초기상태는 정상.
 
 ---
 

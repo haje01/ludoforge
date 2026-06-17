@@ -37,9 +37,9 @@ def test_model_header_and_enum_consts() -> None:
 
 def test_variable_declarations() -> None:
     model = generate(_dungeon()).model
-    assert "gold : [0..30000];" in model
+    assert "gold : [0..20];" in model
     assert "room : [0..3];" in model
-    assert "win_gold : [0..30000];" in model
+    assert "win_gold : [0..20];" in model
 
 
 def test_deterministic_and_probabilistic_commands() -> None:
@@ -48,7 +48,7 @@ def test_deterministic_and_probabilistic_commands() -> None:
     assert "[descend_to_l1]" in model
     assert "(room'=l1)" in model
     # 확률 전이 — 가중치 보존(합=1)
-    assert "0.7:(gold'=(gold + 5000))" in model
+    assert "0.7:(gold'=(gold + 5))" in model
     assert "0.3:(gold'=gold)" in model
 
 
@@ -59,8 +59,8 @@ def test_init_block_encodes_init_and_rules() -> None:
     assert "gold = 0" in model
     assert "room = center" in model
     # 정적 rules → init 술어(프레임 불변 변수, D16)
-    assert "win_gold = 20000" in model
-    assert "win_gold = 10000" in model
+    assert "win_gold = 20" in model
+    assert "win_gold = 10" in model
     assert "role = wizard" in model
 
 
@@ -70,7 +70,7 @@ def test_property_mapping() -> None:
     assert "room = center" in props["winnable"].pctl
     assert props["gold_nonneg"].pctl.startswith("Pmin=? [ G (")
     # prob 속성은 spec 원문 그대로
-    assert props["likely_win"].pctl == "Pmax>=0.95 [ F (gold>=win_gold & room=center) ]"
+    assert props["likely_win"].pctl == "Pmax=? [ F (gold>=win_gold & room=center) ]"
 
 
 def test_no_deadlock_property_skipped() -> None:
