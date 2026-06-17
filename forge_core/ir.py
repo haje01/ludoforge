@@ -60,12 +60,66 @@ class Expect:
 
 
 @dataclass(frozen=True)
+class Outcome:
+    """전이의 한 분기(D12). `then`은 `next.<var>`로 다음 상태를 제약한다.
+
+    `weight`는 ProbForge(PRISM)용 확률 가중치다. RuleForge는 이를 **무시하고**(weight-
+    erasure) 분기를 비결정으로 본다(decisions.md D12). 결정적 전이는 weight=1.0인 단일
+    Outcome으로 정규화한다.
+    """
+
+    then: str
+    weight: float = 1.0
+
+
+@dataclass(frozen=True)
+class Transition:
+    """상태 → 다음 상태 전이(D12). `when` 가드가 참인 상태에서 발생한다.
+
+    `outcomes`는 항상 1개 이상이다 — DSL의 bare `then`은 로더가 단일 Outcome(weight=1.0)으로
+    정규화한다. 여러 개면 확률 분기(가중치 합은 보통 1, 검증은 ProbForge 몫).
+    `source`는 정의 파일명(병합 시 범인 추적용).
+    """
+
+    id: str
+    outcomes: tuple[Outcome, ...]
+    when: str | None = None
+    desc: str | None = None
+    source: str | None = None
+
+
+@dataclass(frozen=True)
+class Property:
+    """검증 속성(질의, D12). `kind`로 백엔드 공통 의미를 표현한다.
+
+    - `reachable`/`invariant`: `that`(현재 상태 술어)를 둔다. RuleForge가 BMC로,
+      ProbForge가 P>0 / P=1로 해석한다.
+    - `prob`: `spec`(PCTL 문자열)을 둔다 — **ProbForge 전용**, RuleForge는 무시한다.
+    - `no_deadlock`: 추가 필드 없음.
+
+    모델은 공유하되 질의 dialect는 백엔드별이다(D11) — `spec`은 Python 식이 아니라
+    PCTL이라 forge-core는 구문 검사하지 않는다(PRISM이 해석).
+    """
+
+    id: str
+    kind: str
+    that: str | None = None
+    spec: str | None = None
+    desc: str | None = None
+    source: str | None = None
+
+
+@dataclass(frozen=True)
 class RuleSet:
-    """검사 단위: 도메인 변수들과 룰들, 도달성 단언(expects)의 묶음."""
+    """검사 단위: 도메인 변수·룰·도달성 단언(expects)과 전이 시스템(init/transitions/
+    properties, D12)의 묶음. 전이 필드는 비어 있을 수 있다(정적 룰셋과 하위 호환)."""
 
     variables: tuple[Variable, ...] = field(default_factory=tuple)
     rules: tuple[Rule, ...] = field(default_factory=tuple)
     expects: tuple[Expect, ...] = field(default_factory=tuple)
+    init: str | None = None
+    transitions: tuple[Transition, ...] = field(default_factory=tuple)
+    properties: tuple[Property, ...] = field(default_factory=tuple)
 
     def variable(self, name: str) -> Variable:
         """이름으로 변수를 찾는다. 없으면 KeyError."""

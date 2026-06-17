@@ -1,0 +1,51 @@
+# 던전!(WotC) 미니 전이 시스템 예제 — Phase 2 프론트엔드 파싱/검증용 픽스처.
+#
+# 골드를 모아 승리 목표에 도달한 뒤 중앙 방(center)으로 귀환하면 승리. 전투는 확률
+# 분기(outcomes)로 모델링한다. 이 파일은 init/transitions/properties를 모두 써서
+# 로더·스키마 검증을 시연한다. 실제 BMC/PRISM 검사는 Phase 3/4에서 붙는다.
+domain:
+  variables:
+    gold:     { type: int, min: 0, max: 30000 }
+    room:     { type: enum, values: [center, l1, l2, l3] }
+    role:     { type: enum, values: [fighter, wizard] }
+    win_gold: { type: int, min: 0, max: 30000 }
+
+rules:
+  - id: wizard_win_target
+    when: "role == wizard"
+    then: "win_gold == 20000"
+  - id: fighter_win_target
+    when: "role == fighter"
+    then: "win_gold == 10000"
+
+init: "gold == 0 and room == center"
+
+transitions:
+  - id: descend_to_l1
+    desc: "중앙에서 1층으로 진입"
+    when: "room == center"
+    then: "next.room == l1"
+  - id: fight_l1
+    desc: "1층 전투 — 70% 승리(골드 획득), 30% 무소득"
+    when: "room == l1"
+    outcomes:
+      - { weight: 0.7, then: "next.gold == gold + 300" }
+      - { weight: 0.3, then: "next.gold == gold" }
+  - id: return_to_center
+    desc: "승리 목표 달성 시 중앙으로 귀환"
+    when: "gold >= win_gold"
+    then: "next.room == center"
+
+properties:
+  - id: winnable
+    kind: reachable
+    desc: "승리 상태(목표 골드 + 중앙 귀환)에 도달 가능해야 한다"
+    that: "gold >= win_gold and room == center"
+  - id: gold_nonneg
+    kind: invariant
+    desc: "골드는 음수가 되지 않는다"
+    that: "gold >= 0"
+  - id: likely_win
+    kind: prob
+    desc: "승리 확률 95% 이상(ProbForge 전용)"
+    spec: "P>=0.95 [ F (gold >= win_gold and room == center) ]"

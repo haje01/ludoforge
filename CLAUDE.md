@@ -153,6 +153,44 @@ expects:                          # 명시적 도달성 단언(D10, 선택)
 **주의:** 비선형 산술(변수×변수, 예 `atk * crit_mult`)은 NIA라 느리거나
 결정 불가. 가능하면 한쪽 상수화 또는 구간 분할.
 
+### 4.1 전이 시스템 확장 (다중 백엔드, D11~D14)
+
+정적 스냅샷(위)에 더해, 턴·이동·누적이 있는 **동역학**을 위한 전이 시스템 구문을 둔다.
+공유 IR(`forge_core`)이 이를 표현하고, RuleForge(Z3/BMC)와 ProbForge(PRISM)가 같은
+모델을 다르게 해석한다. **현재 구현(Phase 2)은 프론트엔드만** — 로더·스키마 검증까지이며,
+BMC 검사는 Phase 3, PRISM은 Phase 4에서 붙는다.
+
+```yaml
+init: "gold == 0 and room == center"   # 초기 상태 술어(선택)
+
+transitions:                            # 상태 → 다음 상태. next.<var>로 다음값 참조
+  - id: descend
+    when: "room == l1"                  # 가드(선택)
+    then: "next.room == l2"             # 결정적 — weight=1.0 단일 outcome으로 정규화
+  - id: fight
+    when: "room == l2"
+    outcomes:                           # 확률 분기. weight는 ProbForge용 주석
+      - { weight: 0.7, then: "next.gold == gold + 500" }
+      - { weight: 0.3, then: "next.gold == gold" }
+
+properties:                             # 질의. kind로 백엔드 공통 의미 표현
+  - { id: winnable, kind: reachable, that: "gold >= 10000 and room == center" }
+  - { id: gold_ok,  kind: invariant, that: "gold >= 0" }
+  - { id: likely,   kind: prob, spec: "P>=0.95 [ F (room == center) ]" }  # ProbForge 전용
+```
+
+규칙:
+- `next.<var>`(다음 상태 참조)는 **전이 then에서만** 허용. rules·init·expects·property.that
+  에서 쓰면 스키마 오류. `next`는 전이 표현식의 예약 식별자다.
+- 확률 `weight`는 골격 위 **주석**이다(D12): RuleForge는 지우고(weight-erasure) 분기를
+  비결정으로, ProbForge는 가중치를 살려 본다. 정성(논리) 모델은 정량 모델의 건전한 추상.
+- `properties.kind` ∈ {`reachable`, `invariant`, `prob`, `no_deadlock`}. `reachable`/
+  `invariant`는 `that`(상태 술어), `prob`는 `spec`(PCTL 문자열, ProbForge 전용 — forge-core는
+  구문 검사 안 함). 질의 dialect는 백엔드별로 가른다(D11).
+- 유한 상태(ProbForge/PRISM 전제, D13)는 `validate()`와 분리된 `check_finite_state()`가
+  검사한다 — int에 min·max 강제, real은 이산화 필요로 현 단계 거부. Z3는 무한 정수를
+  허용하므로 공유 `validate()`엔 넣지 않는다.
+
 ---
 
 ## 5. 기술 스택 / 환경

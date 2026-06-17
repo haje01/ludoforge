@@ -12,9 +12,11 @@ from typing import Any
 
 import yaml
 
-from forge_core.ir import Expect, Rule, RuleSet, Variable
+from forge_core.ir import Expect, Outcome, Property, Rule, RuleSet, Transition, Variable
 
 _VALID_TYPES = ("int", "enum", "bool", "real")
+# 속성 kind별 필요 필드(D12). reachable/invariant는 `that`, prob는 `spec`(PCTL).
+_PROP_KINDS = ("reachable", "invariant", "prob", "no_deadlock")
 
 
 class LoaderError(Exception):
@@ -37,10 +39,17 @@ def load_rules(path: str | Path) -> RuleSet:
 
 
 def _merge(rulesets: list[RuleSet]) -> RuleSet:
-    """여러 RuleSet을 병합한다. 변수는 이름으로 합치되 충돌(다른 선언)은 오류."""
+    """여러 RuleSet을 병합한다. 변수는 이름으로 합치되 충돌(다른 선언)은 오류.
+
+    전이 시스템(D12)도 병합한다: transitions/properties는 이어 붙이고, `init`은 전역
+    초기 상태라 둘 이상의 파일이 선언하면 모호하므로 오류로 본다.
+    """
     variables: dict[str, Variable] = {}
     rules: list[Rule] = []
     expects: list[Expect] = []
+    transitions: list[Transition] = []
+    properties: list[Property] = []
+    init: str | None = None
     for rs in rulesets:
         for v in rs.variables:
             if v.name in variables and variables[v.name] != v:
@@ -48,7 +57,20 @@ def _merge(rulesets: list[RuleSet]) -> RuleSet:
             variables[v.name] = v
         rules.extend(rs.rules)
         expects.extend(rs.expects)
-    return RuleSet(variables=tuple(variables.values()), rules=tuple(rules), expects=tuple(expects))
+        transitions.extend(rs.transitions)
+        properties.extend(rs.properties)
+        if rs.init is not None:
+            if init is not None:
+                raise LoaderError("init(초기 상태)이 둘 이상의 파일에 선언되었습니다 (전역 1개).")
+            init = rs.init
+    return RuleSet(
+        variables=tuple(variables.values()),
+        rules=tuple(rules),
+        expects=tuple(expects),
+        init=init,
+        transitions=tuple(transitions),
+        properties=tuple(properties),
+    )
 
 
 def load_rule_file(path: str | Path) -> RuleSet:
@@ -70,7 +92,17 @@ def load_rule_file(path: str | Path) -> RuleSet:
     variables = _parse_variables(raw.get("domain", {}), path)
     rules = _parse_rules(raw.get("rules", []), path)
     expects = _parse_expects(raw.get("expects", []), path)
-    return RuleSet(variables=variables, rules=rules, expects=expects)
+    init = _parse_init(raw.get("init"), path)
+    transitions = _parse_transitions(raw.get("transitions", []), path)
+    properties = _parse_properties(raw.get("properties", []), path)
+    return RuleSet(
+        variables=variables,
+        rules=rules,
+        expects=expects,
+        init=init,
+        transitions=transitions,
+        properties=properties,
+    )
 
 
 def _parse_variables(domain: Any, path: Path) -> tuple[Variable, ...]:
@@ -197,6 +229,123 @@ def _parse_expect(item: Any, index: int, path: Path) -> Expect:
 
     desc = _parse_opt_str(item.get("desc"), expect_id, "desc", path)
     return Expect(id=expect_id, that=that, desc=desc)
+
+
+def _parse_init(value: Any, path: Path) -> str | None:
+    """전이 시스템의 초기 상태 술어(D12). 선택적 최상위 문자열."""
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value:
+        raise LoaderError(f"{path}: 'init'은 비어있지 않은 문자열(초기 상태 술어)이어야 합니다.")
+    return value
+
+
+def _parse_transitions(transitions: Any, path: Path) -> tuple[Transition, ...]:
+    if not isinstance(transitions, list):
+        raise LoaderError(f"{path}: 'transitions'는 목록이어야 합니다.")
+    return tuple(_parse_transition(item, i, path) for i, item in enumerate(transitions))
+
+
+def _parse_transition(item: Any, index: int, path: Path) -> Transition:
+    if not isinstance(item, dict):
+        raise LoaderError(f"{path}: transitions[{index}]는 매핑이어야 합니다.")
+
+    tid = item.get("id")
+    if not isinstance(tid, str) or not tid:
+        raise LoaderError(f"{path}: transitions[{index}]에 문자열 'id'가 필요합니다.")
+
+    has_then = "then" in item
+    has_outcomes = "outcomes" in item
+    if has_then and has_outcomes:
+        raise LoaderError(f"{path}: 전이 '{tid}'는 'then'과 'outcomes' 중 하나만 가질 수 있습니다.")
+    if not has_then and not has_outcomes:
+        raise LoaderError(f"{path}: 전이 '{tid}'에 'then' 또는 'outcomes'가 필요합니다.")
+
+    if has_then:
+        then = item.get("then")
+        if not isinstance(then, str) or not then:
+            raise LoaderError(f"{path}: 전이 '{tid}'의 'then'은 비어있지 않은 문자열이어야 합니다.")
+        # bare then은 weight=1.0 단일 Outcome으로 정규화한다(D12).
+        outcomes: tuple[Outcome, ...] = (Outcome(then=then),)
+    else:
+        outcomes = _parse_outcomes(item.get("outcomes"), tid, path)
+
+    return Transition(
+        id=tid,
+        outcomes=outcomes,
+        when=_parse_opt_str(item.get("when"), tid, "when", path),
+        desc=_parse_opt_str(item.get("desc"), tid, "desc", path),
+        source=path.name,
+    )
+
+
+def _parse_outcomes(outcomes: Any, tid: str, path: Path) -> tuple[Outcome, ...]:
+    if not isinstance(outcomes, list) or not outcomes:
+        raise LoaderError(f"{path}: 전이 '{tid}'의 'outcomes'는 비어있지 않은 목록이어야 합니다.")
+    parsed: list[Outcome] = []
+    for i, item in enumerate(outcomes):
+        if not isinstance(item, dict):
+            raise LoaderError(f"{path}: 전이 '{tid}' outcomes[{i}]는 매핑이어야 합니다.")
+        then = item.get("then")
+        if not isinstance(then, str) or not then:
+            raise LoaderError(f"{path}: 전이 '{tid}' outcomes[{i}]에 문자열 'then'이 필요합니다.")
+        weight = _parse_weight(item.get("weight"), tid, i, path)
+        parsed.append(Outcome(then=then, weight=weight))
+    return tuple(parsed)
+
+
+def _parse_weight(value: Any, tid: str, index: int, path: Path) -> float:
+    """outcome 가중치. 생략 시 1.0. 음수는 거부(합 검증은 ProbForge 몫, D13)."""
+    if value is None:
+        return 1.0
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise LoaderError(
+            f"{path}: 전이 '{tid}' outcomes[{index}]의 weight는 실수여야 합니다: {value!r}"
+        )
+    if value < 0:
+        raise LoaderError(
+            f"{path}: 전이 '{tid}' outcomes[{index}]의 weight는 음수일 수 없습니다: {value}"
+        )
+    return float(value)
+
+
+def _parse_properties(properties: Any, path: Path) -> tuple[Property, ...]:
+    if not isinstance(properties, list):
+        raise LoaderError(f"{path}: 'properties'는 목록이어야 합니다.")
+    return tuple(_parse_property(item, i, path) for i, item in enumerate(properties))
+
+
+def _parse_property(item: Any, index: int, path: Path) -> Property:
+    if not isinstance(item, dict):
+        raise LoaderError(f"{path}: properties[{index}]는 매핑이어야 합니다.")
+
+    pid = item.get("id")
+    if not isinstance(pid, str) or not pid:
+        raise LoaderError(f"{path}: properties[{index}]에 문자열 'id'가 필요합니다.")
+
+    kind = item.get("kind")
+    if kind not in _PROP_KINDS:
+        raise LoaderError(f"{path}: 속성 '{pid}'의 kind가 잘못됨: {kind!r} (허용: {_PROP_KINDS})")
+
+    that = _parse_opt_str(item.get("that"), pid, "that", path)
+    spec = _parse_opt_str(item.get("spec"), pid, "spec", path)
+
+    # kind별 필요 필드 강제(D12): reachable/invariant는 that, prob는 spec.
+    if kind in ("reachable", "invariant") and not that:
+        raise LoaderError(
+            f"{path}: 속성 '{pid}'(kind={kind})에 문자열 'that'(상태 술어)이 필요합니다."
+        )
+    if kind == "prob" and not spec:
+        raise LoaderError(f"{path}: 속성 '{pid}'(kind=prob)에 문자열 'spec'(PCTL)이 필요합니다.")
+
+    return Property(
+        id=pid,
+        kind=kind,
+        that=that,
+        spec=spec,
+        desc=_parse_opt_str(item.get("desc"), pid, "desc", path),
+        source=path.name,
+    )
 
 
 def _parse_opt_str(value: Any, rule_id: str, field: str, path: Path) -> str | None:
