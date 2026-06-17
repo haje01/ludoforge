@@ -1,4 +1,4 @@
-"""S7: CLI 통합 테스트. ruleforge check <path> 파이프라인 + 종료코드.
+"""S7: CLI 통합 테스트. ludoforge check <path> 파이프라인 + 종료코드.
 
 종료코드: 0=정합, 1=모순, 2=로드/검증 오류, 3=unknown(판단 불가).
 교차 검사: 디렉토리의 .rule 파일들을 병합해 검사한다(여러 기획자 파일 간 모순 탐지).
@@ -10,7 +10,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from ruleforge.cli import app
+from ludoforge.cli import app
 
 runner = CliRunner()
 FIXTURES = Path(__file__).parent / "fixtures"

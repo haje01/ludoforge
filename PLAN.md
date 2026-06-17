@@ -1,11 +1,11 @@
-# PLAN.md — RuleForge 작업 계획
+# PLAN.md — Ludoforge 작업 계획
 
 > 진행 상태는 [PROGRESS.md](PROGRESS.md), 설계 결정의 "왜"는
 > [docs/decisions.md](docs/decisions.md), 아키텍처 SSOT는 [CLAUDE.md](CLAUDE.md).
 > 완료된 작업의 상세 이력은 git 커밋과 decisions.md에 있다.
 
 **기반(완료):** 1차·2차 마일스톤으로 정적 논리 검사기가 end-to-end 동작한다
-(`ruleforge check <path>`, LIA/real/enum/bool, 6가지 모순 유형, 테스트 99건).
+(`ludoforge check <path>`, LIA/real/enum/bool, 6가지 모순 유형, 테스트 99건).
 상세는 [PROGRESS.md](PROGRESS.md)와 decisions.md D1~D10 참조.
 
 ---
@@ -13,7 +13,7 @@
 ## 다중 백엔드 마일스톤 — ✅ 완료 (2026-06-17)
 
 > **상태: 완료.** Phase 0~4 모두 끝났다(D11~D16). 공유 IR(`forge_core`) 위에 RuleForge
-> (Z3/BMC, `ruleforge bmc`)와 ProbForge(PRISM, `ruleforge prob`) 두 백엔드가 동작하며,
+> (Z3/BMC, `ludoforge bmc`)와 ProbForge(PRISM, `ludoforge prob`) 두 백엔드가 동작하며,
 > 던전!(WotC)을 논리·확률 양쪽으로 검증해 e2e 확인했다(승리 확률 Pmax [F win]=1.0).
 > **Phase 5(저엄밀 Machinations/몬테카를로 export)는 생략**하고 마일스톤을 마감한다.
 > 배경·용어는 [docs/concepts.md §8](docs/concepts.md). 상세 이력은 git·PROGRESS·decisions.
@@ -132,7 +132,7 @@ properties:                             # 백엔드별 dialect, 공통 의미는
 **Phase 1 — `forge-core` 추출** *(구조적 변경, 행위 불변 — 순수 리팩터)*
 - 현재 `ruleforge/dsl/`(loader·schema·ir)를 공유 패키지 `forge-core`로 분리. `ruleforge`는
   그 위 백엔드로 재배치(`solver/` 유지). 기존 99건 테스트 **전부 그대로 통과**.
-- **성공 기준:** `ruleforge check` 기존 동작·리포트·테스트가 동일. 행위 변경 0.
+- **성공 기준:** `ludoforge check` 기존 동작·리포트·테스트가 동일. 행위 변경 0.
 
 **Phase 2 — 전이 시스템 확장 (DSL/IR)** *(행위적 변경)*
 - IR에 `init` / `Transition`(when·outcomes·next.* 참조) / `Property`(kind·that·spec) 추가.
@@ -187,7 +187,7 @@ properties:                             # 백엔드별 dialect, 공통 의미는
 
 ## 보류 중 (기존 후보 — 다중 백엔드와 별개로 잔존)
 
-- **CI 통합**: PR마다 `ruleforge check` 자동 실행 + 모순을 PR 코멘트로, 모순 시 fail.
+- **CI 통합**: PR마다 `ludoforge check` 자동 실행 + 모순을 PR 코멘트로, 모순 시 fail.
 - **Real 범위 도달성 — 완전 Optimize(A-ii)**: 정확 달성값·gap·접근(`<`) 구분. D9 후속.
 - **경계 검사 확장**: 종속 변수 정보성 리포트 / 기획 의도 상한.
 

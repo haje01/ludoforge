@@ -1,11 +1,11 @@
 # 예제 룰셋 모음
 
-실제 게임 기획에서 나올 법한 모순을 담은 예제다. RuleForge가 잡아내는 모순 유형
+실제 게임 기획에서 나올 법한 모순을 담은 예제다. Ludoforge가 잡아내는 모순 유형
 (범위 봉쇄 / enum 도달 불가 / 전역 over-constraint / 상태 봉쇄 / 실수 끝점 봉쇄 /
 도달성 단언 미충족)과 정합 케이스를 보여준다.
 
 각 파일은 **자기완결적**(domain + rules)이라 개별로 검사한다.
-서로 도메인이 달라 함께 병합하면 안 되므로 `ruleforge check examples/`처럼
+서로 도메인이 달라 함께 병합하면 안 되므로 `ludoforge check examples/`처럼
 디렉토리째 검사하지 말 것 — 파일을 하나씩 지정한다.
 
 | 예제 | 모순 유형 | 기획 시나리오 |
@@ -20,21 +20,21 @@
 | [`day_night_cycle.rule`](day_night_cycle.rule) | enum 도달 불가 (중복 값) | sky·lighting이 같은 값 이름(day/night)을 쓰며, 두 시스템이 밤 조명을 상충 강제해 sky=night 봉쇄 (D8) |
 | [`balanced_stats.rule`](balanced_stats.rule) | (정합) | 공격력=레벨×10, 상한 500, 레벨 상한 50이 정확히 맞아떨어져 모순 없음 |
 | [`balanced_build.rule`](balanced_build.rule) | (정합, expect 충족) | stat_budget과 같은 예산이지만 "공40·방40 균형 빌드"(합 80)는 도달 가능 → `expect:` 충족 (D10) |
-| [`dungeon.rule`](dungeon.rule) | (전이 시스템) | 던전!(WotC) 미니 모델 — 골드 모아 중앙 귀환 승리. `ruleforge bmc`로 검사 (D12·D15) |
+| [`dungeon.rule`](dungeon.rule) | (전이 시스템) | 던전!(WotC) 미니 모델 — 골드 모아 중앙 귀환 승리. `ludoforge bmc`로 검사 (D12·D15) |
 | [`team_example/`](team_example/) | (협업 패턴) | 공유 `_domain.rule` + 기획자별 rules 파일을 디렉토리로 병합 검사 |
 
 `team_example/`만은 여러 파일을 병합해야 하므로 **디렉토리째** 검사한다:
-`ruleforge check examples/team_example/`. 나머지는 자기완결 파일이라 개별로 검사한다.
+`ludoforge check examples/team_example/`. 나머지는 자기완결 파일이라 개별로 검사한다.
 
 `dungeon.rule`은 정적 모순이 아니라 **전이 시스템**(init/transitions/properties) 예제다.
 정적 `check`로는 모순이 없고, 동역학은 두 백엔드로 검사한다:
-- 논리(도달성·불변식·데드락): `ruleforge bmc examples/dungeon.rule --k 10` (D15, k 유계)
-- 확률(승리 확률 등 PCTL): `ruleforge prob examples/dungeon.rule` (D16, PRISM 설치 시)
+- 논리(도달성·불변식·데드락): `ludoforge bmc examples/dungeon.rule --k 10` (D15, k 유계)
+- 확률(승리 확률 등 PCTL): `ludoforge prob examples/dungeon.rule` (D16, PRISM 설치 시)
 
 ## 실행 예
 
 ```bash
-$ ruleforge check examples/item_enchant.rule
+$ ludoforge check examples/item_enchant.rule
 ❌ 모순 1건이 발견되었습니다.
 
 [1] rarity=legendary일 때 'enchant_level'은(는) 최대 5까지만 도달 가능합니다 (선언 max=10).
@@ -42,7 +42,7 @@ $ ruleforge check examples/item_enchant.rule
 ```
 
 ```bash
-$ ruleforge check examples/balanced_stats.rule
+$ ludoforge check examples/balanced_stats.rule
 ✅ 모순이 발견되지 않았습니다.
 ```
 

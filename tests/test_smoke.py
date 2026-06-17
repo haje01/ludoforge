@@ -4,13 +4,13 @@ from __future__ import annotations
 
 
 def test_package_imports() -> None:
-    import ruleforge
+    import ludoforge
 
-    assert ruleforge.__version__
+    assert ludoforge.__version__
 
 
 def test_cli_app_exists() -> None:
-    from ruleforge.cli import app
+    from ludoforge.cli import app
 
     assert app is not None
 

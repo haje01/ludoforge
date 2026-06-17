@@ -1,9 +1,12 @@
-"""RuleForge CLI 진입점.
+"""Ludoforge 통합 CLI 진입점.
 
-`ruleforge check <path>` 한 줄로 파이프라인을 실행한다:
-  로드 → 스키마·참조 검증 → Z3 번역 → 도달성 검사 → 한국어 리포트.
+서브커맨드로 백엔드를 호출한다:
+  ludoforge check <path>   정적 모순 검사 (RuleForge/Z3)
+  ludoforge bmc   <path>   전이 시스템 BMC (RuleForge/Z3·BMC)
+  ludoforge prob  <path>   확률 검사 (ProbForge/PRISM)
 
-종료코드: 0=정합, 1=모순 발견, 2=로드/검증/번역 오류, 3=unknown(판단 불가).
+공통 파이프라인: 로드 → 스키마·참조 검증 → 백엔드 번역·검사 → 한국어 리포트.
+종료코드: 0=정합/정상, 1=모순/증명된 위반, 2=로드/검증/번역 오류, 3=unknown/미확인.
 """
 
 from __future__ import annotations
@@ -21,7 +24,7 @@ from ruleforge.solver.checks import check as run_checks
 from ruleforge.solver.report import format_report
 from ruleforge.solver.translator import TranslationError, translate
 
-app = typer.Typer(help="MMORPG 룰 정합성 검증기")
+app = typer.Typer(help="Ludoforge — 게임 기획 검증 툴킷 (논리·확률 백엔드)")
 
 _EXIT_OK = 0
 _EXIT_CONTRADICTION = 1
@@ -74,7 +77,7 @@ def bmc(
 
     if not ruleset.transitions:
         typer.echo(
-            "전이(transitions)가 없어 BMC 대상이 아닙니다. 정적 검사는 'ruleforge check'를 쓰세요.",
+            "전이(transitions)가 없어 BMC 대상이 아닙니다. 정적 검사는 'ludoforge check'를 쓰세요.",
             err=True,
         )
         raise typer.Exit(_EXIT_ERROR)

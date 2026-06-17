@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = ["python-pptx>=1.0"]
 # ///
-"""RuleForge 프로젝트 소개 슬라이드를 python-pptx로 생성한다.
+"""Ludoforge 프로젝트 소개 슬라이드를 python-pptx로 생성한다.
 
 Marp(--pptx)는 각 슬라이드를 통째로 PNG로 박아 넣어 텍스트가 편집 불가하고
 파일이 비대해진다. 이 스크립트는 네이티브 텍스트박스/도형/표를 직접 생성해
@@ -137,7 +137,7 @@ def add_footer(slide, page: int, total: int):
     # 좌하단 브랜드
     box, tf = _add_box(slide, MARGIN_X, Inches(7.02), Inches(4), Inches(0.35))
     p = tf.paragraphs[0]
-    _set_para_runs(p, "RuleForge", 10, MUTED)
+    _set_para_runs(p, "Ludoforge", 10, MUTED)
     # 우하단 페이지
     box2, tf2 = _add_box(slide, SLIDE_W - Inches(2.0), Inches(7.02), Inches(1.15), Inches(0.35))
     p2 = tf2.paragraphs[0]
@@ -343,7 +343,7 @@ def render_table(slide, head, rows, y, width=None):
         fill_cell(tbl.cell(0, c), htext, BLUE, header=True)
     for r, row in enumerate(rows, start=1):
         accent = None
-        if "RuleForge" in row[0]:
+        if "Ludoforge" in row[0]:
             accent = GREEN_LT
         for c, val in enumerate(row):
             fill_cell(tbl.cell(r, c), val, TEXT, bold=(c == 0), accent=accent if c == 0 else None)
@@ -360,7 +360,7 @@ def build_title_slide(prs):
     p = tf.paragraphs[0]
     p.alignment = PP_ALIGN.LEFT
     r = p.add_run()
-    r.text = "RuleForge"
+    r.text = "Ludoforge"
     r.font.name, r.font.size, r.font.bold, r.font.color.rgb = FONT, Pt(64), True, TEXT
     _space_after(p, 6)
 
@@ -405,12 +405,12 @@ SLIDES = [
         ],
     },
     {
-        "title": "기존 방식 vs RuleForge",
+        "title": "기존 방식 vs Ludoforge",
         "blocks": [
             ("table", ["방식", "모순 발견"], [
                 ["사람 리뷰", "놓치기 쉬움 (조합 폭발)"],
                 ["시뮬레이션", "우연히 그 상태를 만나야 발견"],
-                ["RuleForge", "모순의 존재 자체를 증명 (반례 없이도)"],
+                ["Ludoforge", "모순의 존재 자체를 증명 (반례 없이도)"],
             ]),
             ("note", "핵심 원칙: 판정은 사람·LLM이 아니라 **Z3(SMT solver)** 가 한다 — 결정론이라 \"거짓 일관성\"을 환각하지 않는다", BLUE),
         ],
@@ -451,11 +451,11 @@ SLIDES = [
                 "# 1) uv 설치 (Python은 uv가 자동으로 받아온다)",
                 "#    https://docs.astral.sh/uv/getting-started/installation/",
                 "",
-                "# 2) RuleForge 설치",
+                "# 2) Ludoforge 설치",
                 "uv tool install git+https://github.com/haje01/ruleforge.git",
                 "",
                 "# 3) 어디서나 사용",
-                "ruleforge check <룰 폴더>",
+                "ludoforge check <룰 폴더>",
             ]),
             ("note", "Windows 비개발자도 위 3단계면 끝 — 별도 Python 설치 불필요", GREEN),
         ],
@@ -484,7 +484,7 @@ SLIDES = [
         "title": "검증 사례 — 모순을 짚어낸다",
         "blocks": [
             ("code", "bash", None, [
-                "$ ruleforge check warrior.rule",
+                "$ ludoforge check warrior.rule",
             ]),
             ("code", "text", None, [
                 "❌ 모순 1건이 발견되었습니다.",

@@ -37,7 +37,7 @@ def validate(ruleset: RuleSet) -> None:
         raise SchemaError(
             f"룰 {len(ruleset.rules)}개가 있지만 domain 변수 선언이 없습니다.\n"
             "이 파일이 rules만 담고 있다면, 공유 domain 파일이 함께 있는 "
-            "디렉토리를 검사하세요 (예: ruleforge check <폴더>)."
+            "디렉토리를 검사하세요 (예: ludoforge check <폴더>)."
         )
 
     errors: list[str] = []

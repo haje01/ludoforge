@@ -1,6 +1,6 @@
 # 설계 결정 기록 (ADR)
 
-> 이 문서는 RuleForge의 주요 설계 결정과 **기각한 대안·그 이유**를 박제한다.
+> 이 문서는 Ludoforge의 주요 설계 결정과 **기각한 대안·그 이유**를 박제한다.
 > PLAN.md(살아있는 계획)와 달리 이 기록은 **불변**이다 — 결정을 바꾸려면
 > 기존 항목을 수정하지 말고 새 항목을 추가하고 옛 항목을 `상태: 대체됨`으로 표시한다.
 > 목적: 이미 검토·기각한 대안을 미래에 다시 제안하는 낭비를 막는다.
@@ -15,7 +15,7 @@
 - **맥락:** CLAUDE.md §4는 수치공식·조건부효과·상호배제·비율/확률 등 여러 룰
   패턴을 제시한다. 1차에 어디까지 커버할지 정해야 계획 규모가 결정된다.
 - **결정:** 1차는 **수직 슬라이스** — LIA(선형 정수) 수치공식 + `when→Implies`
-  + unsat core/반례 리포트가 `ruleforge check rules/` 한 줄로 end-to-end로 도는 것.
+  + unsat core/반례 리포트가 `ludoforge check rules/` 한 줄로 end-to-end로 도는 것.
 - **기각한 대안:**
   - *1차부터 전 패턴 커버*: 범위가 넓어 파이프라인 전체를 검증하기 전에 표면적만
     넓어진다. CLAUDE.md §2.5 "점진적 형식화" 원칙과 충돌.
@@ -357,7 +357,7 @@
     반복 심화가 짧은 반례와 데드락을 함께 처리.
 - **영향:** `ruleforge/solver/bmc.py` 신설(언롤링·속성 검사·경로 추출·리포트). 번역기에
   표현식 재사용 진입점 `translate_expression` 추가, `next.X`는 호출자가 Name으로 치환해
-  넘긴다. CLI에 `ruleforge bmc <path> --k N` 추가. **BMC 범인-core 귀속**(어느 룰/전이가
+  넘긴다. CLI에 `ludoforge bmc <path> --k N` 추가. **BMC 범인-core 귀속**(어느 룰/전이가
   도달성을 막았는지)은 후속 — 현 단계는 trace가 설명이다(BMC 표준, 성공 기준과 일치).
   던전! 픽스처를 examples/로 승격(전이가 이제 실행 가능).
 
@@ -392,7 +392,7 @@
   - *rules를 매 상태에 강제(예 라벨/모듈)*: 일반 해법은 복잡. 프레임 불변 변수 한정 init
     인코딩이 던전!엔 충분하고 단순. 일반화는 후속.
   - *dtmc 강제*: 비결정(전이 다중 활성·자유 enum)을 못 담는다. mdp가 일반.
-- **영향:** `probforge/` 신설(`prism_gen.py` 번역, `runner.py` 실행/파싱). CLI `ruleforge
+- **영향:** `probforge/` 신설(`prism_gen.py` 번역, `runner.py` 실행/파싱). CLI `ludoforge
   prob <path>`. 던전! prob spec을 PRISM 문법으로 정정(`&`/`=`). 생성 텍스트는 골든 테스트로
   검증, 실제 PRISM 실행은 `shutil.which("prism")` 게이트 통합테스트(바이너리 없으면 skip).
 - **검증 후기(PRISM 4.8.1 e2e):** 던전!에서 `Pmax=?/Pmin=?`가 실제로 계산됨(승리 확률
