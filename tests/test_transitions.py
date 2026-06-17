@@ -31,21 +31,32 @@ def _write(tmp_path: Path, body: str) -> Path:
 def test_loads_dungeon_transition_system() -> None:
     rs = load_rule_file(EXAMPLES / "dungeon.rule")
 
-    assert rs.init == "gold == 0 and room == center"
+    assert rs.init == "gold == 0 and room == hall and status == exploring"
 
     tids = [t.id for t in rs.transitions]
-    assert tids == ["descend_to_l1", "fight_l1", "return_to_center"]
+    assert tids == [
+        "enter_l1",
+        "enter_l2",
+        "enter_l3",
+        "return_to_hall",
+        "fight_l1",
+        "fight_l2",
+        "fight_l3",
+        "claim_victory",
+        "won_absorb",
+        "dead_absorb",
+    ]
 
     # 결정적 전이(bare then) → weight=1.0 단일 Outcome으로 정규화
-    descend = rs.transitions[0]
-    assert descend.when == "room == center"
-    assert descend.outcomes == (Outcome(then="next.room == l1", weight=1.0),)
+    enter = rs.transitions[0]
+    assert enter.when == "room == hall and status == exploring"
+    assert enter.outcomes == (Outcome(then="next.room == l1", weight=1.0),)
 
-    # 확률 전이 → 가중치 보존
-    fight = rs.transitions[1]
-    assert len(fight.outcomes) == 2
-    assert (fight.outcomes[0].weight, fight.outcomes[0].then) == (0.7, "next.gold == gold + 5")
-    assert fight.outcomes[1].weight == 0.3
+    # 확률 전이(fight_l1) → 3-way 가중치 보존(승리/실패/사망)
+    fight = next(t for t in rs.transitions if t.id == "fight_l1")
+    assert len(fight.outcomes) == 3
+    assert (fight.outcomes[0].weight, fight.outcomes[0].then) == (0.85, "next.gold == gold + 2")
+    assert fight.outcomes[2].weight == 0.05
 
 
 def test_loads_dungeon_properties() -> None:
@@ -53,9 +64,9 @@ def test_loads_dungeon_properties() -> None:
     by_id = {p.id: p for p in rs.properties}
 
     assert by_id["winnable"].kind == "reachable"
-    assert by_id["winnable"].that == "gold >= win_gold and room == center"
+    assert by_id["winnable"].that == "status == won"
     assert by_id["gold_nonneg"].kind == "invariant"
-    likely = by_id["likely_win"]
+    likely = by_id["best_win_prob"]
     assert likely.kind == "prob"
     assert likely.spec is not None and likely.spec.startswith("Pmax=?")
     assert likely.that is None

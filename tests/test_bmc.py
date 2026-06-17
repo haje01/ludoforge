@@ -81,20 +81,21 @@ def test_dungeon_winnable_reachable() -> None:
     rs = load_rule_file(EXAMPLES / "dungeon.rule")
     report = run_bmc(rs, k=10)
     by = _by_id(report)
-    # 전사(목표 10000, 전투당 +5000)는 몇 스텝 안에 승리 도달 가능
+    # 전사(목표 10)는 몇 스텝 안에 보물을 모아 승리(status=won) 도달 가능
     assert by["winnable"].status == "reachable"  # type: ignore[attr-defined]
     # 골드 비음수는 k까지 유지
     assert by["gold_nonneg"].status == "holds_up_to_k"  # type: ignore[attr-defined]
     # prob 속성은 확률 백엔드 전용이라 건너뜀
-    assert "likely_win" in report.skipped_prob
+    assert "best_win_prob" in report.skipped_prob
 
 
-def test_dungeon_winning_trace_ends_at_center_with_target_gold() -> None:
+def test_dungeon_winning_trace_ends_at_hall_with_target_gold() -> None:
     rs = load_rule_file(EXAMPLES / "dungeon.rule")
     report = run_bmc(rs, k=10)
     trace = _by_id(report)["winnable"].trace  # type: ignore[attr-defined]
     last = trace.steps[-1].values
-    assert last["room"] == "center"
+    assert last["status"] == "won"
+    assert last["room"] == "hall"
     assert int(last["gold"]) >= int(last["win_gold"])
 
 

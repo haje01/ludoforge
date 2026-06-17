@@ -1,52 +1,117 @@
-# 던전!(WotC) 미니 전이 시스템 예제 — 다중 백엔드 시연(BMC + PRISM).
+# 던전!(WotC 2012판) 전이 시스템 예제 — 다중 백엔드 시연(BMC + PRISM).
 #
-# 골드를 모아 승리 목표에 도달한 뒤 중앙 방(center)으로 귀환하면 승리. 전투는 확률
-# 분기(outcomes). 같은 모델을 `ludoforge bmc`(논리)와 `ludoforge prob`(PRISM 확률)로
-# 검사한다. 수치는 PRISM 상태공간을 작게 유지하려 축약했다(gold 0~20). 실제 기획에선
-# 더 큰 수치도 BMC는 무방하나 PRISM은 상태 폭발에 주의(D13·D16).
+# docs/dungeon_game_rule.md를 과감히 단순화했다. 클래스·레벨·몬스터·전투·보물 카드·
+# 승리/패배를 다음으로 압축한다:
+#   - 클래스(role): 목표 보물액(win_gold)만 다르게 둔다. fighter는 적게(10), wizard는
+#     많이(20) 필요 — 주문·마법검은 생략. (원작의 클래스 균형 = "강할수록 더 많은 보물")
+#   - 레벨(room): hall(중앙 Great Hall) → l1 → l2 → l3. 깊을수록 강한 몬스터 + 값진 보물.
+#   - 몬스터·전투·보물 카드(fight_lN): 한 레벨에서 싸우면 확률로 갈린다 —
+#       승리: 그 레벨의 보물 카드 획득(gold += 레벨값),
+#       실패(생존): 소득 없이 재도전,
+#       사망: 들고 있던 보물 전부 잃고(gold=0) 게임 종료(status=dead).
+#   - 승리: 목표액 이상 보물을 든 채 hall로 귀환(status=won).
+#
+# 검사:
+#   ludoforge bmc  examples/dungeon.rule --k 12   # 논리: 도달성·불변식·데드락
+#   ludoforge prob examples/dungeon.rule          # 확률: 최적 전략 승리 확률(PRISM)
+#
+# 수치는 PRISM 상태공간을 작게 유지하려 축약(gold 0~30). BMC는 더 큰 수치도 무방하나
+# PRISM은 상태 폭발에 주의(D13·D16).
 domain:
   variables:
-    gold:     { type: int, min: 0, max: 20 }
-    room:     { type: enum, values: [center, l1, l2, l3] }
+    gold:     { type: int, min: 0, max: 30 }
+    win_gold: { type: int, min: 0, max: 30 }
+    room:     { type: enum, values: [hall, l1, l2, l3] }
     role:     { type: enum, values: [fighter, wizard] }
-    win_gold: { type: int, min: 0, max: 20 }
+    status:   { type: enum, values: [exploring, won, dead] }
 
 rules:
-  - id: wizard_win_target
-    when: "role == wizard"
-    then: "win_gold == 20"
+  # 클래스별 목표 보물액(원작: fighter 10k, wizard 20~30k). 게임 내내 불변.
   - id: fighter_win_target
     when: "role == fighter"
     then: "win_gold == 10"
+  - id: wizard_win_target
+    when: "role == wizard"
+    then: "win_gold == 20"
 
-init: "gold == 0 and room == center"
+init: "gold == 0 and room == hall and status == exploring"
 
 transitions:
-  - id: descend_to_l1
-    desc: "중앙에서 1층으로 진입"
-    when: "room == center"
+  # ── 이동 ── (탐험 중에만). 깊은 층으로 내려가거나 hall로 귀환.
+  - id: enter_l1
+    desc: "Great Hall에서 1층으로 진입"
+    when: "room == hall and status == exploring"
     then: "next.room == l1"
+  - id: enter_l2
+    when: "room == l1 and status == exploring"
+    then: "next.room == l2"
+  - id: enter_l3
+    when: "room == l2 and status == exploring"
+    then: "next.room == l3"
+  - id: return_to_hall
+    desc: "어느 층에서든 중앙으로 귀환(이동 추상화)"
+    when: "(room == l1 or room == l2 or room == l3) and status == exploring"
+    then: "next.room == hall"
+
+  # ── 전투 ── 레벨별 몬스터. 승리=보물 카드 획득, 사망=전 보물 상실 후 종료.
+  # gold 가드는 선언 max(30)를 넘지 않도록 보물값만큼 여유를 둔다.
   - id: fight_l1
-    desc: "1층 전투 — 70% 승리(+5 골드), 30% 무소득. 상한 넘지 않게 가드."
-    when: "room == l1 and gold <= 15"
+    desc: "1층 전투 — 약한 몬스터(보물 +2). 승85% / 실패10% / 사망5%."
+    when: "room == l1 and status == exploring and gold <= 28"
     outcomes:
-      - { weight: 0.7, then: "next.gold == gold + 5" }
-      - { weight: 0.3, then: "next.gold == gold" }
-  - id: return_to_center
-    desc: "승리 목표 달성 시 중앙으로 귀환"
-    when: "gold >= win_gold"
-    then: "next.room == center"
+      - { weight: 0.85, then: "next.gold == gold + 2" }
+      - { weight: 0.10, then: "next.gold == gold" }
+      - { weight: 0.05, then: "next.gold == 0 and next.room == hall and next.status == dead" }
+  - id: fight_l2
+    desc: "2층 전투 — 중간 몬스터(보물 +5). 승65% / 실패20% / 사망15%."
+    when: "room == l2 and status == exploring and gold <= 25"
+    outcomes:
+      - { weight: 0.65, then: "next.gold == gold + 5" }
+      - { weight: 0.20, then: "next.gold == gold" }
+      - { weight: 0.15, then: "next.gold == 0 and next.room == hall and next.status == dead" }
+  - id: fight_l3
+    desc: "3층 전투 — 강한 몬스터(보물 +8). 승45% / 실패25% / 사망30%."
+    when: "room == l3 and status == exploring and gold <= 22"
+    outcomes:
+      - { weight: 0.45, then: "next.gold == gold + 8" }
+      - { weight: 0.25, then: "next.gold == gold" }
+      - { weight: 0.30, then: "next.gold == 0 and next.room == hall and next.status == dead" }
+
+  # ── 승리 ── 목표액 이상 보물을 든 채 hall에 있으면 즉시 승리.
+  - id: claim_victory
+    desc: "목표 보물액 달성 + 중앙 귀환 → 승리"
+    when: "room == hall and gold >= win_gold and status == exploring"
+    then: "next.status == won"
+
+  # ── 종료 상태 흡수 루프 ── (데드락 방지: won/dead는 자기 자신으로만 전이)
+  - id: won_absorb
+    when: "status == won"
+    then: "next.status == won"
+  - id: dead_absorb
+    when: "status == dead"
+    then: "next.status == dead"
 
 properties:
   - id: winnable
     kind: reachable
-    desc: "승리 상태(목표 골드 + 중앙 귀환)에 도달 가능해야 한다"
-    that: "gold >= win_gold and room == center"
+    desc: "승리 상태에 도달 가능해야 한다(어떤 클래스로든 이길 길이 존재)"
+    that: "status == won"
+  - id: death_possible
+    kind: reachable
+    desc: "사망(패배)도 발생 가능함 — 전투에 실제 위험이 있는지 확인"
+    that: "status == dead"
   - id: gold_nonneg
     kind: invariant
-    desc: "골드는 음수가 되지 않는다"
+    desc: "보물은 음수가 되지 않는다"
     that: "gold >= 0"
-  - id: likely_win
+  - id: sound_victory
+    kind: invariant
+    desc: "규칙 건전성 — 목표액 미달 상태로는 결코 승리할 수 없어야 한다"
+    that: "status != won or gold >= win_gold"
+  - id: no_stuck
+    kind: no_deadlock
+    desc: "막다른(후속 없는) 상태가 없어야 한다"
+  - id: best_win_prob
     kind: prob
     desc: "최적 전략의 승리 확률(확률 백엔드 전용, PRISM PCTL 원문)"
-    spec: "Pmax=? [ F (gold>=win_gold & room=center) ]"
+    spec: "Pmax=? [ F (status=won) ]"

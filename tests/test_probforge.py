@@ -29,7 +29,7 @@ def _dungeon() -> RuleSet:
 def test_model_header_and_enum_consts() -> None:
     model = generate(_dungeon()).model
     assert model.startswith("mdp")
-    assert "const int center = 0;" in model
+    assert "const int hall = 0;" in model
     assert "const int l1 = 1;" in model
     assert "const int fighter = 0;" in model
     assert "const int wizard = 1;" in model
@@ -37,19 +37,20 @@ def test_model_header_and_enum_consts() -> None:
 
 def test_variable_declarations() -> None:
     model = generate(_dungeon()).model
-    assert "gold : [0..20];" in model
+    assert "gold : [0..30];" in model
     assert "room : [0..3];" in model
-    assert "win_gold : [0..20];" in model
+    assert "win_gold : [0..30];" in model
 
 
 def test_deterministic_and_probabilistic_commands() -> None:
     model = generate(_dungeon()).model
     # 결정적 전이(weight 1.0) — 확률 접두 없음
-    assert "[descend_to_l1]" in model
+    assert "[enter_l1]" in model
     assert "(room'=l1)" in model
-    # 확률 전이 — 가중치 보존(합=1)
-    assert "0.7:(gold'=(gold + 5))" in model
-    assert "0.3:(gold'=gold)" in model
+    # 확률 전이 — 가중치 보존(합=1), 사망 분기는 다중 갱신
+    assert "0.85:(gold'=(gold + 2))" in model
+    assert "0.1:(gold'=gold)" in model
+    assert "0.05:(gold'=0) & (room'=hall) & (status'=dead)" in model
 
 
 def test_init_block_encodes_init_and_rules() -> None:
@@ -57,7 +58,7 @@ def test_init_block_encodes_init_and_rules() -> None:
     assert "init" in model and "endinit" in model
     # init 술어(비교는 공백 포함 렌더: `gold = 0`)
     assert "gold = 0" in model
-    assert "room = center" in model
+    assert "room = hall" in model
     # 정적 rules → init 술어(프레임 불변 변수, D16)
     assert "win_gold = 20" in model
     assert "win_gold = 10" in model
@@ -67,10 +68,10 @@ def test_init_block_encodes_init_and_rules() -> None:
 def test_property_mapping() -> None:
     props = {p.prop_id: p for p in generate(_dungeon()).properties}
     assert props["winnable"].pctl.startswith("Pmax=? [ F (")
-    assert "room = center" in props["winnable"].pctl
+    assert "status = won" in props["winnable"].pctl
     assert props["gold_nonneg"].pctl.startswith("Pmin=? [ G (")
     # prob 속성은 spec 원문 그대로
-    assert props["likely_win"].pctl == "Pmax=? [ F (gold>=win_gold & room=center) ]"
+    assert props["best_win_prob"].pctl == "Pmax=? [ F (status=won) ]"
 
 
 def test_no_deadlock_property_skipped() -> None:
