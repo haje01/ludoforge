@@ -161,6 +161,13 @@ ludoforge bmc examples/dungeon.rule --k 12
 ludoforge prob examples/dungeon.rule          # PRISM으로 PCTL 속성 계산
 ```
 
+> **`Pmax=? [ F ... ]`가 처음이라면:** 출력에 함께 표시되는 이 표기는 **PCTL**(확률 시제
+> 논리) 질의다. 짧게 — `P`는 "얼마의 확률로?"(`Pmax`=최적 전략의 최댓값, `Pmin`=최악의
+> 최솟값, `=?`=그 값을 계산), `F`는 "언젠가(결국)", `G`는 "항상". 즉
+> `Pmax=? [ F (status=won) ]` = "최적 전략으로 **결국 승리할** 확률의 최댓값은?". 연산자와
+> 구문을 더 알고 싶으면 [concepts.md §8.8 PCTL 구문 기초](docs/concepts.md#88-pctl-구문-기초)
+> 를 참고.
+
 PATH(또는 `PRISM` 환경변수)에서 PRISM을 찾아 각 PCTL 속성을 계산해 한국어로 보고한다.
 유한 상태가 전제라 경계 없는 int·real 변수는 거부한다. 생성된 PRISM 모델 자체를 보려면
 `--show-model`을 붙인다.
