@@ -14,6 +14,7 @@ import typer
 
 from forge_core.loader import LoaderError, load_rules
 from forge_core.schema import SchemaError, validate
+from ruleforge.solver.bmc import format_bmc_report, run_bmc
 from ruleforge.solver.checks import check as run_checks
 from ruleforge.solver.report import format_report
 from ruleforge.solver.translator import TranslationError, translate
@@ -49,6 +50,44 @@ def check(path: str = typer.Argument(..., help="검사할 .rule 파일 또는 �
     if report.has_contradiction:
         raise typer.Exit(_EXIT_CONTRADICTION)
     if report.unknowns:
+        raise typer.Exit(_EXIT_UNKNOWN)
+    raise typer.Exit(_EXIT_OK)
+
+
+@app.command()
+def bmc(
+    path: str = typer.Argument(..., help="검사할 .rule 파일 또는 디렉토리"),
+    k: int = typer.Option(10, "--k", help="BMC 언롤링 깊이 상한"),
+) -> None:
+    """전이 시스템(init/transitions/properties)을 깊이 k까지 BMC로 검사한다(D15).
+
+    종료코드: 0=정상, 1=증명된 위반(불변식/데드락), 2=로드/검증 오류, 3=k 한계 미확인.
+    """
+    try:
+        ruleset = load_rules(Path(path))
+        validate(ruleset)
+    except (LoaderError, SchemaError) as e:
+        typer.echo(f"검사를 진행할 수 없습니다:\n{e}", err=True)
+        raise typer.Exit(_EXIT_ERROR) from e
+
+    if not ruleset.transitions:
+        typer.echo(
+            "전이(transitions)가 없어 BMC 대상이 아닙니다. 정적 검사는 'ruleforge check'를 쓰세요.",
+            err=True,
+        )
+        raise typer.Exit(_EXIT_ERROR)
+
+    try:
+        report = run_bmc(ruleset, k)
+    except TranslationError as e:
+        typer.echo(f"번역 오류:\n{e}", err=True)
+        raise typer.Exit(_EXIT_ERROR) from e
+
+    typer.echo(format_bmc_report(report))
+
+    if report.has_violation:
+        raise typer.Exit(_EXIT_CONTRADICTION)
+    if report.has_unconfirmed:
         raise typer.Exit(_EXIT_UNKNOWN)
     raise typer.Exit(_EXIT_OK)
 

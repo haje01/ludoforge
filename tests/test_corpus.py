@@ -34,6 +34,7 @@ EXAMPLE_EXPECTED = {
     "stat_budget": True,
     "balanced_stats": False,
     "balanced_build": False,
+    "dungeon": False,  # 전이 시스템 예제 — 정적 check는 모순 없음(동역학은 ruleforge bmc)
 }
 
 

@@ -20,10 +20,15 @@
 | [`day_night_cycle.rule`](day_night_cycle.rule) | enum 도달 불가 (중복 값) | sky·lighting이 같은 값 이름(day/night)을 쓰며, 두 시스템이 밤 조명을 상충 강제해 sky=night 봉쇄 (D8) |
 | [`balanced_stats.rule`](balanced_stats.rule) | (정합) | 공격력=레벨×10, 상한 500, 레벨 상한 50이 정확히 맞아떨어져 모순 없음 |
 | [`balanced_build.rule`](balanced_build.rule) | (정합, expect 충족) | stat_budget과 같은 예산이지만 "공40·방40 균형 빌드"(합 80)는 도달 가능 → `expect:` 충족 (D10) |
+| [`dungeon.rule`](dungeon.rule) | (전이 시스템) | 던전!(WotC) 미니 모델 — 골드 모아 중앙 귀환 승리. `ruleforge bmc`로 검사 (D12·D15) |
 | [`team_example/`](team_example/) | (협업 패턴) | 공유 `_domain.rule` + 기획자별 rules 파일을 디렉토리로 병합 검사 |
 
 `team_example/`만은 여러 파일을 병합해야 하므로 **디렉토리째** 검사한다:
 `ruleforge check examples/team_example/`. 나머지는 자기완결 파일이라 개별로 검사한다.
+
+`dungeon.rule`은 정적 모순이 아니라 **전이 시스템**(init/transitions/properties) 예제다.
+정적 `check`로는 모순이 없고, 동역학(도달성·불변식·데드락)은 BMC로 검사한다:
+`ruleforge bmc examples/dungeon.rule --k 10` (D15 — k까지 유계 검사, prob 속성은 ProbForge 몫).
 
 ## 실행 예
 

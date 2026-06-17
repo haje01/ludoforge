@@ -107,6 +107,18 @@ def translate(ruleset: RuleSet) -> Translation:
     )
 
 
+def translate_expression(
+    node: ast.AST, symbols: dict[str, Any], enums: dict[str, dict[str, Any]]
+) -> Any:
+    """단일 표현식 ast 노드를 Z3 식으로 번역한다(BMC 등 외부 재사용 진입점, D15).
+
+    화이트리스트 노드만 허용한다(`_translate_expr`와 동일 규칙). `next.<var>`(다음 상태)는
+    여기서 처리하지 않는다 — 호출자가 Name으로 치환(mangle)해 넘긴다(bmc.py). `symbols`/
+    `enums`에 현재·다음 스텝 변수를 함께 담아 호출하는 식이다.
+    """
+    return _translate_expr(node, symbols, enums)
+
+
 def _build_domain(
     ruleset: RuleSet,
 ) -> tuple[dict[str, Any], list[Any], dict[str, dict[str, Any]]]:

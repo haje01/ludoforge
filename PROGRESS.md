@@ -25,7 +25,7 @@
 | Phase 0 | 범위 합의 & decisions.md D11~ 기록, CLAUDE.md §1/§3 갱신안 | ✅ | D11~D14 기록, §1/§3 갱신. 사용자 비준 대기 |
 | Phase 1 | `forge-core` 추출 (loader·schema·ir 공유 패키지화) | ✅ | 순수 리팩터, 105건 통과·mypy clean |
 | Phase 2 | 전이 시스템 확장 (init·transitions·properties) | ✅ | 프론트엔드만(로더·스키마). 던전! 픽스처, 126건 |
-| Phase 3 | RuleForge BMC 백엔드 (k 언롤링·도달성·불변식·데드락) | ⬜ | unsat-core·반례 시퀀스 |
+| Phase 3 | RuleForge BMC 백엔드 (k 언롤링·도달성·불변식·데드락) | ✅ | 반례 경로·k-bound 명시. `ruleforge bmc`, 136건 |
 | Phase 4 | `probforge` 스켈레톤 (IR → PRISM, PCTL 속성) | ⬜ | 유한 상태 강제 |
 | Phase 5 | (선택) 저엄밀 export (Machinations/몬테카를로) | ⬜ | 증명 아님 라벨 |
 
@@ -52,4 +52,12 @@
   참조 검사. ProbForge용 유한 상태 게이트 check_finite_state()(validate와 분리). 던전!
   픽스처(tests/fixtures/dungeon.rule)·테스트 21건 추가(총 126건). CLAUDE.md §4.1에 전이
   시스템 DSL 문서화. 하위 호환 유지(번역기/검사기 미변경, 기존 정적 DSL·CLI 동일).
-  BMC 검사는 Phase 3.
+  BMC 검사는 Phase 3. 커밋 5f3733e.
+- 2026-06-17: Phase 3 완료(RuleForge BMC 백엔드). decisions.md D15(프레임=미변경 유지,
+  rules=상태 불변식, weight-erasure, 반복 심화). `ruleforge/solver/bmc.py` 신설 — 전이를
+  k 스텝 언롤링, reachable(도달 경로)·invariant(위반 시퀀스)·no_deadlock 검사, action@i로
+  전이 추적, k-bound 정직 보고. 번역기에 translate_expression 재사용 진입점, `next.X`는
+  호출자가 Name 치환. CLI `ruleforge bmc <path> --k N`(종료코드 0/1/2/3). 던전!을
+  examples/로 승격(+전투 보상 조정으로 작은 k 시연), README·examples/README 갱신. BMC
+  테스트 9건(총 136). prob 속성은 ProbForge(Phase 4) 몫이라 건너뜀. (기존 ruff format
+  드리프트 checks.py·report.py는 Phase 3 범위 밖이라 유지.)

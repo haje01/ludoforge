@@ -15,6 +15,7 @@ from forge_core.loader import LoaderError, load_rule_file
 from forge_core.schema import SchemaError, check_finite_state, validate
 
 FIXTURES = Path(__file__).parent / "fixtures"
+EXAMPLES = Path(__file__).parent.parent / "examples"
 _DOM = "domain: {variables: {g: {type: int, min: 0, max: 9}}}\n"
 
 
@@ -28,7 +29,7 @@ def _write(tmp_path: Path, body: str) -> Path:
 
 
 def test_loads_dungeon_transition_system() -> None:
-    rs = load_rule_file(FIXTURES / "dungeon.rule")
+    rs = load_rule_file(EXAMPLES / "dungeon.rule")
 
     assert rs.init == "gold == 0 and room == center"
 
@@ -43,12 +44,12 @@ def test_loads_dungeon_transition_system() -> None:
     # 확률 전이 → 가중치 보존
     fight = rs.transitions[1]
     assert len(fight.outcomes) == 2
-    assert (fight.outcomes[0].weight, fight.outcomes[0].then) == (0.7, "next.gold == gold + 300")
+    assert (fight.outcomes[0].weight, fight.outcomes[0].then) == (0.7, "next.gold == gold + 5000")
     assert fight.outcomes[1].weight == 0.3
 
 
 def test_loads_dungeon_properties() -> None:
-    rs = load_rule_file(FIXTURES / "dungeon.rule")
+    rs = load_rule_file(EXAMPLES / "dungeon.rule")
     by_id = {p.id: p for p in rs.properties}
 
     assert by_id["winnable"].kind == "reachable"
@@ -61,7 +62,7 @@ def test_loads_dungeon_properties() -> None:
 
 
 def test_transition_source_is_filename() -> None:
-    rs = load_rule_file(FIXTURES / "dungeon.rule")
+    rs = load_rule_file(EXAMPLES / "dungeon.rule")
     assert all(t.source == "dungeon.rule" for t in rs.transitions)
 
 
@@ -117,7 +118,7 @@ def test_prob_property_requires_spec(tmp_path: Path) -> None:
 
 
 def test_dungeon_fixture_validates() -> None:
-    validate(load_rule_file(FIXTURES / "dungeon.rule"))  # 예외 없으면 통과
+    validate(load_rule_file(EXAMPLES / "dungeon.rule"))  # 예외 없으면 통과
 
 
 def test_next_in_rule_then_rejected() -> None:
@@ -200,7 +201,7 @@ def test_existing_static_fixture_still_validates() -> None:
 
 
 def test_check_finite_state_passes_for_dungeon() -> None:
-    check_finite_state(load_rule_file(FIXTURES / "dungeon.rule"))  # 모두 유한 → 통과
+    check_finite_state(load_rule_file(EXAMPLES / "dungeon.rule"))  # 모두 유한 → 통과
 
 
 def test_check_finite_state_rejects_unbounded_int() -> None:

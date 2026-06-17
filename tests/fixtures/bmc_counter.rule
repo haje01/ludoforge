@@ -1,0 +1,16 @@
+# BMC 테스트용 작은 카운터: x를 0에서 1씩 올린다(상한 5에서 멈춤).
+domain:
+  variables:
+    x: { type: int, min: 0, max: 5 }
+
+init: "x == 0"
+
+transitions:
+  - id: inc
+    when: "x < 5"
+    then: "next.x == x + 1"
+
+properties:
+  - { id: reach3, kind: reachable, that: "x == 3" }   # 깊이 3에서 도달
+  - { id: le5, kind: invariant, that: "x <= 5" }       # 항상 유지
+  - { id: never4, kind: invariant, that: "x != 4" }    # 깊이 4에서 위반

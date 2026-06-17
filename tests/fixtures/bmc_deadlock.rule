@@ -1,0 +1,14 @@
+# BMC 데드락 테스트: x<2 동안만 증가 가능 → x==2에서 어떤 전이도 못 함(데드락).
+domain:
+  variables:
+    x: { type: int, min: 0, max: 5 }
+
+init: "x == 0"
+
+transitions:
+  - id: inc
+    when: "x < 2"
+    then: "next.x == x + 1"
+
+properties:
+  - { id: live, kind: no_deadlock }
