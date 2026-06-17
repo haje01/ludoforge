@@ -4,7 +4,7 @@
 # 그런데 unique 등급은 아이템 레벨 50 이상을 요구한다.
 # → 레벨 상한 40인 이 존에서 unique 등급 아이템은 존재할 수 없다 = 모순.
 #
-# 검사: ruleforge check examples/starter_zone_drops.rule  (모순 1건, 종료코드 1)
+# 검사: ludoforge check examples/starter_zone_drops.rule  (모순 1건, 종료코드 1)
 domain:
   variables:
     item_level: { type: int, min: 1, max: 40 }

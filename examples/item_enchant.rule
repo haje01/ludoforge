@@ -4,7 +4,7 @@
 # 그런데 전설 아이템 파워는 "강화레벨 × 100"이고, 전역 파워 상한이 500이다.
 # → 전설 아이템은 강화 5까지만 가능(파워 500). 강화 6~10은 도달 불가 = 모순.
 #
-# 검사: ruleforge check examples/item_enchant.rule  (모순 1건, 종료코드 1)
+# 검사: ludoforge check examples/item_enchant.rule  (모순 1건, 종료코드 1)
 domain:
   variables:
     enchant_level: { type: int, min: 0, max: 10 }

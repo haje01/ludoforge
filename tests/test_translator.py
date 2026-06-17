@@ -12,9 +12,9 @@ from typing import Any
 import pytest
 import z3
 
-from forge_core.ir import Rule, RuleSet, Variable
-from forge_core.loader import load_rule_file
-from ruleforge.solver.translator import Translation, TranslationError, translate
+from core.ir import Rule, RuleSet, Variable
+from core.loader import load_rule_file
+from logic.solver.translator import Translation, TranslationError, translate
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

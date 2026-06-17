@@ -9,10 +9,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from forge_core.ir import Expect, Rule, RuleSet, Variable
-from forge_core.loader import load_rule_file
-from ruleforge.solver.checks import check
-from ruleforge.solver.translator import translate
+from core.ir import Expect, Rule, RuleSet, Variable
+from core.loader import load_rule_file
+from logic.solver.checks import check
+from logic.solver.translator import translate
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

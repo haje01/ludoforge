@@ -5,7 +5,7 @@
 # "common은 최소 0.9", "epic은 최소 0.15"가 함께 있으면 0.9 + 0.15 = 1.05 > 1 이라
 # 어떤 값으로도 합 1을 못 맞춘다 = 모순.
 #
-# 검사: ruleforge check examples/drop_rates_real.rule  (모순 1건, 종료코드 1)
+# 검사: ludoforge check examples/drop_rates_real.rule  (모순 1건, 종료코드 1)
 domain:
   variables:
     common_rate: { type: real, min: 0, max: 1 }

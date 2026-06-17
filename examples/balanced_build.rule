@@ -4,7 +4,7 @@
 # 안에 들어온다: "공격40·방어40 균형 빌드"는 합 80이라 도달 가능하다. 따라서
 # expect가 충족되고 모순이 없다. (동시 최대(100·100=200)였다면 stat_budget처럼 실패.)
 #
-# 검사: ruleforge check examples/balanced_build.rule  (모순 없음, 종료코드 0)
+# 검사: ludoforge check examples/balanced_build.rule  (모순 없음, 종료코드 0)
 domain:
   variables:
     atk:     { type: int, min: 1, max: 100 }

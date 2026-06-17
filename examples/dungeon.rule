@@ -1,7 +1,7 @@
 # 던전!(WotC) 미니 전이 시스템 예제 — 다중 백엔드 시연(BMC + PRISM).
 #
 # 골드를 모아 승리 목표에 도달한 뒤 중앙 방(center)으로 귀환하면 승리. 전투는 확률
-# 분기(outcomes). 같은 모델을 `ruleforge bmc`(논리)와 `ruleforge prob`(PRISM 확률)로
+# 분기(outcomes). 같은 모델을 `ludoforge bmc`(논리)와 `ludoforge prob`(PRISM 확률)로
 # 검사한다. 수치는 PRISM 상태공간을 작게 유지하려 축약했다(gold 0~20). 실제 기획에선
 # 더 큰 수치도 BMC는 무방하나 PRISM은 상태 폭발에 주의(D13·D16).
 domain:
@@ -48,5 +48,5 @@ properties:
     that: "gold >= 0"
   - id: likely_win
     kind: prob
-    desc: "최적 전략의 승리 확률(ProbForge 전용, PRISM PCTL 원문)"
+    desc: "최적 전략의 승리 확률(확률 백엔드 전용, PRISM PCTL 원문)"
     spec: "Pmax=? [ F (gold>=win_gold & room=center) ]"

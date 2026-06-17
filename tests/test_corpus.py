@@ -11,11 +11,11 @@ from pathlib import Path
 
 import pytest
 
-from forge_core.loader import load_rules
-from forge_core.schema import validate
-from ruleforge.solver.checks import CheckReport, check
-from ruleforge.solver.report import format_report
-from ruleforge.solver.translator import translate
+from core.loader import load_rules
+from core.schema import validate
+from logic.solver.checks import CheckReport, check
+from logic.solver.report import format_report
+from logic.solver.translator import translate
 
 FIXTURES = Path(__file__).parent / "fixtures"
 CONSISTENT = sorted((FIXTURES / "consistent").glob("*.rule"))

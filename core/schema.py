@@ -71,10 +71,13 @@ def check_finite_state(ruleset: RuleSet) -> None:
             )
         elif v.type == "real":
             errors.append(
-                f"변수 '{v.name}'(real): 확률 백엔드는 실수 변수를 직접 다루지 못합니다(이산화 필요)."
+                f"변수 '{v.name}'(real): 확률 백엔드는 실수 변수를 "
+                f"직접 다루지 못합니다(이산화 필요)."
             )
     if errors:
-        raise SchemaError("확률 백엔드(유한 상태) 검증 실패:\n" + "\n".join(f"- {e}" for e in errors))
+        raise SchemaError(
+            "확률 백엔드(유한 상태) 검증 실패:\n" + "\n".join(f"- {e}" for e in errors)
+        )
 
 
 def _check_variable_bounds(ruleset: RuleSet) -> list[str]:

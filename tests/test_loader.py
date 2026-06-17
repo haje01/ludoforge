@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from forge_core.ir import RuleSet
-from forge_core.loader import LoaderError, load_rule_file
+from core.ir import RuleSet
+from core.loader import LoaderError, load_rule_file
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

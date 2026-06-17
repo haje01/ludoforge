@@ -4,7 +4,7 @@
 단일 진실 원천(SSOT)이며 git으로 버전 관리한다.
 
 ```bash
-ruleforge check rules/
+ludoforge check rules/
 ```
 
 여러 기획자가 함께 쓴다면 공유 도메인 파일(`_domain.rule`) 하나와 기획자별

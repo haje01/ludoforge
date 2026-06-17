@@ -452,7 +452,7 @@ SLIDES = [
                 "#    https://docs.astral.sh/uv/getting-started/installation/",
                 "",
                 "# 2) Ludoforge 설치",
-                "uv tool install git+https://github.com/haje01/ruleforge.git",
+                "uv tool install git+https://github.com/haje01/ludoforge.git",
                 "",
                 "# 3) 어디서나 사용",
                 "ludoforge check <룰 폴더>",
@@ -604,7 +604,7 @@ def build_closing_slide(prs):
     r2.font.name, r2.font.size, r2.font.color.rgb = FONT, Pt(28), BLUE
     _space_after(p2, 28)
     p3 = tf.add_paragraph()
-    _set_para_runs(p3, "GitHub: `github.com/haje01/ruleforge`", 16, MUTED)
+    _set_para_runs(p3, "GitHub: `github.com/haje01/ludoforge`", 16, MUTED)
     _space_after(p3, 4)
     p4 = tf.add_paragraph()
     _set_para_runs(p4, "문서: `docs/concepts.md` · `examples/`", 16, MUTED)

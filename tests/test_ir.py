@@ -10,7 +10,7 @@ import dataclasses
 
 import pytest
 
-from forge_core.ir import Rule, RuleSet, Variable
+from core.ir import Rule, RuleSet, Variable
 
 
 def test_int_variable_holds_bounds() -> None:

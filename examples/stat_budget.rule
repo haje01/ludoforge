@@ -5,7 +5,7 @@
 # 있어야 한다고 단언했는데, 예산 룰(atk+defense<=120) 때문에 그 조합은 불가능하다.
 # expect: 는 이처럼 변수별 경계로는 안 보이는 '동시 도달성'을 직접 검증한다.
 #
-# 검사: ruleforge check examples/stat_budget.rule  (모순 1건, 종료코드 1)
+# 검사: ludoforge check examples/stat_budget.rule  (모순 1건, 종료코드 1)
 domain:
   variables:
     atk:     { type: int, min: 1, max: 100 }

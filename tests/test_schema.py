@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from forge_core.ir import Expect, Rule, RuleSet, Variable
-from forge_core.loader import load_rule_file
-from forge_core.schema import SchemaError, validate
+from core.ir import Expect, Rule, RuleSet, Variable
+from core.loader import load_rule_file
+from core.schema import SchemaError, validate
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

@@ -6,8 +6,8 @@
 
 from __future__ import annotations
 
-from ruleforge.solver.checks import CheckReport, RangeViolation, UnreachableState
-from ruleforge.solver.report import format_report
+from logic.solver.checks import CheckReport, RangeViolation, UnreachableState
+from logic.solver.report import format_report
 
 
 def test_no_contradiction_reports_success() -> None:

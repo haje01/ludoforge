@@ -7,7 +7,7 @@
 # 기획 모순: 두 시스템이 '밤 하늘'일 때 조명을 서로 반대로 강제한다(낮 ↔ 밤).
 # 그 결과 'sky=night' 상태에는 어떤 조명 값으로도 도달할 수 없다.
 #
-# 검사: ruleforge check examples/day_night_cycle.rule  (모순 발견, 종료코드 1)
+# 검사: ludoforge check examples/day_night_cycle.rule  (모순 발견, 종료코드 1)
 domain:
   variables:
     sky:      { type: enum, values: [day, night] }

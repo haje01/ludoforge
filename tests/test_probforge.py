@@ -1,4 +1,4 @@
-"""Phase 4: ProbForge(PRISM) 테스트 — IR→PRISM 번역(D16).
+"""Phase 4: 확률(PRISM) 백엔드 테스트 — IR→PRISM 번역(D16).
 
 모델 생성은 PRISM 없이 검증한다(생성 텍스트 골든 단정). 실제 PRISM 실행은 바이너리가
 있을 때만(통합 테스트는 skipif). 유한 상태 게이트·번역 오류·러너 graceful도 본다.
@@ -10,11 +10,11 @@ from pathlib import Path
 
 import pytest
 
-from forge_core.ir import Outcome, RuleSet, Transition, Variable
-from forge_core.loader import load_rule_file
-from forge_core.schema import SchemaError
-from probforge.prism_gen import ProbForgeError, generate
-from probforge.runner import find_prism, format_prob_report, run_prism
+from core.ir import Outcome, RuleSet, Transition, Variable
+from core.loader import load_rule_file
+from core.schema import SchemaError
+from prob.prism_gen import ProbError, generate
+from prob.runner import find_prism, format_prob_report, run_prism
 
 EXAMPLES = Path(__file__).parent.parent / "examples"
 
@@ -88,7 +88,7 @@ def test_non_assignment_then_rejected() -> None:
         variables=(Variable("x", "int", 0, 5),),
         transitions=(Transition(id="t", outcomes=(Outcome(then="next.x > x"),)),),
     )
-    with pytest.raises(ProbForgeError, match="배정형"):
+    with pytest.raises(ProbError, match="배정형"):
         generate(rs)
 
 
@@ -100,7 +100,7 @@ def test_enum_value_name_collision_rejected() -> None:
         ),
         transitions=(Transition(id="t", outcomes=(Outcome(then="next.a == active"),)),),
     )
-    with pytest.raises(ProbForgeError, match="유일"):
+    with pytest.raises(ProbError, match="유일"):
         generate(rs)
 
 
@@ -118,7 +118,7 @@ def test_finite_state_gate_rejects_unbounded_int() -> None:
 
 def test_runner_graceful_without_prism(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("PRISM", raising=False)
-    monkeypatch.setattr("probforge.runner.shutil.which", lambda _name: None)
+    monkeypatch.setattr("prob.runner.shutil.which", lambda _name: None)
     program = generate(_dungeon())
     report = run_prism(program)
     assert report.available is False

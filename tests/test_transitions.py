@@ -1,7 +1,7 @@
 """Phase 2: 전이 시스템(D12) 프론트엔드 테스트 — 로더·스키마 검증.
 
-forge_core가 init/transitions/properties를 IR로 파싱하고, next.* 참조 무결성과
-유한 상태(ProbForge 게이트, D13)를 검사하는지 본다. BMC/PRISM 검사는 Phase 3/4.
+core가 init/transitions/properties를 IR로 파싱하고, next.* 참조 무결성과
+유한 상태(확률 백엔드 게이트, D13)를 검사하는지 본다. BMC/PRISM 검사는 Phase 3/4.
 """
 
 from __future__ import annotations
@@ -10,9 +10,9 @@ from pathlib import Path
 
 import pytest
 
-from forge_core.ir import Outcome, Property, Rule, RuleSet, Transition, Variable
-from forge_core.loader import LoaderError, load_rule_file
-from forge_core.schema import SchemaError, check_finite_state, validate
+from core.ir import Outcome, Property, Rule, RuleSet, Transition, Variable
+from core.loader import LoaderError, load_rule_file
+from core.schema import SchemaError, check_finite_state, validate
 
 FIXTURES = Path(__file__).parent / "fixtures"
 EXAMPLES = Path(__file__).parent.parent / "examples"
@@ -197,7 +197,7 @@ def test_existing_static_fixture_still_validates() -> None:
     validate(load_rule_file(FIXTURES / "warrior_hp.rule"))
 
 
-# ---------- 유한 상태(ProbForge 게이트, D13) ----------
+# ---------- 유한 상태(확률 백엔드 게이트, D13) ----------
 
 
 def test_check_finite_state_passes_for_dungeon() -> None:

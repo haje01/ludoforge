@@ -3,6 +3,10 @@
 > 진행 상태는 [PROGRESS.md](PROGRESS.md), 설계 결정의 "왜"는
 > [docs/decisions.md](docs/decisions.md), 아키텍처 SSOT는 [CLAUDE.md](CLAUDE.md).
 > 완료된 작업의 상세 이력은 git 커밋과 decisions.md에 있다.
+>
+> **명명 규약 갱신 (2026-06-17):** 디렉토리 `ruleforge/→logic/`, `probforge/→prob/`,
+> `forge_core/→core/`; 브랜드명 **RuleForge/ProbForge**는 **'논리 백엔드'/'확률 백엔드'**로
+> 통일. 이하 옛 이름·경로는 역사적 표기다.
 
 **기반(완료):** 1차·2차 마일스톤으로 정적 논리 검사기가 end-to-end 동작한다
 (`ludoforge check <path>`, LIA/real/enum/bool, 6가지 모순 유형, 테스트 99건).

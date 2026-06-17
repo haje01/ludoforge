@@ -2,6 +2,11 @@
 
 > 새 에이전트는 [PLAN.md](PLAN.md)와 이 파일을 먼저 읽고 작업을 이어간다.
 > 각 단계 완료 시 상태와 날짜를 갱신한다.
+>
+> **명명 규약 갱신 (2026-06-17):** 디렉토리 `ruleforge/→logic/`, `probforge/→prob/`,
+> `forge_core/→core/`; 브랜드명 **RuleForge/ProbForge**는 **'논리 백엔드'/'확률 백엔드'**로
+> 통일(우산 CLI `ludoforge` 서브명령으로만 노출). 이하 과거 로그의 옛 이름·경로는
+> 그 시점의 사실을 보존한 역사적 표기다.
 
 ## 완료된 마일스톤 (기반)
 
@@ -83,3 +88,11 @@
   packages·mypy), 콘솔 명령 `ruleforge`→`ludoforge`, 문서 전반(제목·소개·명령어·CLAUDE §6
   디렉토리 구조)·슬라이드 갱신. GitHub URL(haje01/ruleforge)은 리포명이라 유지(개명 시 갱신).
   검증: 146 통과, mypy/ruff clean, `ludoforge` CLI 동작.
+- 2026-06-17: **백엔드/코어 디렉토리 리네임 + 브랜드명 통일**. 우산 통합 후 사용자에게
+  혼란을 주던 `RuleForge`/`ProbForge` 브랜드를 폐기 — `ruleforge/→logic/`,
+  `probforge/→prob/`, `forge_core/→core/`로 git mv, import·`ProbForgeError`→`ProbError`·
+  주석·리포트 문자열을 "논리 백엔드/확률 백엔드"로 통일. 정리 중 발견: 직전 커밋이
+  리네임을 절반만 해 옛/새 디렉토리가 HEAD에 중복 존재(코드는 옛것 import)했고 venv가
+  옛 경로에서 생성돼 깨져 있었음 — 둘 다 해소. 역사 문서(decisions/PLAN/PROGRESS)는 본문
+  보존+상단 노트. GitHub 저장소 개명에 맞춰 URL을 `haje01/ludoforge`로 갱신(README·
+  build_slides). 검증: 147 통과, mypy/ruff clean, check/bmc/prob CLI 동작.

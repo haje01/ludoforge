@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from forge_core.loader import load_rule_file
-from ruleforge.solver.bmc import format_bmc_report, run_bmc
+from core.loader import load_rule_file
+from logic.solver.bmc import format_bmc_report, run_bmc
 
 FIXTURES = Path(__file__).parent / "fixtures"
 EXAMPLES = Path(__file__).parent.parent / "examples"
@@ -85,7 +85,7 @@ def test_dungeon_winnable_reachable() -> None:
     assert by["winnable"].status == "reachable"  # type: ignore[attr-defined]
     # 골드 비음수는 k까지 유지
     assert by["gold_nonneg"].status == "holds_up_to_k"  # type: ignore[attr-defined]
-    # prob 속성은 ProbForge 전용이라 건너뜀
+    # prob 속성은 확률 백엔드 전용이라 건너뜀
     assert "likely_win" in report.skipped_prob
 
 
