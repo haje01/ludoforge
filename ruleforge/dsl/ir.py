@@ -32,13 +32,18 @@ class Variable:
 
 @dataclass(frozen=True)
 class Rule:
-    """단일 룰. `when`이 있으면 `Implies(when, then)`로 번역된다(CLAUDE.md §4)."""
+    """단일 룰. `when`이 있으면 `Implies(when, then)`로 번역된다(CLAUDE.md §4).
+
+    `source`는 룰이 정의된 .rule 파일명이다. 디렉토리 병합 시 어느 파일의 룰이 모순의
+    범인인지 리포트에서 짚기 위함이다. 직접 생성한 IR(테스트 등)에서는 None일 수 있다.
+    """
 
     id: str
     then: str
     when: str | None = None
     author: str | None = None
     desc: str | None = None
+    source: str | None = None
 
 
 @dataclass(frozen=True)

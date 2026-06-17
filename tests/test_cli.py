@@ -87,3 +87,6 @@ def test_directory_merges_files_for_cross_file_contradiction(tmp_path: Path) -> 
     result = runner.invoke(app, ["check", str(tmp_path)])
     assert result.exit_code == 1
     assert "warrior_hp" in result.output and "global_hp_cap" in result.output
+    # 범인 룰은 정의된 파일명과 함께 짚는다(id + (파일명)).
+    assert "warrior_hp (a.rule)" in result.output
+    assert "global_hp_cap (b.rule)" in result.output

@@ -43,7 +43,8 @@ def check(path: str = typer.Argument(..., help="검사할 .rule 파일 또는 �
         raise typer.Exit(_EXIT_ERROR) from e
 
     report = run_checks(ruleset, translation)
-    typer.echo(format_report(report))
+    rule_sources = {r.id: r.source for r in ruleset.rules if r.source}
+    typer.echo(format_report(report, rule_sources))
 
     if report.has_contradiction:
         raise typer.Exit(_EXIT_CONTRADICTION)

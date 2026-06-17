@@ -169,6 +169,7 @@ def _parse_rule(item: Any, index: int, path: Path) -> Rule:
         when=_parse_opt_str(item.get("when"), rule_id, "when", path),
         author=_parse_opt_str(item.get("author"), rule_id, "author", path),
         desc=_parse_opt_str(item.get("desc"), rule_id, "desc", path),
+        source=path.name,
     )
 
 
