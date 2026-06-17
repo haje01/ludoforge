@@ -14,20 +14,22 @@
 번역 → 도달성 검사 → 한국어 리포트. ruff/format/mypy(strict) 통과. 상세 이력은 git
 커밋과 [docs/decisions.md](docs/decisions.md) 참조.
 
-## 현재 마일스톤: 다중 백엔드 (forge-core + RuleForge + ProbForge)
+## 다중 백엔드 마일스톤 — ✅ 완료·마감 (2026-06-17)
 
-하나의 DSL을 SSOT로 두고 논리 증명(Z3/BMC)에 더해 확률 증명(PRISM)을 별도 백엔드로.
-계획·근거·DSL 스케치는 [PLAN.md](PLAN.md) "현재 마일스톤" 참조. **Phase 0(범위 비준)부터
-착수.** 각 Phase 착수 시 아래 표 상태를 갱신한다.
+하나의 DSL(SSOT) 위에 논리 증명(Z3/BMC)과 확률 증명(PRISM)을 두 백엔드로. Phase 0~4
+완료, e2e 검증(던전! 승리 확률 1.0). **Phase 5(저엄밀 export)는 생략하고 마감.** 계획·
+근거는 [PLAN.md](PLAN.md), 배경·용어는 [docs/concepts.md §8](docs/concepts.md).
 
 | 단계 | 내용 | 상태 | 비고 |
 |------|------|------|------|
-| Phase 0 | 범위 합의 & decisions.md D11~ 기록, CLAUDE.md §1/§3 갱신안 | ✅ | D11~D14 기록, §1/§3 갱신. 사용자 비준 대기 |
-| Phase 1 | `forge-core` 추출 (loader·schema·ir 공유 패키지화) | ✅ | 순수 리팩터, 105건 통과·mypy clean |
-| Phase 2 | 전이 시스템 확장 (init·transitions·properties) | ✅ | 프론트엔드만(로더·스키마). 던전! 픽스처, 126건 |
-| Phase 3 | RuleForge BMC 백엔드 (k 언롤링·도달성·불변식·데드락) | ✅ | 반례 경로·k-bound 명시. `ruleforge bmc`, 136건 |
-| Phase 4 | `probforge` 스켈레톤 (IR → PRISM, PCTL 속성) | ✅ | PRISM 4.8.1로 e2e 검증(승리 확률 계산). 147건 |
-| Phase 5 | (선택) 저엄밀 export (Machinations/몬테카를로) | ⬜ | 증명 아님 라벨 |
+| Phase 0 | 범위 합의 & decisions.md D11~ 기록, CLAUDE.md §1/§3 갱신 | ✅ | D11~D14 기록 |
+| Phase 1 | `forge_core` 추출 (loader·schema·ir 공유 패키지화) | ✅ | 순수 리팩터 |
+| Phase 2 | 전이 시스템 확장 (init·transitions·properties) | ✅ | 프론트엔드(로더·스키마)·던전! 픽스처 |
+| Phase 3 | RuleForge BMC 백엔드 (k 언롤링·도달성·불변식·데드락) | ✅ | 반례 경로·k-bound, `ruleforge bmc` |
+| Phase 4 | ProbForge (IR → PRISM, PCTL 속성) | ✅ | PRISM 4.8.1 e2e 검증, `ruleforge prob` |
+| Phase 5 | (선택) 저엄밀 export (Machinations/몬테카를로) | ⬜ | **생략(마일스톤 마감)** |
+
+전체 테스트 146 + PRISM 통합 1 = 147. ruff/mypy(strict) clean.
 
 상태 범례: ⬜ 대기 / 🔵 진행중 / ✅ 완료 / ⚠️ 막힘
 
@@ -72,3 +74,6 @@
   `Pmax>=0.95`→쿼리형 `Pmax=?`(PRISM이 바운드형 거부). 통합 테스트
   (test_prism_computes_results_when_available)가 PRISM 지정 시 통과. 전체 146 + 통합 1 =
   147. **다중 백엔드(Z3 BMC + PRISM)가 하나의 DSL에서 동작 확인 — 마일스톤 핵심 검증.**
+- 2026-06-17: 다중 백엔드 마일스톤 **마감**(Phase 5 생략). 신규 도입 전수 지식을
+  docs/concepts.md §8(전이 시스템·BMC·ProbForge·다중 백엔드·새 용어)에 기록. README(소개·
+  마일스톤 노트), CLAUDE.md §3(구현됨 반영), PLAN/PROGRESS 갱신. 코드 변경 없음(문서만).

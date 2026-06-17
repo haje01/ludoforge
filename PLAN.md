@@ -10,10 +10,15 @@
 
 ---
 
-## 현재 마일스톤 — 다중 백엔드 아키텍처 (forge-core + RuleForge + ProbForge)
+## 다중 백엔드 마일스톤 — ✅ 완료 (2026-06-17)
 
-> **상태: 계획 수립 완료, 착수 전.** 세부 범위는 Phase 0에서 decisions.md D11~ 로
-> 비준한다. 채택 시 CLAUDE.md §1 비목표·§3 파이프라인을 함께 갱신한다.
+> **상태: 완료.** Phase 0~4 모두 끝났다(D11~D16). 공유 IR(`forge_core`) 위에 RuleForge
+> (Z3/BMC, `ruleforge bmc`)와 ProbForge(PRISM, `ruleforge prob`) 두 백엔드가 동작하며,
+> 던전!(WotC)을 논리·확률 양쪽으로 검증해 e2e 확인했다(승리 확률 Pmax [F win]=1.0).
+> **Phase 5(저엄밀 Machinations/몬테카를로 export)는 생략**하고 마일스톤을 마감한다.
+> 배경·용어는 [docs/concepts.md §8](docs/concepts.md). 상세 이력은 git·PROGRESS·decisions.
+>
+> 아래는 마감 시점의 계획 내용 보존(동기·결정·DSL·단계). 완료 단계는 PROGRESS 참조.
 
 ### 1. 동기와 한 줄 목표
 

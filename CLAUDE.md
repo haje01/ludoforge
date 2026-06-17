@@ -56,11 +56,11 @@
 
 ## 3. 검증 파이프라인 (목표 아키텍처)
 
-> **진행 중 확장 — 다중 백엔드(decisions.md D11~D14 · PLAN.md):** 아래 파이프라인은
-> 현재 구현(단일 백엔드, 정적 스냅샷)을 기술한다. 진행 중인 방향은 로더·스키마·IR을
-> 공유 라이브러리 `forge-core`로 두고, 그 위에 **논리 증명 백엔드(RuleForge/Z3·BMC)** 와
-> **확률 증명 백엔드(ProbForge/PRISM)** 를 나란히 두는 것이다. 모델(전이 시스템)은
-> 공유하고 질의 dialect는 백엔드별로 가른다.
+> **다중 백엔드 — 구현됨(decisions.md D11~D16):** 아래 파이프라인은 정적 모순 검사
+> (단일 스냅샷) 경로다. 이에 더해 로더·스키마·IR을 공유 라이브러리 `forge_core`로 두고,
+> 그 위에 **논리 증명 백엔드(RuleForge/Z3·BMC, `ruleforge bmc`)** 와 **확률 증명 백엔드
+> (ProbForge/PRISM, `ruleforge prob`)** 를 나란히 둔다. 전이 시스템(§4.1)을 모델로 공유
+> 하고 질의 dialect는 백엔드별로 가른다. 배경·용어는 [docs/concepts.md §8](docs/concepts.md).
 
 ```
 기획 DSL (.rule 파일, git 관리, SSOT)
