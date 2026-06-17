@@ -12,7 +12,7 @@ from typing import Any
 
 import yaml
 
-from ruleforge.dsl.ir import Expect, Rule, RuleSet, Variable
+from forge_core.ir import Expect, Rule, RuleSet, Variable
 
 _VALID_TYPES = ("int", "enum", "bool", "real")
 

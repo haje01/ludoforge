@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ruleforge.dsl.ir import Expect, Rule, RuleSet, Variable
-from ruleforge.dsl.loader import load_rule_file
+from forge_core.ir import Expect, Rule, RuleSet, Variable
+from forge_core.loader import load_rule_file
 from ruleforge.solver.checks import check
 from ruleforge.solver.translator import translate
 

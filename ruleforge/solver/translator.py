@@ -25,7 +25,7 @@ from typing import Any
 
 import z3
 
-from ruleforge.dsl.ir import RuleSet
+from forge_core.ir import RuleSet
 
 # z3는 전역 컨텍스트에서 같은 이름의 enum sort를 두 번 선언하면 예외를 던진다.
 # translate()가 여러 번 호출돼도(테스트 등) 충돌하지 않도록 sort 라벨을 프로세스 단위로

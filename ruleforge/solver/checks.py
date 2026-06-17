@@ -38,7 +38,7 @@ from typing import Any, Literal
 
 import z3
 
-from ruleforge.dsl.ir import RuleSet
+from forge_core.ir import RuleSet
 from ruleforge.solver.translator import Translation
 
 

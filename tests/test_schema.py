@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from ruleforge.dsl.ir import Expect, Rule, RuleSet, Variable
-from ruleforge.dsl.loader import load_rule_file
-from ruleforge.dsl.schema import SchemaError, validate
+from forge_core.ir import Expect, Rule, RuleSet, Variable
+from forge_core.loader import load_rule_file
+from forge_core.schema import SchemaError, validate
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

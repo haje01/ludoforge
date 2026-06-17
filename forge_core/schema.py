@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import ast
 
-from ruleforge.dsl.ir import RuleSet
+from forge_core.ir import RuleSet
 
 
 class SchemaError(Exception):

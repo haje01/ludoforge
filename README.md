@@ -24,8 +24,8 @@
 ## 디렉토리 구성
 
 ```
-ruleforge/
-  dsl/        # schema.py(검증) loader.py(.rule→IR) ir.py(중간표현)
+forge_core/   # 공유 DSL 프론트엔드(SSOT): schema.py(검증) loader.py(.rule→IR) ir.py(중간표현)
+ruleforge/    # 논리 증명 백엔드(Z3)
   solver/     # translator.py(IR→Z3) checks.py(검사) report.py(리포트)
   cli.py      # 진입점
 rules/        # 실제 기획 룰 (.rule), git SSOT

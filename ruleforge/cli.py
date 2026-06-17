@@ -12,8 +12,8 @@ from pathlib import Path
 
 import typer
 
-from ruleforge.dsl.loader import LoaderError, load_rules
-from ruleforge.dsl.schema import SchemaError, validate
+from forge_core.loader import LoaderError, load_rules
+from forge_core.schema import SchemaError, validate
 from ruleforge.solver.checks import check as run_checks
 from ruleforge.solver.report import format_report
 from ruleforge.solver.translator import TranslationError, translate

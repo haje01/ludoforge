@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from ruleforge.dsl.loader import load_rules
-from ruleforge.dsl.schema import validate
+from forge_core.loader import load_rules
+from forge_core.schema import validate
 from ruleforge.solver.checks import CheckReport, check
 from ruleforge.solver.report import format_report
 from ruleforge.solver.translator import translate
