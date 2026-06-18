@@ -203,6 +203,28 @@ rules/
 > 이때는 공유 도메인 파일이 함께 있는 **디렉토리**를 검사하면 된다(도구가 안내해 준다).
 > 같은 변수를 두 파일에서 서로 다르게 선언하면 충돌로 보고된다.
 
+### 에디터 구문 강조 (`.rule` → YAML)
+
+`.rule` 파일은 [YAML 형식](docs/concepts.md)이지만 확장자가 `.yaml`이 아니라
+에디터가 기본으로 구문 강조를 적용하지 않는다. `.rule`을 YAML로 인식하도록
+연결하면 해결된다.
+
+- **VS Code · Cursor:** 저장소에 포함된 [`.vscode/settings.json`](.vscode/settings.json)이
+  자동 적용된다 (별도 설정 불필요). 전역으로 켜려면 사용자 `settings.json`에:
+  ```json
+  { "files.associations": { "*.rule": "yaml" } }
+  ```
+- **Notepad++** (Windows): **설정(Settings) → 스타일 설정기(Style Configurator)** 에서
+  왼쪽 언어 목록의 **YAML**을 고르고, 오른쪽 **사용자 정의 확장자(User ext.)** 칸에
+  `rule`을 추가한다 → 이후 `.rule` 파일이 자동으로 YAML로 강조된다. (한 파일만 잠깐
+  보려면 메뉴 **언어(Language) → YAML**.)
+- **Vim / Neovim:** `~/.vimrc`(또는 `init.vim`)에:
+  ```vim
+  autocmd BufRead,BufNewFile *.rule setfiletype yaml
+  ```
+
+> 자체 문법으로 승격하기 전까지(CLAUDE.md §4)의 임시 설정이다.
+
 ### 개발자용 — 소스에서 실행
 
 저장소를 클론해 기여하거나 직접 고쳐 쓸 때:

@@ -1,0 +1,7 @@
+{
+  // .rule 파일은 YAML 형식이다(CLAUDE.md §4). 에디터가 YAML 구문 강조를
+  // 적용하도록 연결한다. 향후 자체 문법으로 승격하면 이 매핑을 제거한다.
+  "files.associations": {
+    "*.rule": "yaml"
+  }
+}
