@@ -60,7 +60,7 @@
 
 ```
                  forge-core/   ← 진짜 SSOT: loader + schema + IR (단 하나)
-                  (전이 시스템: 변수 · init · transitions · properties)
+                  (전이 시스템: 변수 · init · transitions · checks)
                        │
           ┌────────────┴────────────┐
           ▼                         ▼
@@ -78,8 +78,8 @@
 
 ### 4. DSL 확장 스케치 (forge-core v2)
 
-기존 `domain`/`rules`/`expects`는 유지(하위 호환). 전이 시스템을 위해 `init` /
-`transitions` / `properties`를 추가한다. **확률 가중치와 PRISM 전용 속성은 RuleForge가
+기존 `domain`/`constraints`/`expects`는 유지(하위 호환). 전이 시스템을 위해 `init` /
+`transitions` / `checks`를 추가한다. **확률 가중치와 PRISM 전용 속성은 RuleForge가
 무시하는 주석**이다(레이어드 — 두 백엔드가 *똑같이* 소비하지 않음을 전제).
 
 ```yaml
@@ -90,7 +90,7 @@ domain:
     role: { type: enum, values: [fighter, wizard] }
     win_gold: { type: int, min: 0, max: 30000 }
 
-rules:                                  # 정적 불변/관계 (기존, 유지)
+constraints:                                  # 정적 불변/관계 (기존, 유지)
   - id: wizard_win_target
     when: "role == wizard"
     then: "win_gold == 20000"
@@ -107,7 +107,7 @@ transitions:                            # 상태 → 다음 상태 (신규). nex
       - { weight: 0.7, then: "next.gold == gold + 500" }
       - { weight: 0.3, then: "next.gold == gold" }     # 패배
 
-properties:                             # 백엔드별 dialect, 공통 의미는 kind로
+checks:                             # 백엔드별 dialect, 공통 의미는 kind로
   - id: winnable
     kind: reachable                     # RuleForge: BMC 도달성 / ProbForge: P>0
     that: "gold >= win_gold and room == center"

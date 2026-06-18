@@ -10,7 +10,7 @@ domain:
     attack: { type: int, min: 1, max: 500 }
     role:   { type: enum, values: [warrior, mage] }
 
-rules:
+constraints:
   - id: warrior_attack_formula
     author: planner_combat
     desc: "전사 공격력은 레벨당 10"

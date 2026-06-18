@@ -5,7 +5,7 @@ domain:
     hp:   { type: int, min: 0, max: 100 }
     role: { type: enum, values: [normal, ghost] }
 
-rules:
+constraints:
   - id: ghost_no_hp
     when: "role == ghost"
     then: "hp == 0"

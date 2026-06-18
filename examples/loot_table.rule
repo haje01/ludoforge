@@ -11,7 +11,7 @@ domain:
     rare_rate:   { type: int, min: 0, max: 100 }
     epic_rate:   { type: int, min: 0, max: 100 }
 
-rules:
+constraints:
   - id: rates_sum_to_100
     author: planner_loot
     desc: "드롭 확률의 합은 100%"

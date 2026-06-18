@@ -16,9 +16,7 @@ from logic.solver.checks import (
 )
 
 
-def format_report(
-    report: CheckReport, rule_sources: dict[str, str] | None = None
-) -> str:
+def format_report(report: CheckReport, rule_sources: dict[str, str] | None = None) -> str:
     """검사 결과를 한국어 리포트 문자열로 만든다.
 
     `rule_sources`(rule_id → 정의 파일명)가 주어지면 범인 룰을 `id (파일명)` 형식으로

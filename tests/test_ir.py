@@ -10,7 +10,7 @@ import dataclasses
 
 import pytest
 
-from core.ir import Rule, RuleSet, Variable
+from core.ir import Constraint, RuleSet, Variable
 
 
 def test_int_variable_holds_bounds() -> None:
@@ -29,12 +29,12 @@ def test_enum_variable_holds_values() -> None:
 
 
 def test_rule_requires_id_and_then_then_optional_when() -> None:
-    r = Rule(id="global_hp_cap", then="hp <= 5000")
+    r = Constraint(id="global_hp_cap", then="hp <= 5000")
     assert r.id == "global_hp_cap"
     assert r.then == "hp <= 5000"
     assert r.when is None
 
-    r2 = Rule(
+    r2 = Constraint(
         id="warrior_hp_formula",
         then="hp == level * 100",
         when="role == warrior",
@@ -48,15 +48,15 @@ def test_rule_requires_id_and_then_then_optional_when() -> None:
 def test_ruleset_groups_variables_and_rules() -> None:
     rs = RuleSet(
         variables=(Variable(name="level", type="int", min=1, max=100),),
-        rules=(Rule(id="r1", then="level <= 100"),),
+        constraints=(Constraint(id="r1", then="level <= 100"),),
     )
     assert len(rs.variables) == 1
-    assert len(rs.rules) == 1
+    assert len(rs.constraints) == 1
     assert rs.variable("level").max == 100
 
 
 def test_ruleset_variable_lookup_missing_raises_keyerror() -> None:
-    rs = RuleSet(variables=(), rules=())
+    rs = RuleSet(variables=(), constraints=())
     with pytest.raises(KeyError):
         rs.variable("nope")
 

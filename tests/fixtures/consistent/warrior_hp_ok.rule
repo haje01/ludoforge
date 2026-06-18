@@ -5,7 +5,7 @@ domain:
     hp:    { type: int, min: 0 }
     role:  { type: enum, values: [warrior, mage, archer] }
 
-rules:
+constraints:
   - id: warrior_hp_formula
     when: "role == warrior"
     then: "hp == level * 100"

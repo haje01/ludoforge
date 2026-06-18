@@ -1,7 +1,7 @@
 """Phase 3: BMC 백엔드(D15) 테스트.
 
 전이 시스템을 k 스텝 언롤링해 reachable/invariant/no_deadlock를 검사하고, 반례 경로와
-k-bound 한계를 보고하는지 본다. 프레임=미변경 유지, rules=상태 불변식, weight-erasure.
+k-bound 한계를 보고하는지 본다. 프레임=미변경 유지, constraints=상태 불변식, weight-erasure.
 """
 
 from __future__ import annotations

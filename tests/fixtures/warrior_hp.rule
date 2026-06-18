@@ -5,7 +5,7 @@ domain:
     hp:    { type: int, min: 0 }
     role:  { type: enum, values: [warrior, mage, archer] }
 
-rules:
+constraints:
   - id: warrior_hp_formula
     author: planner_A
     desc: "전사 최대 HP는 레벨당 100"

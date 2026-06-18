@@ -13,7 +13,7 @@ domain:
     sky:      { type: enum, values: [day, night] }
     lighting: { type: enum, values: [day, night] }
 
-rules:
+constraints:
   - id: night_sky_needs_dark
     author: planner_world
     desc: "밤 하늘이면 조명도 밤"

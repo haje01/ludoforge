@@ -2,7 +2,7 @@
 
 매핑(decisions.md D16):
 - enum = `const int <값>=<idx>;` + 변수 `[0..n-1]`. 값 이름 전역 유일 강제.
-- 정적 rules + init = `init…endinit` 술어로 인코딩(프레임 불변 변수에 한해 건전).
+- 정적 constraints + init = `init…endinit` 술어로 인코딩(프레임 불변 변수에 한해 건전).
 - 전이 = guarded command. 가중치 정규화(합=1), bare then은 결정적 명령.
 - outcome.then은 `next.X == 식`(And 결합) 배정형만 → PRISM 갱신 `(X'=식)`.
 - 속성: reachable→`Pmax=? [F that]`, invariant→`Pmin=? [G that]`, prob→spec 그대로.
@@ -121,17 +121,17 @@ def _init_block(ruleset: RuleSet) -> list[str]:
     terms: list[str] = []
     if ruleset.init is not None:
         terms.append(f"({_render(_parse(ruleset.init))})")
-    for rule in ruleset.rules:
-        terms.append(f"({_rule_pred(rule)})")
+    for constraint in ruleset.constraints:
+        terms.append(f"({_rule_pred(constraint)})")
     if not terms:
         return []
     return ["init", "  " + " & ".join(terms), "endinit"]
 
 
-def _rule_pred(rule: object) -> str:
-    """rule을 PRISM 상태 술어로. when이 있으면 (when => then)."""
-    then = _render(_parse(rule.then))  # type: ignore[attr-defined]
-    when = getattr(rule, "when", None)
+def _rule_pred(constraint: object) -> str:
+    """constraint를 PRISM 상태 술어로. when이 있으면 (when => then)."""
+    then = _render(_parse(constraint.then))  # type: ignore[attr-defined]
+    when = getattr(constraint, "when", None)
     if when is not None:
         return f"{_render(_parse(when))} => {then}"
     return then
@@ -142,20 +142,20 @@ def _rule_pred(rule: object) -> str:
 
 def _properties(ruleset: RuleSet) -> tuple[PrismProperty, ...]:
     out: list[PrismProperty] = []
-    for p in ruleset.properties:
-        if p.kind == "no_deadlock":
+    for c in ruleset.checks:
+        if c.kind == "no_deadlock":
             continue  # PRISM이 데드락을 자동 탐지 — 별도 prop 미생성(리포트에서 안내).
-        if p.kind == "reachable":
-            pctl = f"Pmax=? [ F ({_render(_parse(p.that or ''))}) ]"
-        elif p.kind == "invariant":
-            pctl = f"Pmin=? [ G ({_render(_parse(p.that or ''))}) ]"
-        elif p.kind == "prob":
-            if not p.spec:
-                raise ProbError(f"속성 '{p.id}'(prob)에 spec(PCTL)이 없습니다.")
-            pctl = p.spec  # 확률 백엔드 전용 원문(D11)
+        if c.kind == "reachable":
+            pctl = f"Pmax=? [ F ({_render(_parse(c.that or ''))}) ]"
+        elif c.kind == "invariant":
+            pctl = f"Pmin=? [ G ({_render(_parse(c.that or ''))}) ]"
+        elif c.kind == "prob":
+            if not c.spec:
+                raise ProbError(f"검사 '{c.id}'(prob)에 spec(PCTL)이 없습니다.")
+            pctl = c.spec  # 확률 백엔드 전용 원문(D11)
         else:
-            raise ProbError(f"속성 '{p.id}'의 알 수 없는 kind: '{p.kind}'")
-        out.append(PrismProperty(prop_id=p.id, kind=p.kind, pctl=pctl, desc=p.desc))
+            raise ProbError(f"검사 '{c.id}'의 알 수 없는 kind: '{c.kind}'")
+        out.append(PrismProperty(prop_id=c.id, kind=c.kind, pctl=pctl, desc=c.desc))
     return tuple(out)
 
 
@@ -191,9 +191,7 @@ def _render(node: ast.AST) -> str:
     if isinstance(node, ast.BinOp):
         op = _BIN_OP.get(type(node.op))
         if op is None:
-            raise ProbError(
-                f"PRISM 백엔드가 지원하지 않는 산술 연산자: {type(node.op).__name__}"
-            )
+            raise ProbError(f"PRISM 백엔드가 지원하지 않는 산술 연산자: {type(node.op).__name__}")
         return f"({_render(node.left)} {op} {_render(node.right)})"
     if isinstance(node, ast.Compare):
         return _render_compare(node)

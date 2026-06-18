@@ -225,7 +225,7 @@
   검사(D4)로 안 보인다(각 변수는 단독으로 최대에 도달하므로). 기획자가 이런 양의 도달성을
   직접 선언할 수단이 필요하다.
 - **결정:** 최상위 `expects:` 섹션을 둔다. 각 항목은 `{ id, desc?, that }`이고 `that`는
-  "도달 가능해야 하는 조건" 표현식이다. 의미론: `domain ∧ rules ∧ that`가 **SAT이면 충족**,
+  "도달 가능해야 하는 조건" 표현식이다. 의미론: `domain ∧ constraints ∧ that`가 **SAT이면 충족**,
   **UNSAT이면 미충족**(룰이 봉쇄) → 모순으로 보고하고 봉쇄한 룰을 unsat_core로 짚는다.
   자동 도달성 추론(D3)의 **역방향**이다. 구현은 기존 `_feasibility`(tracked solver)를
   그대로 재사용한다 — `that`를 untracked로 add하고 룰을 tracked로 둬 core가 범인 룰이 된다.
@@ -265,14 +265,14 @@
 
 ---
 
-## D12. 전이 시스템 의미 — init·transitions·properties, 확률은 주석
+## D12. 전이 시스템 의미 — init·transitions·checks, 확률은 주석
 
 - **상태:** 확정 (2026-06-17) — 다중 백엔드 Phase 0 (세부 문법은 Phase 2에서 확정)
 - **맥락:** 현재 IR은 변수의 **단일 정적 스냅샷**만 표현한다(D1~D10). 턴·이동·누적을 보려면
   상태 전이가 필요하다. 두 백엔드가 공유할 모델 골격을 정해야 한다.
 - **결정:** 공유 모델 = **guarded-command 전이 시스템**. DSL에 `init`(초기 상태 술어) /
   `transitions`(가드된 상태→다음상태, `next.<var>`로 다음값 참조, `outcomes`로 분기) /
-  `properties`(kind·that·spec)를 추가한다. 기존 `domain`/`rules`/`expects`는 하위 호환 유지.
+  `checks`(kind·that·spec)를 추가한다. 기존 `domain`/`constraints`/`expects`는 그대로 둔다.
   - **확률 가중치는 골격 위의 주석**이다: RuleForge는 가중치를 **지우고**(weight-erasure)
     분기를 비결정으로 본다(주사위 = 적대적 비결정). ProbForge는 가중치를 읽는다. 정성(논리)
     모델은 정량(확률) 모델에서 확률을 잊은 **건전한 추상** — 둘은 정련 관계라 한 모델이
@@ -282,7 +282,7 @@
   - *정적 스냅샷 유지(전이 없음)*: 게임 동역학을 표현조차 못 한다 — 이 마일스톤의 동기와 불일치.
   - *무한 지평 보장을 기본으로*: BMC는 본질적으로 k까지만 증명한다. 무경계 보장은
     k-induction/불변식이 필요(미해결, PLAN §6). k-bound 한계는 리포트에 명시하고 숨기지 않는다.
-- **영향:** Phase 2에서 IR에 `Transition`/`Property`와 스키마 검증(`next.` 참조 무결성, 유한
+- **영향:** Phase 2에서 IR에 `Transition`/`Check`와 스키마 검증(`next.` 참조 무결성, 유한
   범위 요구) 추가. 던전! 미니 예제로 시연. 구체 문법(`next.` 표기·`outcomes` 구조)은
   Phase 2에서 코퍼스로 검증 후 확정 — 본 ADR은 계약 수준만 박제한다.
 
@@ -330,12 +330,12 @@
 
 ---
 
-## D15. BMC 의미론 — 프레임=미변경 유지, rules=상태 불변식, 반복 심화
+## D15. BMC 의미론 — 프레임=미변경 유지, constraints=상태 불변식, 반복 심화
 
 - **상태:** 확정 (2026-06-17) — 다중 백엔드 Phase 3 (RuleForge BMC 백엔드)
 - **맥락:** 전이 시스템(D12)을 Z3로 검사하려면 언롤링 의미를 못박아야 한다. 특히 전이가
   일부 변수만 건드릴 때(`next.gold == gold+300`) 나머지 변수(room 등)를 어떻게 둘지가
-  모델의 의미를 통째로 가른다. 또 정적 `rules`(예: `role==fighter → win_gold==10000`)와
+  모델의 의미를 통째로 가른다. 또 정적 `constraints`(예: `role==fighter → win_gold==10000`)와
   확률 가중치를 BMC에서 어떻게 취급할지 정해야 한다.
 - **결정:**
   - **프레임 = 미변경 유지(PRISM 관례):** 전이의 한 outcome이 `next.X`로 제약하지 않은
@@ -343,7 +343,7 @@
     **PRISM 갱신 의미와 일치**해 ProbForge와 모델을 공유할 수 있다. "건드리지 않으면
     그대로"가 기본이다. (제약된 변수 집합 = 그 outcome의 then에 등장하는 `next.*` 전부;
     프레임은 outcome 단위로 적용한다.)
-  - **정적 `rules` = 모든 상태의 불변식:** rules는 한 상태가 합법인지 규정하므로 BMC의
+  - **정적 `constraints` = 모든 상태의 불변식:** constraints는 한 상태가 합법인지 규정하므로 BMC의
     **모든 스텝 s_i에 적용**한다(when→Implies(then)). 전이는 합법 상태 사이를 움직인다.
     `domain` min/max도 매 스텝 적용.
   - **확률 가중치 = 무시(weight-erasure, D12):** outcome들을 비결정 분기(Or)로 본다.
@@ -358,7 +358,7 @@
     명시한다(무한 지평 보장은 k-induction 필요 — 미해결, PLAN §6).
 - **기각한 대안:**
   - *프레임=미제약(자유)*: 안 건드린 변수가 임의로 바뀌어(룸 순간이동) 게임 의미가 깨진다.
-  - *rules를 BMC에서 제외*: role↔win_gold 같은 상태 불변 관계가 사라져 거짓 도달성을 낸다.
+  - *constraints를 BMC에서 제외*: role↔win_gold 같은 상태 불변 관계가 사라져 거짓 도달성을 낸다.
   - *전체 경로를 한 식으로(고정 길이 k)*: 데드락으로 짧은 경로만 가능할 때 거짓 unsat.
     반복 심화가 짧은 반례와 데드락을 함께 처리.
 - **영향:** `ruleforge/solver/bmc.py` 신설(언롤링·속성 검사·경로 추출·리포트). 번역기에
@@ -374,13 +374,13 @@
 - **상태:** 확정 (2026-06-17) — 다중 백엔드 Phase 4 (ProbForge). PRISM 4.8.1로 e2e
   **검증 완료**(아래 검증 후기).
 - **맥락:** 공유 IR(가중치 보존)을 PRISM guarded-command 모델로 번역해야 한다. PRISM은
-  유한 상태·정수/불리언만 다루고, enum·정적 rules·확률 가중치를 어떻게 매핑할지 정해야 한다.
+  유한 상태·정수/불리언만 다루고, enum·정적 constraints·확률 가중치를 어떻게 매핑할지 정해야 한다.
 - **결정:**
   - **유한 상태 게이트:** 번역 전에 `check_finite_state()`(D13)로 무한 int·real을 거부한다.
   - **enum = 정수 인덱스 + 전역 const:** `const int <값> = <idx>;`를 emit하고 변수는
     `[0..n-1]`. 값 이름을 그대로 PRISM 식에 쓴다(`room=center`). **값 이름은 전역 유일해야**
     한다(중복 시 ProbForge 오류) — D8의 문맥 disambiguation은 PRISM 스켈레톤에선 미지원.
-  - **정적 rules = init 술어로 인코딩:** rules와 `init`을 `init…endinit` 블록에 conjoin한다.
+  - **정적 constraints = init 술어로 인코딩:** constraints와 `init`을 `init…endinit` 블록에 conjoin한다.
     전이가 바꾸지 않는 변수(프레임 불변, 예 role·win_gold)는 init에서 고정되면 영구 유지되어
     **그 경우에 한해 건전**하다. 전이가 바꾸는 변수에 대한 rule은 매 스텝 강제되지 않는다
     (스켈레톤 한계, 후속). PRISM 갱신 의미가 곧 D15 프레임이라 프레임은 자동.
@@ -395,7 +395,7 @@
     생성·출력하고 안내한다(graceful). 설치되면 model+props를 실행해 `Result:`를 파싱.
 - **기각한 대안:**
   - *enum 값을 인라인 정수로*: 생성 모델·PCTL이 `room=1`처럼 읽기 어렵다. const가 명확.
-  - *rules를 매 상태에 강제(예 라벨/모듈)*: 일반 해법은 복잡. 프레임 불변 변수 한정 init
+  - *constraints를 매 상태에 강제(예 라벨/모듈)*: 일반 해법은 복잡. 프레임 불변 변수 한정 init
     인코딩이 던전!엔 충분하고 단순. 일반화는 후속.
   - *dtmc 강제*: 비결정(전이 다중 활성·자유 enum)을 못 담는다. mdp가 일반.
 - **영향:** `probforge/` 신설(`prism_gen.py` 번역, `runner.py` 실행/파싱). CLI `ludoforge
@@ -410,6 +410,39 @@
     를 쓴다(실제 확률값을 보고). 던전! spec을 쿼리형으로 정정.
   - 자유 enum(role)으로 초기 상태가 둘 → PRISM은 결과를 `[min,max]` 범위로 보고(파서가
     문자열로 수용). 다중 초기상태는 정상.
+
+---
+
+## D17. DSL 섹션 리네임 — `rules`→`constraints`, `properties`→`checks`
+
+- **상태:** 확정 (2026-06-17)
+- **맥락:** DSL 최상위가 `rules`/`transitions`/`properties`로 나뉘는데, 두 문제가 있었다.
+  (1) `rules`라는 이름이 .rule 파일·"기획 룰"이라는 **우산 개념**과 겹쳐, 정적 불변식
+  섹션을 가리키는지 전체 룰셋을 가리키는지 모호했다. (2) `properties`는 PRISM 등
+  모델검사 관례 용어지만 기획자에게 직관적이지 않았다. 한편 `rules`와 `transitions`는
+  `when`/`then` 표면이 닮아 합치자는 의견도 있었다.
+- **결정:**
+  - `rules` → **`constraints`**, `properties` → **`checks`** 로 섹션 키를 바꾼다.
+    IR도 같이 바꾼다: 클래스 `Rule`→`Constraint`, `Property`→`Check`,
+    `RuleSet.rules`→`.constraints`, `RuleSet.properties`→`.checks`.
+  - **하위 호환 별칭은 두지 않는다**(초기 단계 + 최소 코드). 기존 `.rule` 파일은
+    일괄 마이그레이션한다.
+  - **`transitions`는 별도 유지**(합치지 않음): `constraints`는 단일 상태 불변식
+    (`∀s. when(s)→then(s)`)이고 `transitions`는 두 상태 사이 관계
+    (`when(s)→then(s,s')`, `next.*`·`outcomes`)다. BMC 인코딩에서 노는 자리가 달라
+    (전자=매 스텝, 후자=스텝 사이, D15) 합치면 의도가 흐려진다(설계 원칙 2).
+  - **모델 정의 vs 명세 분리는 유지**: `domain`/`init`/`constraints`/`transitions`는
+    "무엇이 참인가"(solver가 가정), `checks`는 "무엇을 확인할 것인가"(solver가 증명/반증).
+    이는 PRISM(모델/속성 파일)·NuSMV·TLA+의 표준 구도다.
+- **기각한 대안:**
+  - *`rules`→`invariant`*: `checks`의 `kind: invariant`(검증 대상)와 충돌. 가정된 공리와
+    검증할 추측은 형식방법론에서 구분해야 한다 — `constraints`가 그 경계를 더 잘 드러낸다.
+  - *`rules`+`transitions` 병합*: 위 의미 차이로 기각.
+  - *PRISM 관례대로 `properties` 유지*: 기획자 직관 우선. 단 PRISM 백엔드 내부 식별자
+    (`PrismProperty` 등)와 model-checking 개념어 "속성"은 그대로 둔다.
+- **영향:** loader 키, `core/ir.py`(`Constraint`/`Check`), schema·translator·bmc·prism_gen·
+  cli, 전체 `.rule`(examples·fixtures·rules)·테스트·문서를 일괄 갱신. 내부 plumbing 식별자
+  중 우산 의미가 자연스러운 것(`culprit_rules`, `rule_constraints`)은 churn 최소화로 유지.
 
 ---
 

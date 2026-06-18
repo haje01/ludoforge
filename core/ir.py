@@ -31,10 +31,11 @@ class Variable:
 
 
 @dataclass(frozen=True)
-class Rule:
-    """단일 룰. `when`이 있으면 `Implies(when, then)`로 번역된다(CLAUDE.md §4).
+class Constraint:
+    """단일 정적 제약(DSL의 `constraints` 섹션 항목). 모든 상태에 적용되는 불변식이며,
+    `when`이 있으면 `Implies(when, then)`로 번역된다(CLAUDE.md §4).
 
-    `source`는 룰이 정의된 .rule 파일명이다. 디렉토리 병합 시 어느 파일의 룰이 모순의
+    `source`는 제약이 정의된 .rule 파일명이다. 디렉토리 병합 시 어느 파일의 제약이 모순의
     범인인지 리포트에서 짚기 위함이다. 직접 생성한 IR(테스트 등)에서는 None일 수 있다.
     """
 
@@ -89,8 +90,8 @@ class Transition:
 
 
 @dataclass(frozen=True)
-class Property:
-    """검증 속성(질의, D12). `kind`로 백엔드 공통 의미를 표현한다.
+class Check:
+    """검증 질의(DSL의 `checks` 섹션 항목, D12). `kind`로 백엔드 공통 의미를 표현한다.
 
     - `reachable`/`invariant`: `that`(현재 상태 술어)를 둔다. 논리 백엔드가 BMC로,
       확률 백엔드가 P>0 / P=1로 해석한다.
@@ -111,15 +112,15 @@ class Property:
 
 @dataclass(frozen=True)
 class RuleSet:
-    """검사 단위: 도메인 변수·룰·도달성 단언(expects)과 전이 시스템(init/transitions/
-    properties, D12)의 묶음. 전이 필드는 비어 있을 수 있다(정적 룰셋과 하위 호환)."""
+    """검사 단위: 도메인 변수·정적 제약(constraints)·도달성 단언(expects)과 전이 시스템
+    (init/transitions/checks, D12)의 묶음. 전이 필드는 비어 있을 수 있다(정적 룰셋과 하위 호환)."""
 
     variables: tuple[Variable, ...] = field(default_factory=tuple)
-    rules: tuple[Rule, ...] = field(default_factory=tuple)
+    constraints: tuple[Constraint, ...] = field(default_factory=tuple)
     expects: tuple[Expect, ...] = field(default_factory=tuple)
     init: str | None = None
     transitions: tuple[Transition, ...] = field(default_factory=tuple)
-    properties: tuple[Property, ...] = field(default_factory=tuple)
+    checks: tuple[Check, ...] = field(default_factory=tuple)
 
     def variable(self, name: str) -> Variable:
         """이름으로 변수를 찾는다. 없으면 KeyError."""

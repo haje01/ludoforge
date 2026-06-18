@@ -26,9 +26,9 @@ def test_loads_section4_example() -> None:
     role = rs.variable("role")
     assert (role.type, role.values) == ("enum", ("warrior", "mage", "archer"))
 
-    ids = [r.id for r in rs.rules]
+    ids = [r.id for r in rs.constraints]
     assert ids == ["warrior_hp_formula", "global_hp_cap"]
-    warrior = rs.rules[0]
+    warrior = rs.constraints[0]
     assert warrior.when == "role == warrior"
     assert warrior.then == "hp == level * 100"
     assert warrior.author == "planner_A"
@@ -49,7 +49,8 @@ def test_malformed_yaml_raises_loader_error(tmp_path: Path) -> None:
 def test_rule_without_then_names_the_rule(tmp_path: Path) -> None:
     f = tmp_path / "no_then.rule"
     f.write_text(
-        "domain:\n  variables:\n    hp: { type: int }\nrules:\n  - id: r1\n    when: 'hp > 0'\n",
+        "domain:\n  variables:\n    hp: { type: int }\n"
+        "constraints:\n  - id: r1\n    when: 'hp > 0'\n",
         encoding="utf-8",
     )
     with pytest.raises(LoaderError, match="r1"):
@@ -59,7 +60,7 @@ def test_rule_without_then_names_the_rule(tmp_path: Path) -> None:
 def test_unknown_variable_type_names_the_variable(tmp_path: Path) -> None:
     f = tmp_path / "bad_type.rule"
     f.write_text(
-        "domain:\n  variables:\n    hp: { type: float }\nrules: []\n",
+        "domain:\n  variables:\n    hp: { type: float }\nconstraints: []\n",
         encoding="utf-8",
     )
     with pytest.raises(LoaderError, match="hp"):
@@ -69,7 +70,7 @@ def test_unknown_variable_type_names_the_variable(tmp_path: Path) -> None:
 def test_loads_bool_variable(tmp_path: Path) -> None:
     f = tmp_path / "b.rule"
     f.write_text(
-        "domain:\n  variables:\n    stealthed: { type: bool }\nrules: []\n",
+        "domain:\n  variables:\n    stealthed: { type: bool }\nconstraints: []\n",
         encoding="utf-8",
     )
     rs = load_rule_file(f)
@@ -80,7 +81,7 @@ def test_loads_bool_variable(tmp_path: Path) -> None:
 def test_loads_real_variable(tmp_path: Path) -> None:
     f = tmp_path / "r.rule"
     f.write_text(
-        "domain:\n  variables:\n    prob: { type: real, min: 0, max: 1 }\nrules: []\n",
+        "domain:\n  variables:\n    prob: { type: real, min: 0, max: 1 }\nconstraints: []\n",
         encoding="utf-8",
     )
     rs = load_rule_file(f)
@@ -91,7 +92,7 @@ def test_loads_real_variable(tmp_path: Path) -> None:
 def test_real_accepts_float_bounds(tmp_path: Path) -> None:
     f = tmp_path / "r2.rule"
     f.write_text(
-        "domain:\n  variables:\n    drop: { type: real, min: 0.05, max: 0.5 }\nrules: []\n",
+        "domain:\n  variables:\n    drop: { type: real, min: 0.05, max: 0.5 }\nconstraints: []\n",
         encoding="utf-8",
     )
     v = load_rule_file(f).variable("drop")
@@ -102,7 +103,7 @@ def test_loads_expects_section(tmp_path: Path) -> None:
     f = tmp_path / "e.rule"
     f.write_text(
         "domain:\n  variables:\n    level: { type: int, min: 1, max: 100 }\n"
-        "rules: []\n"
+        "constraints: []\n"
         "expects:\n"
         "  - id: lvl_max\n    desc: '레벨 100 도달 가능'\n    that: 'level == 100'\n",
         encoding="utf-8",
@@ -116,7 +117,7 @@ def test_loads_expects_section(tmp_path: Path) -> None:
 def test_expect_without_that_names_it(tmp_path: Path) -> None:
     f = tmp_path / "bad_expect.rule"
     f.write_text(
-        "domain:\n  variables:\n    level: { type: int }\nrules: []\n"
+        "domain:\n  variables:\n    level: { type: int }\nconstraints: []\n"
         "expects:\n  - id: e1\n    desc: '설명만 있음'\n",
         encoding="utf-8",
     )
@@ -127,7 +128,7 @@ def test_expect_without_that_names_it(tmp_path: Path) -> None:
 def test_enum_without_values_names_the_variable(tmp_path: Path) -> None:
     f = tmp_path / "bad_enum.rule"
     f.write_text(
-        "domain:\n  variables:\n    role: { type: enum }\nrules: []\n",
+        "domain:\n  variables:\n    role: { type: enum }\nconstraints: []\n",
         encoding="utf-8",
     )
     with pytest.raises(LoaderError, match="role"):

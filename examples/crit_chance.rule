@@ -9,7 +9,7 @@ domain:
   variables:
     crit_chance: { type: real, min: 0, max: 1 }
 
-rules:
+constraints:
   - id: diminishing_returns
     author: planner_combat
     desc: "크리티컬 확률은 수확체감으로 0.5를 넘지 못한다"

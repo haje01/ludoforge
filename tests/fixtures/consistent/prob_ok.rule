@@ -6,7 +6,7 @@ domain:
     common: { type: real, min: 0, max: 1 }
     rare:   { type: real, min: 0, max: 1 }
 
-rules:
+constraints:
   - id: prob_sum_one
     author: planner_loot
     desc: "확률의 합은 1"

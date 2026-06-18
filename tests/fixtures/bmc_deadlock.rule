@@ -10,5 +10,5 @@ transitions:
     when: "x < 2"
     then: "next.x == x + 1"
 
-properties:
+checks:
   - { id: live, kind: no_deadlock }

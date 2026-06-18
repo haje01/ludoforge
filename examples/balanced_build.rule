@@ -10,7 +10,7 @@ domain:
     atk:     { type: int, min: 1, max: 100 }
     defense: { type: int, min: 1, max: 100 }
 
-rules:
+constraints:
   - id: stat_budget
     author: planner_balance
     desc: "공격+방어 합은 120을 넘지 못한다(스탯 예산)"

@@ -461,7 +461,7 @@ SLIDES = [
         ],
     },
     {
-        "title": "DSL 구조 — domain + rules",
+        "title": "DSL 구조 — domain + constraints",
         "blocks": [
             ("code", "yaml", None, [
                 "domain:                       # ① 변수와 그 범위 선언",
@@ -470,7 +470,7 @@ SLIDES = [
                 "    hp:    { type: int,  min: 0 }",
                 "    role:  { type: enum, values: [warrior, mage, archer] }",
                 "",
-                "rules:                        # ② 지켜야 할 룰",
+                "constraints:                  # ② 지켜야 할 제약",
                 "  - id: warrior_hp_formula",
                 "    when: \"role == warrior\"   # 조건 → Implies(when, then)",
                 "    then: \"hp == level * 100\"",
@@ -497,16 +497,16 @@ SLIDES = [
         ],
     },
     {
-        "title": "팀 협업 — domain과 rules 분리",
+        "title": "팀 협업 — domain과 constraints 분리",
         "blocks": [
             ("bullets", [
-                ("공유 도메인 1개 + 기획자별 rules 파일. 디렉토리째 검사하면 병합된다.", 0),
+                ("공유 도메인 1개 + 기획자별 제약 파일. 디렉토리째 검사하면 병합된다.", 0),
             ]),
             ("code", "text", None, [
                 "rules/",
                 "  _domain.rule     # 공유: 변수 정의만",
-                "  planner_a.rule   # 기획자 A: 전사 HP 공식 (rules만)",
-                "  planner_b.rule   # 기획자 B: HP 상한 (rules만)",
+                "  planner_a.rule   # 기획자 A: 전사 HP 공식 (constraints만)",
+                "  planner_b.rule   # 기획자 B: HP 상한 (constraints만)",
             ]),
             ("note", "각 파일은 정상이어도, 합쳤을 때 생기는 **파일 간 모순**까지 잡아낸다 (import 불필요 · 변수 충돌은 오류로 보고)", BLUE),
         ],
@@ -535,7 +535,7 @@ SLIDES = [
                 "    role:      { type: enum, values: [rogue, mage] }   # enum",
                 "    stealthed: { type: bool }                          # 불리언 상태",
                 "    attacking: { type: bool }",
-                "rules:",
+                "constraints:",
                 "  - id: stealth_mutex",
                 "    then: \"not (stealthed and attacking)\"     # 상호 배제",
                 "expects:                                       # 도달성 단언",

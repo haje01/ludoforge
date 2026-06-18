@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 import z3
 
-from core.ir import Rule, RuleSet, Variable
+from core.ir import Constraint, RuleSet, Variable
 from core.loader import load_rule_file
 from logic.solver.translator import Translation, TranslationError, translate
 
@@ -83,7 +83,7 @@ def test_bool_variable_translates_to_z3_bool() -> None:
             Variable(name="stealthed", type="bool"),
             Variable(name="attacking", type="bool"),
         ),
-        rules=(Rule(id="mutex", then="not (stealthed and attacking)"),),
+        constraints=(Constraint(id="mutex", then="not (stealthed and attacking)"),),
     )
     t = translate(rs)
     assert set(t.z3_vars) == {"stealthed", "attacking"}
@@ -96,7 +96,7 @@ def test_bool_literal_constant_allowed() -> None:
     # True/False 리터럴은 bool 식에서 허용된다 (정수 화이트리스트의 예외).
     rs = RuleSet(
         variables=(Variable(name="stealthed", type="bool"),),
-        rules=(Rule(id="force", then="stealthed == True"),),
+        constraints=(Constraint(id="force", then="stealthed == True"),),
     )
     t = translate(rs)
     s = _solver_with(t, z3.Not(t.z3_vars["stealthed"]))
@@ -110,10 +110,10 @@ def test_real_variable_translates_to_z3_real_and_detects_over_constraint() -> No
             Variable(name="pa", type="real", min=0.0, max=1.0),
             Variable(name="pb", type="real", min=0.0, max=1.0),
         ),
-        rules=(
-            Rule(id="sum_one", then="pa + pb == 1.0"),
-            Rule(id="a_floor", then="pa >= 0.6"),
-            Rule(id="b_floor", then="pb >= 0.6"),
+        constraints=(
+            Constraint(id="sum_one", then="pa + pb == 1.0"),
+            Constraint(id="a_floor", then="pa >= 0.6"),
+            Constraint(id="b_floor", then="pb >= 0.6"),
         ),
     )
     t = translate(rs)
@@ -125,7 +125,7 @@ def test_constant_division_is_exact_rational() -> None:
     # 1/3은 z3 유리수로 정확히 표현되어야 한다(파이썬 float 0.333… 아님).
     rs = RuleSet(
         variables=(Variable(name="p", type="real", min=0.0, max=1.0),),
-        rules=(Rule(id="third", then="p == 1 / 3"),),
+        constraints=(Constraint(id="third", then="p == 1 / 3"),),
     )
     t = translate(rs)
     s = _solver_with(t, t.z3_vars["p"] * 3 != 1)
@@ -139,7 +139,7 @@ def test_variable_divisor_raises() -> None:
             Variable(name="a", type="real", min=0.0, max=1.0),
             Variable(name="b", type="real", min=0.0, max=1.0),
         ),
-        rules=(Rule(id="nonlinear", then="a / b == 1.0"),),
+        constraints=(Constraint(id="nonlinear", then="a / b == 1.0"),),
     )
     with pytest.raises(TranslationError, match="상수 분모"):
         translate(rs)
@@ -152,7 +152,7 @@ def test_duplicate_enum_value_names_resolved_by_context() -> None:
             Variable(name="role", type="enum", values=("active", "inactive")),
             Variable(name="status", type="enum", values=("active", "inactive")),
         ),
-        rules=(Rule(id="link", when="role == active", then="status == inactive"),),
+        constraints=(Constraint(id="link", when="role == active", then="status == inactive"),),
     )
     t = translate(rs)
     ra = t.enum_encoding["role"]["active"]
@@ -172,7 +172,7 @@ def test_cross_enum_value_misuse_raises() -> None:
             Variable(name="role", type="enum", values=("warrior", "mage")),
             Variable(name="status", type="enum", values=("active", "idle")),
         ),
-        rules=(Rule(id="bad", then="role == active"),),
+        constraints=(Constraint(id="bad", then="role == active"),),
     )
     with pytest.raises(TranslationError, match="active"):
         translate(rs)
@@ -181,7 +181,7 @@ def test_cross_enum_value_misuse_raises() -> None:
 def test_disallowed_function_call_raises() -> None:
     rs = RuleSet(
         variables=(Variable(name="hp", type="int", min=0),),
-        rules=(Rule(id="bad_call", then="abs(hp) <= 5"),),
+        constraints=(Constraint(id="bad_call", then="abs(hp) <= 5"),),
     )
     with pytest.raises(TranslationError, match="bad_call"):
         translate(rs)
@@ -190,7 +190,7 @@ def test_disallowed_function_call_raises() -> None:
 def test_disallowed_attribute_raises() -> None:
     rs = RuleSet(
         variables=(Variable(name="hp", type="int", min=0),),
-        rules=(Rule(id="bad_attr", then="hp.value <= 5"),),
+        constraints=(Constraint(id="bad_attr", then="hp.value <= 5"),),
     )
     with pytest.raises(TranslationError, match="bad_attr"):
         translate(rs)
@@ -200,7 +200,7 @@ def test_chained_comparison_supported() -> None:
     # 1 <= level <= 3 형태의 연쇄 비교를 And로 번역한다.
     rs = RuleSet(
         variables=(Variable(name="level", type="int"),),
-        rules=(Rule(id="range", then="1 <= level <= 3"),),
+        constraints=(Constraint(id="range", then="1 <= level <= 3"),),
     )
     t = translate(rs)
     s = _solver_with(t, t.z3_vars["level"] == 5)

@@ -3,12 +3,12 @@
 의미론은 decisions.md D15:
 - **프레임 = 미변경 유지**: 전이 outcome이 `next.X`로 건드리지 않은 변수는 다음 상태에서
   값이 유지된다(`next.y == y`). PRISM 갱신 의미와 일치 → 확률 백엔드와 모델 공유.
-- **정적 rules = 모든 상태 불변식**: rules와 domain min/max를 매 스텝 s_i에 적용한다.
+- **정적 constraints = 모든 상태 불변식**: constraints와 domain min/max를 매 스텝 s_i에 적용한다.
 - **확률 가중치 무시(weight-erasure)**: outcome들을 비결정 분기(Or)로 본다.
 - **반복 심화**: 깊이 j=0..k마다 `init ∧ T_0..T_{j-1} ∧ φ(s_j)`를 따로 풀어 가장 짧은
   반례를 찾는다. 데드락으로 경로가 끊겨도 자연히 처리된다.
 
-속성(D12): reachable / invariant / no_deadlock. prob는 확률 백엔드 전용이라 건너뛴다.
+검사 kind(D12): reachable / invariant / no_deadlock. prob는 확률 백엔드 전용이라 건너뛴다.
 "k까지 유지/미도달"은 증명이 아니라 **유계 결과**임을 리포트에 명시한다(k-bound 정직성).
 """
 
@@ -21,7 +21,7 @@ from typing import Any
 
 import z3
 
-from core.ir import Rule, RuleSet
+from core.ir import Constraint, RuleSet
 from logic.solver.translator import translate_expression
 
 # enum sort 라벨을 프로세스 단위로 유일하게(같은 이름 재선언 시 z3가 예외, translator와 동일).
@@ -94,7 +94,7 @@ class BmcReport:
 
 
 def run_bmc(ruleset: RuleSet, k: int) -> BmcReport:
-    """전이 시스템의 properties를 깊이 k까지 BMC로 검사한다."""
+    """전이 시스템의 checks를 깊이 k까지 BMC로 검사한다."""
     return _Bmc(ruleset, k).run()
 
 
@@ -176,7 +176,7 @@ class _Bmc:
     # --- 제약 구성 ---
 
     def _state_constraints(self, i: int) -> list[Any]:
-        """스텝 i가 합법 상태이기 위한 제약: domain 경계 + 모든 rules(D15)."""
+        """스텝 i가 합법 상태이기 위한 제약: domain 경계 + 모든 constraints(D15)."""
         cons: list[Any] = []
         for v in self.vars:
             zv = self.svars[i][v.name]
@@ -186,8 +186,8 @@ class _Bmc:
                 if v.max is not None:
                     cons.append(zv <= v.max)
         symbols, enums = self._state_ctx(i)
-        for rule in self.rs.rules:
-            cons.append(_rule_constraint(rule, symbols, enums))
+        for constraint in self.rs.constraints:
+            cons.append(_rule_constraint(constraint, symbols, enums))
         return cons
 
     def _guards(self, i: int) -> list[Any]:
@@ -297,17 +297,17 @@ class _Bmc:
     def run(self) -> BmcReport:
         results: list[PropertyResult] = []
         skipped: list[str] = []
-        for p in self.rs.properties:
-            if p.kind == "prob":
-                skipped.append(p.id)
+        for c in self.rs.checks:
+            if c.kind == "prob":
+                skipped.append(c.id)
                 continue
-            if p.kind == "reachable":
-                outcome = self._check_reachable(p.that or "")
-            elif p.kind == "invariant":
-                outcome = self._check_invariant(p.that or "")
+            if c.kind == "reachable":
+                outcome = self._check_reachable(c.that or "")
+            elif c.kind == "invariant":
+                outcome = self._check_invariant(c.that or "")
             else:  # no_deadlock
                 outcome = self._check_no_deadlock()
-            results.append(_result(p.id, p.kind, p.desc, outcome))
+            results.append(_result(c.id, c.kind, c.desc, outcome))
         return BmcReport(k=self.k, results=tuple(results), skipped_prob=tuple(skipped))
 
 
@@ -318,10 +318,12 @@ def _parse(expr: str) -> ast.expr:
     return ast.parse(expr, mode="eval").body
 
 
-def _rule_constraint(rule: Rule, symbols: dict[str, Any], enums: dict[str, dict[str, Any]]) -> Any:
-    then = translate_expression(_parse(rule.then), symbols, enums)
-    if rule.when is not None:
-        return z3.Implies(translate_expression(_parse(rule.when), symbols, enums), then)
+def _rule_constraint(
+    constraint: Constraint, symbols: dict[str, Any], enums: dict[str, dict[str, Any]]
+) -> Any:
+    then = translate_expression(_parse(constraint.then), symbols, enums)
+    if constraint.when is not None:
+        return z3.Implies(translate_expression(_parse(constraint.when), symbols, enums), then)
     return then
 
 
@@ -375,7 +377,7 @@ def format_bmc_report(report: BmcReport) -> str:
     """BmcReport를 한국어 리포트로 변환한다(k-bound 정직성 명시, D15)."""
     lines: list[str] = [f"BMC 검사 (깊이 한계 k={report.k})", ""]
     if not report.results and not report.skipped_prob:
-        lines.append("검사할 속성(properties)이 없습니다.")
+        lines.append("검사할 항목(checks)이 없습니다.")
         return "\n".join(lines)
 
     for i, r in enumerate(report.results, start=1):
@@ -407,7 +409,7 @@ _KBOUND_NOTE: dict[str, str] = {
 
 def _format_result(index: int, r: PropertyResult) -> str:
     desc = f" — {r.desc}" if r.desc else ""
-    head = f"[{index}] 속성 '{r.prop_id}' ({r.kind}){desc}: {_LABEL.get(r.status, r.status)}"
+    head = f"[{index}] 검사 '{r.prop_id}' ({r.kind}){desc}: {_LABEL.get(r.status, r.status)}"
     parts = [head]
     if r.depth is not None:
         parts[0] += f" (깊이 {r.depth})"

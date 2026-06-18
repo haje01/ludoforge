@@ -5,7 +5,7 @@ domain:
     door:   { type: enum, values: [open, closed] }
     window: { type: enum, values: [open, closed] }
 
-rules:
+constraints:
   - id: door_open_window_state
     author: planner_A
     desc: "문이 열려 있으면 창은 열림/닫힘 어느 쪽이든 가능"

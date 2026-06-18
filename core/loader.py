@@ -1,7 +1,7 @@
 """로더: .rule(YAML) 파일을 IR(RuleSet)로 변환한다.
 
 책임 경계: **구조적 파싱만** 한다 — YAML 형식, 필수 키 존재, 필드 타입.
-참조 무결성(미정의 심볼 참조, 중복 rule id, 순환 의존)은 S3 스키마 검증의 몫이다.
+참조 무결성(미정의 심볼 참조, 중복 constraint id, 순환 의존)은 S3 스키마 검증의 몫이다.
 파싱 실패 시 어떤 파일/필드가 문제인지 명시한 LoaderError를 던진다(CLAUDE.md §7).
 """
 
@@ -12,11 +12,11 @@ from typing import Any
 
 import yaml
 
-from core.ir import Expect, Outcome, Property, Rule, RuleSet, Transition, Variable
+from core.ir import Check, Constraint, Expect, Outcome, RuleSet, Transition, Variable
 
 _VALID_TYPES = ("int", "enum", "bool", "real")
-# 속성 kind별 필요 필드(D12). reachable/invariant는 `that`, prob는 `spec`(PCTL).
-_PROP_KINDS = ("reachable", "invariant", "prob", "no_deadlock")
+# 검사(check) kind별 필요 필드(D12). reachable/invariant는 `that`, prob는 `spec`(PCTL).
+_CHECK_KINDS = ("reachable", "invariant", "prob", "no_deadlock")
 
 
 class LoaderError(Exception):
@@ -41,35 +41,35 @@ def load_rules(path: str | Path) -> RuleSet:
 def _merge(rulesets: list[RuleSet]) -> RuleSet:
     """여러 RuleSet을 병합한다. 변수는 이름으로 합치되 충돌(다른 선언)은 오류.
 
-    전이 시스템(D12)도 병합한다: transitions/properties는 이어 붙이고, `init`은 전역
+    전이 시스템(D12)도 병합한다: transitions/checks는 이어 붙이고, `init`은 전역
     초기 상태라 둘 이상의 파일이 선언하면 모호하므로 오류로 본다.
     """
     variables: dict[str, Variable] = {}
-    rules: list[Rule] = []
+    constraints: list[Constraint] = []
     expects: list[Expect] = []
     transitions: list[Transition] = []
-    properties: list[Property] = []
+    checks: list[Check] = []
     init: str | None = None
     for rs in rulesets:
         for v in rs.variables:
             if v.name in variables and variables[v.name] != v:
                 raise LoaderError(f"변수 '{v.name}'가 파일마다 다르게 선언되었습니다.")
             variables[v.name] = v
-        rules.extend(rs.rules)
+        constraints.extend(rs.constraints)
         expects.extend(rs.expects)
         transitions.extend(rs.transitions)
-        properties.extend(rs.properties)
+        checks.extend(rs.checks)
         if rs.init is not None:
             if init is not None:
                 raise LoaderError("init(초기 상태)이 둘 이상의 파일에 선언되었습니다 (전역 1개).")
             init = rs.init
     return RuleSet(
         variables=tuple(variables.values()),
-        rules=tuple(rules),
+        constraints=tuple(constraints),
         expects=tuple(expects),
         init=init,
         transitions=tuple(transitions),
-        properties=tuple(properties),
+        checks=tuple(checks),
     )
 
 
@@ -87,21 +87,21 @@ def load_rule_file(path: str | Path) -> RuleSet:
         raise LoaderError(f"{path}: YAML 파싱 실패 — {e}") from e
 
     if not isinstance(raw, dict):
-        raise LoaderError(f"{path}: 최상위는 매핑이어야 합니다 (domain/rules 키).")
+        raise LoaderError(f"{path}: 최상위는 매핑이어야 합니다 (domain/constraints 키).")
 
     variables = _parse_variables(raw.get("domain", {}), path)
-    rules = _parse_rules(raw.get("rules", []), path)
+    constraints = _parse_constraints(raw.get("constraints", []), path)
     expects = _parse_expects(raw.get("expects", []), path)
     init = _parse_init(raw.get("init"), path)
     transitions = _parse_transitions(raw.get("transitions", []), path)
-    properties = _parse_properties(raw.get("properties", []), path)
+    checks = _parse_checks(raw.get("checks", []), path)
     return RuleSet(
         variables=variables,
-        rules=rules,
+        constraints=constraints,
         expects=expects,
         init=init,
         transitions=transitions,
-        properties=properties,
+        checks=checks,
     )
 
 
@@ -173,34 +173,34 @@ def _parse_opt_float(value: Any, var_name: str, field: str, path: Path) -> float
     return float(value)
 
 
-def _parse_rules(rules: Any, path: Path) -> tuple[Rule, ...]:
-    if not isinstance(rules, list):
-        raise LoaderError(f"{path}: 'rules'는 목록이어야 합니다.")
+def _parse_constraints(constraints: Any, path: Path) -> tuple[Constraint, ...]:
+    if not isinstance(constraints, list):
+        raise LoaderError(f"{path}: 'constraints'는 목록이어야 합니다.")
 
-    parsed: list[Rule] = []
-    for i, item in enumerate(rules):
-        parsed.append(_parse_rule(item, i, path))
+    parsed: list[Constraint] = []
+    for i, item in enumerate(constraints):
+        parsed.append(_parse_constraint(item, i, path))
     return tuple(parsed)
 
 
-def _parse_rule(item: Any, index: int, path: Path) -> Rule:
+def _parse_constraint(item: Any, index: int, path: Path) -> Constraint:
     if not isinstance(item, dict):
-        raise LoaderError(f"{path}: rules[{index}]는 매핑이어야 합니다.")
+        raise LoaderError(f"{path}: constraints[{index}]는 매핑이어야 합니다.")
 
-    rule_id = item.get("id")
-    if not isinstance(rule_id, str) or not rule_id:
-        raise LoaderError(f"{path}: rules[{index}]에 문자열 'id'가 필요합니다.")
+    cid = item.get("id")
+    if not isinstance(cid, str) or not cid:
+        raise LoaderError(f"{path}: constraints[{index}]에 문자열 'id'가 필요합니다.")
 
     then = item.get("then")
     if not isinstance(then, str) or not then:
-        raise LoaderError(f"{path}: 룰 '{rule_id}'에 문자열 'then'이 필요합니다.")
+        raise LoaderError(f"{path}: 제약 '{cid}'에 문자열 'then'이 필요합니다.")
 
-    return Rule(
-        id=rule_id,
+    return Constraint(
+        id=cid,
         then=then,
-        when=_parse_opt_str(item.get("when"), rule_id, "when", path),
-        author=_parse_opt_str(item.get("author"), rule_id, "author", path),
-        desc=_parse_opt_str(item.get("desc"), rule_id, "desc", path),
+        when=_parse_opt_str(item.get("when"), cid, "when", path),
+        author=_parse_opt_str(item.get("author"), cid, "author", path),
+        desc=_parse_opt_str(item.get("desc"), cid, "desc", path),
         source=path.name,
     )
 
@@ -309,41 +309,41 @@ def _parse_weight(value: Any, tid: str, index: int, path: Path) -> float:
     return float(value)
 
 
-def _parse_properties(properties: Any, path: Path) -> tuple[Property, ...]:
-    if not isinstance(properties, list):
-        raise LoaderError(f"{path}: 'properties'는 목록이어야 합니다.")
-    return tuple(_parse_property(item, i, path) for i, item in enumerate(properties))
+def _parse_checks(checks: Any, path: Path) -> tuple[Check, ...]:
+    if not isinstance(checks, list):
+        raise LoaderError(f"{path}: 'checks'는 목록이어야 합니다.")
+    return tuple(_parse_check(item, i, path) for i, item in enumerate(checks))
 
 
-def _parse_property(item: Any, index: int, path: Path) -> Property:
+def _parse_check(item: Any, index: int, path: Path) -> Check:
     if not isinstance(item, dict):
-        raise LoaderError(f"{path}: properties[{index}]는 매핑이어야 합니다.")
+        raise LoaderError(f"{path}: checks[{index}]는 매핑이어야 합니다.")
 
-    pid = item.get("id")
-    if not isinstance(pid, str) or not pid:
-        raise LoaderError(f"{path}: properties[{index}]에 문자열 'id'가 필요합니다.")
+    cid = item.get("id")
+    if not isinstance(cid, str) or not cid:
+        raise LoaderError(f"{path}: checks[{index}]에 문자열 'id'가 필요합니다.")
 
     kind = item.get("kind")
-    if kind not in _PROP_KINDS:
-        raise LoaderError(f"{path}: 속성 '{pid}'의 kind가 잘못됨: {kind!r} (허용: {_PROP_KINDS})")
+    if kind not in _CHECK_KINDS:
+        raise LoaderError(f"{path}: 검사 '{cid}'의 kind가 잘못됨: {kind!r} (허용: {_CHECK_KINDS})")
 
-    that = _parse_opt_str(item.get("that"), pid, "that", path)
-    spec = _parse_opt_str(item.get("spec"), pid, "spec", path)
+    that = _parse_opt_str(item.get("that"), cid, "that", path)
+    spec = _parse_opt_str(item.get("spec"), cid, "spec", path)
 
     # kind별 필요 필드 강제(D12): reachable/invariant는 that, prob는 spec.
     if kind in ("reachable", "invariant") and not that:
         raise LoaderError(
-            f"{path}: 속성 '{pid}'(kind={kind})에 문자열 'that'(상태 술어)이 필요합니다."
+            f"{path}: 검사 '{cid}'(kind={kind})에 문자열 'that'(상태 술어)이 필요합니다."
         )
     if kind == "prob" and not spec:
-        raise LoaderError(f"{path}: 속성 '{pid}'(kind=prob)에 문자열 'spec'(PCTL)이 필요합니다.")
+        raise LoaderError(f"{path}: 검사 '{cid}'(kind=prob)에 문자열 'spec'(PCTL)이 필요합니다.")
 
-    return Property(
-        id=pid,
+    return Check(
+        id=cid,
         kind=kind,
         that=that,
         spec=spec,
-        desc=_parse_opt_str(item.get("desc"), pid, "desc", path),
+        desc=_parse_opt_str(item.get("desc"), cid, "desc", path),
         source=path.name,
     )
 

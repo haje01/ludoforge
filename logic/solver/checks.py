@@ -260,9 +260,7 @@ def _check_enum_reachability(
                 unknowns.append(f"'{var.name}'={value} 도달성 검사에서 unknown")
                 continue
             if status == "unsat":
-                found.append(
-                    UnreachableState(assignment={var.name: value}, culprit_rules=core)
-                )
+                found.append(UnreachableState(assignment={var.name: value}, culprit_rules=core))
     return found
 
 
@@ -366,7 +364,7 @@ def _determined_bools(ruleset: RuleSet) -> set[str]:
     """
     bool_names = {v.name for v in ruleset.variables if v.type == "bool"}
     determined: set[str] = set()
-    for rule in ruleset.rules:
+    for rule in ruleset.constraints:
         if rule.when is not None:
             continue
         name = _forced_bool_atom(ast.parse(rule.then, mode="eval").body)
@@ -408,7 +406,7 @@ def _determined_enums(ruleset: RuleSet) -> set[str]:
     enum_names = {v.name for v in ruleset.variables if v.type == "enum"}
     var_names = {v.name for v in ruleset.variables}
     determined: set[str] = set()
-    for rule in ruleset.rules:
+    for rule in ruleset.constraints:
         if rule.when is not None:
             continue
         name = _forced_enum_atom(ast.parse(rule.then, mode="eval").body, enum_names, var_names)
@@ -439,7 +437,7 @@ def _dependent_variables(ruleset: RuleSet) -> set[str]:
     """then에서 `var == ...`로 값이 결정되는(종속) 변수 집합을 찾는다."""
     var_names = {v.name for v in ruleset.variables}
     dependent: set[str] = set()
-    for rule in ruleset.rules:
+    for rule in ruleset.constraints:
         tree = ast.parse(rule.then, mode="eval")
         for node in ast.walk(tree):
             if (

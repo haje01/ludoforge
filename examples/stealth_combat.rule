@@ -9,7 +9,7 @@ domain:
     stealthed: { type: bool }
     attacking: { type: bool }
 
-rules:
+constraints:
   - id: combat_forces_attack
     author: planner_B
     desc: "전투 진입 시 항상 공격 상태"

@@ -10,7 +10,7 @@ domain:
     item_level: { type: int, min: 1, max: 40 }
     tier:       { type: enum, values: [normal, magic, rare, unique] }
 
-rules:
+constraints:
   - id: unique_requires_high_level
     author: planner_item
     desc: "unique 등급은 아이템 레벨 50 이상에서만 등장"

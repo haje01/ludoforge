@@ -31,7 +31,7 @@ def test_consistent_file_exits_0(tmp_path: Path) -> None:
         "    level: { type: int, min: 1, max: 100 }\n"
         "    hp: { type: int, min: 0 }\n"
         "    role: { type: enum, values: [warrior, mage] }\n"
-        "rules:\n"
+        "constraints:\n"
         "  - id: warrior_hp\n    when: 'role == warrior'\n    then: 'hp == level * 100'\n"
         "  - id: hp_cap\n    then: 'hp <= 10000'\n",
         encoding="utf-8",
@@ -45,7 +45,7 @@ def test_schema_error_exits_2(tmp_path: Path) -> None:
     f = tmp_path / "bad.rule"
     f.write_text(
         "domain:\n  variables:\n    hp: { type: int }\n"
-        "rules:\n  - id: r1\n    then: 'mana <= 100'\n",
+        "constraints:\n  - id: r1\n    then: 'mana <= 100'\n",
         encoding="utf-8",
     )
     result = runner.invoke(app, ["check", str(f)])
@@ -58,10 +58,11 @@ def test_missing_path_exits_2(tmp_path: Path) -> None:
 
 
 def test_rules_only_file_alone_gives_directory_hint(tmp_path: Path) -> None:
-    # rules만 있는 파일을 단독 검사하면 디렉토리 검사를 안내한다.
+    # constraints만 있는 파일을 단독 검사하면 디렉토리 검사를 안내한다.
     f = tmp_path / "planner_a.rule"
     f.write_text(
-        "rules:\n  - id: warrior_hp\n    when: 'role == warrior'\n    then: 'hp == level * 100'\n",
+        "constraints:\n  - id: warrior_hp\n"
+        "    when: 'role == warrior'\n    then: 'hp == level * 100'\n",
         encoding="utf-8",
     )
     result = runner.invoke(app, ["check", str(f)])
@@ -77,11 +78,12 @@ def test_directory_merges_files_for_cross_file_contradiction(tmp_path: Path) -> 
         "    level: { type: int, min: 1, max: 100 }\n"
         "    hp: { type: int, min: 0 }\n"
         "    role: { type: enum, values: [warrior, mage] }\n"
-        "rules:\n  - id: warrior_hp\n    when: 'role == warrior'\n    then: 'hp == level * 100'\n",
+        "constraints:\n  - id: warrior_hp\n"
+        "    when: 'role == warrior'\n    then: 'hp == level * 100'\n",
         encoding="utf-8",
     )
     (tmp_path / "b.rule").write_text(
-        "rules:\n  - id: global_hp_cap\n    then: 'hp <= 5000'\n",
+        "constraints:\n  - id: global_hp_cap\n    then: 'hp <= 5000'\n",
         encoding="utf-8",
     )
     result = runner.invoke(app, ["check", str(tmp_path)])

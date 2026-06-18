@@ -11,7 +11,7 @@ domain:
     item_power:    { type: int, min: 0 }
     rarity:        { type: enum, values: [common, rare, epic, legendary] }
 
-rules:
+constraints:
   - id: legendary_power_formula
     author: planner_item
     desc: "전설 아이템 파워는 강화 레벨당 100"

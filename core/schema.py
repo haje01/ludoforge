@@ -1,7 +1,7 @@
 """스키마·참조 검증(S3): 로더 통과 후 Z3 이전의 게이트.
 
 검사하는 것(CLAUDE.md §3.3 — 형식/참조 무결성):
-- 중복 id (rule / expect / transition / property)
+- 중복 id (constraint / expect / transition / check)
 - 표현식 구문 오류(파싱 불가)
 - 미정의 심볼 참조(선언 안 된 변수명 / enum 값 오타)
 - `next.<var>` 참조 무결성(D12): 전이 then에서만 허용, 그 외 위치는 오류
@@ -31,21 +31,21 @@ class SchemaError(Exception):
 
 def validate(ruleset: RuleSet) -> None:
     """룰셋의 참조 무결성을 검사한다. 문제가 있으면 SchemaError를 던진다."""
-    # 룰은 있는데 domain 변수가 전혀 없으면, rules-only 파일을 단독 검사한 경우가
+    # 제약은 있는데 domain 변수가 전혀 없으면, constraints-only 파일을 단독 검사한 경우가
     # 대부분이다. 미정의 심볼 에러를 쏟아내는 대신 디렉토리 검사를 안내한다.
-    if ruleset.rules and not ruleset.variables:
+    if ruleset.constraints and not ruleset.variables:
         raise SchemaError(
-            f"룰 {len(ruleset.rules)}개가 있지만 domain 변수 선언이 없습니다.\n"
-            "이 파일이 rules만 담고 있다면, 공유 domain 파일이 함께 있는 "
+            f"제약 {len(ruleset.constraints)}개가 있지만 domain 변수 선언이 없습니다.\n"
+            "이 파일이 constraints만 담고 있다면, 공유 domain 파일이 함께 있는 "
             "디렉토리를 검사하세요 (예: ludoforge check <폴더>)."
         )
 
     errors: list[str] = []
     errors.extend(_check_variable_bounds(ruleset))
-    errors.extend(_check_duplicate_rule_ids(ruleset))
+    errors.extend(_check_duplicate_constraint_ids(ruleset))
     errors.extend(_check_duplicate_expect_ids(ruleset))
     errors.extend(_check_duplicate_ids("transition", [t.id for t in ruleset.transitions]))
-    errors.extend(_check_duplicate_ids("property", [p.id for p in ruleset.properties]))
+    errors.extend(_check_duplicate_ids("check", [c.id for c in ruleset.checks]))
     errors.extend(_check_references(ruleset))
 
     if errors:
@@ -88,14 +88,14 @@ def _check_variable_bounds(ruleset: RuleSet) -> list[str]:
     return errors
 
 
-def _check_duplicate_rule_ids(ruleset: RuleSet) -> list[str]:
+def _check_duplicate_constraint_ids(ruleset: RuleSet) -> list[str]:
     seen: set[str] = set()
     dups: list[str] = []
-    for r in ruleset.rules:
-        if r.id in seen and r.id not in dups:
-            dups.append(r.id)
-        seen.add(r.id)
-    return [f"중복된 rule id: '{d}'" for d in dups]
+    for c in ruleset.constraints:
+        if c.id in seen and c.id not in dups:
+            dups.append(c.id)
+        seen.add(c.id)
+    return [f"중복된 constraint id: '{d}'" for d in dups]
 
 
 def _check_duplicate_expect_ids(ruleset: RuleSet) -> list[str]:
@@ -119,12 +119,12 @@ def _check_duplicate_ids(kind: str, ids: list[str]) -> list[str]:
 
 
 def _check_references(ruleset: RuleSet) -> list[str]:
-    """표현식이 참조하는 심볼이 모두 정의돼 있는지 검사한다(룰·expect·전이 시스템 전부).
+    """표현식이 참조하는 심볼이 모두 정의돼 있는지 검사한다(제약·expect·전이 시스템 전부).
 
     유효 심볼 = 선언된 변수명 ∪ 모든 enum 값. (enum 값이 어느 변수 소속인지까지는
     여기서 따지지 않는다 — 오타 탐지가 목적. 교차 enum 오용은 번역기가 잡는다, D8.)
     전이 then은 `next.<var>`로 다음 상태를 참조할 수 있다(D12) — 그 외 위치에서 next.*를
-    쓰면 오류로 본다. prob 속성의 spec은 PCTL이라 여기서 구문 검사하지 않는다(D11).
+    쓰면 오류로 본다. prob 검사의 spec은 PCTL이라 여기서 구문 검사하지 않는다(D11).
     """
     known_vars: set[str] = {v.name for v in ruleset.variables}
     known: set[str] = set(known_vars)
@@ -132,12 +132,12 @@ def _check_references(ruleset: RuleSet) -> list[str]:
         known.update(v.values)
 
     errors: list[str] = []
-    for rule in ruleset.rules:
-        for clause, expr in (("when", rule.when), ("then", rule.then)):
+    for constraint in ruleset.constraints:
+        for clause, expr in (("when", constraint.when), ("then", constraint.then)):
             if expr is None:
                 continue
             errors.extend(
-                _check_expr_references(f"룰 '{rule.id}'", clause, expr, known, known_vars)
+                _check_expr_references(f"제약 '{constraint.id}'", clause, expr, known, known_vars)
             )
     for expect in ruleset.expects:
         errors.extend(
@@ -157,10 +157,10 @@ def _check_references(ruleset: RuleSet) -> list[str]:
                     f"전이 '{t.id}'", label, oc.then, known, known_vars, allow_next=True
                 )
             )
-    for p in ruleset.properties:
-        if p.kind in ("reachable", "invariant") and p.that is not None:
+    for c in ruleset.checks:
+        if c.kind in ("reachable", "invariant") and c.that is not None:
             errors.extend(
-                _check_expr_references(f"속성 '{p.id}'", "that", p.that, known, known_vars)
+                _check_expr_references(f"검사 '{c.id}'", "that", c.that, known, known_vars)
             )
     return errors
 

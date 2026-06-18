@@ -29,7 +29,7 @@
 |------|------|------|------|
 | Phase 0 | 범위 합의 & decisions.md D11~ 기록, CLAUDE.md §1/§3 갱신 | ✅ | D11~D14 기록 |
 | Phase 1 | `forge_core` 추출 (loader·schema·ir 공유 패키지화) | ✅ | 순수 리팩터 |
-| Phase 2 | 전이 시스템 확장 (init·transitions·properties) | ✅ | 프론트엔드(로더·스키마)·던전! 픽스처 |
+| Phase 2 | 전이 시스템 확장 (init·transitions·checks) | ✅ | 프론트엔드(로더·스키마)·던전! 픽스처 |
 | Phase 3 | RuleForge BMC 백엔드 (k 언롤링·도달성·불변식·데드락) | ✅ | 반례 경로·k-bound, `ludoforge bmc` |
 | Phase 4 | ProbForge (IR → PRISM, PCTL 속성) | ✅ | PRISM 4.8.1 e2e 검증, `ludoforge prob` |
 | Phase 5 | (선택) 저엄밀 export (Machinations/몬테카를로) | ⬜ | **생략(마일스톤 마감)** |
@@ -53,15 +53,15 @@
   갱신. 검증: pytest 105건 통과, mypy clean, 만진 파일 ruff check/format clean, CLI
   엔드투엔드(정합 sat / 모순 unsat) 동일. (기존 ruff 위반 docs/build_slides.py·checks.py·
   report.py format은 Phase 1 범위 밖이라 미수정.) 커밋 b43e1dd(Phase 0)·acba78f(Phase 1).
-- 2026-06-17: Phase 2 완료(전이 시스템 프론트엔드). IR에 Outcome·Transition·Property +
-  RuleSet.init/transitions/properties 추가. 로더가 init/transitions(outcomes·bare then 정규화)/
-  properties 파싱, 스키마가 next.* 참조 무결성(전이 then 한정)·전이/속성 dup id·init/property
+- 2026-06-17: Phase 2 완료(전이 시스템 프론트엔드). IR에 Outcome·Transition·Check +
+  RuleSet.init/transitions/checks 추가. 로더가 init/transitions(outcomes·bare then 정규화)/
+  checks 파싱, 스키마가 next.* 참조 무결성(전이 then 한정)·전이/속성 dup id·init/property
   참조 검사. ProbForge용 유한 상태 게이트 check_finite_state()(validate와 분리). 던전!
   픽스처(tests/fixtures/dungeon.rule)·테스트 21건 추가(총 126건). CLAUDE.md §4.1에 전이
   시스템 DSL 문서화. 하위 호환 유지(번역기/검사기 미변경, 기존 정적 DSL·CLI 동일).
   BMC 검사는 Phase 3. 커밋 5f3733e.
 - 2026-06-17: Phase 3 완료(RuleForge BMC 백엔드). decisions.md D15(프레임=미변경 유지,
-  rules=상태 불변식, weight-erasure, 반복 심화). `ruleforge/solver/bmc.py` 신설 — 전이를
+  constraints=상태 불변식, weight-erasure, 반복 심화). `ruleforge/solver/bmc.py` 신설 — 전이를
   k 스텝 언롤링, reachable(도달 경로)·invariant(위반 시퀀스)·no_deadlock 검사, action@i로
   전이 추적, k-bound 정직 보고. 번역기에 translate_expression 재사용 진입점, `next.X`는
   호출자가 Name 치환. CLI `ludoforge bmc <path> --k N`(종료코드 0/1/2/3). 던전!을
@@ -69,7 +69,7 @@
   테스트 9건(총 136). prob 속성은 ProbForge(Phase 4) 몫이라 건너뜀. (기존 ruff format
   드리프트 checks.py·report.py는 Phase 3 범위 밖이라 유지.) 커밋 965679e.
 - 2026-06-17: Phase 4 부분 완료(ProbForge 스켈레톤). decisions.md D16(IR→PRISM 매핑).
-  probforge/ 신설 — prism_gen.py(enum const·init+rules 인코딩·확률 명령·속성 매핑,
+  probforge/ 신설 — prism_gen.py(enum const·init+constraints 인코딩·확률 명령·속성 매핑,
   유한 상태 게이트), runner.py(prism 발견·실행·파싱, 미설치 시 graceful). CLI
   `ludoforge prob`. 던전! prob spec을 PRISM 문법(Pmax/&/=)으로 정정. 테스트 10건+통합
   1건(skip, 총 146). 모델 생성·게이트·오류·CLI graceful 통과. 커밋 6afca9c.

@@ -8,7 +8,7 @@ ludoforge check rules/
 ```
 
 여러 기획자가 함께 쓴다면 공유 도메인 파일(`_domain.rule`) 하나와 기획자별
-rules 파일로 나눠 두면 된다. 동작하는 예시는 [`../examples/`](../examples/README.md) 참고.
+constraints 파일로 나눠 두면 된다. 동작하는 예시는 [`../examples/`](../examples/README.md) 참고.
 
 > 사용법을 익히는 용도의 예제(아이템 강화·드롭 확률 등)는 모두 `examples/`에 있다.
 > 이 디렉토리는 비워 두고 실제 룰만 채운다.

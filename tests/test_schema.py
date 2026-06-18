@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from core.ir import Expect, Rule, RuleSet, Variable
+from core.ir import Constraint, Expect, RuleSet, Variable
 from core.loader import load_rule_file
 from core.schema import SchemaError, validate
 
@@ -34,9 +34,9 @@ def test_valid_ruleset_passes() -> None:
 def test_duplicate_rule_id_is_reported() -> None:
     rs = RuleSet(
         variables=_domain(),
-        rules=(
-            Rule(id="dup", then="hp <= 5000"),
-            Rule(id="dup", then="level <= 100"),
+        constraints=(
+            Constraint(id="dup", then="hp <= 5000"),
+            Constraint(id="dup", then="level <= 100"),
         ),
     )
     with pytest.raises(SchemaError, match="dup"):
@@ -45,7 +45,7 @@ def test_duplicate_rule_id_is_reported() -> None:
 
 def test_rules_without_any_domain_gives_directory_hint() -> None:
     # rules만 있고 domain 변수가 없으면(= rules-only 파일 단독 검사) 디렉토리 검사를 안내.
-    rs = RuleSet(variables=(), rules=(Rule(id="r1", then="hp <= 5000"),))
+    rs = RuleSet(variables=(), constraints=(Constraint(id="r1", then="hp <= 5000"),))
     with pytest.raises(SchemaError, match="디렉토리"):
         validate(rs)
 
@@ -53,7 +53,7 @@ def test_rules_without_any_domain_gives_directory_hint() -> None:
 def test_undefined_variable_reference_is_reported() -> None:
     rs = RuleSet(
         variables=_domain(),
-        rules=(Rule(id="r1", then="mana <= 100"),),
+        constraints=(Constraint(id="r1", then="mana <= 100"),),
     )
     with pytest.raises(SchemaError, match="mana"):
         validate(rs)
@@ -62,7 +62,7 @@ def test_undefined_variable_reference_is_reported() -> None:
 def test_enum_value_typo_is_reported() -> None:
     rs = RuleSet(
         variables=_domain(),
-        rules=(Rule(id="r1", when="role == wariror", then="hp <= 1"),),
+        constraints=(Constraint(id="r1", when="role == wariror", then="hp <= 1"),),
     )
     with pytest.raises(SchemaError, match="wariror"):
         validate(rs)
@@ -71,7 +71,7 @@ def test_enum_value_typo_is_reported() -> None:
 def test_min_greater_than_max_is_reported() -> None:
     rs = RuleSet(
         variables=(Variable(name="level", type="int", min=100, max=1),),
-        rules=(),
+        constraints=(),
     )
     with pytest.raises(SchemaError, match="level"):
         validate(rs)
@@ -80,7 +80,7 @@ def test_min_greater_than_max_is_reported() -> None:
 def test_expression_syntax_error_names_the_rule() -> None:
     rs = RuleSet(
         variables=_domain(),
-        rules=(Rule(id="broken", then="hp == * 100"),),
+        constraints=(Constraint(id="broken", then="hp == * 100"),),
     )
     with pytest.raises(SchemaError, match="broken"):
         validate(rs)
@@ -110,9 +110,9 @@ def test_undefined_symbol_in_expect_is_reported() -> None:
 def test_all_errors_collected_together() -> None:
     rs = RuleSet(
         variables=_domain(),
-        rules=(
-            Rule(id="r1", then="mana <= 100"),
-            Rule(id="r2", then="role == wariror"),
+        constraints=(
+            Constraint(id="r1", then="mana <= 100"),
+            Constraint(id="r2", then="role == wariror"),
         ),
     )
     with pytest.raises(SchemaError) as exc:

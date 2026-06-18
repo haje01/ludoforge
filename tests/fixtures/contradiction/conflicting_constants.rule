@@ -4,7 +4,7 @@ domain:
   variables:
     level: { type: int, min: 1, max: 100 }
 
-rules:
+constraints:
   - id: set_low
     then: "level == 10"
   - id: set_high

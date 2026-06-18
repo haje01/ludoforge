@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from core.ir import Expect, Rule, RuleSet, Variable
+from core.ir import Constraint, Expect, RuleSet, Variable
 from core.loader import load_rule_file
 from logic.solver.checks import check
 from logic.solver.translator import translate
@@ -44,9 +44,9 @@ def test_consistent_ruleset_has_no_contradiction() -> None:
             Variable(name="hp", type="int", min=0),
             Variable(name="role", type="enum", values=("warrior", "mage", "archer")),
         ),
-        rules=(
-            Rule(id="warrior_hp", when="role == warrior", then="hp == level * 100"),
-            Rule(id="hp_cap", then="hp <= 10000"),
+        constraints=(
+            Constraint(id="warrior_hp", when="role == warrior", then="hp == level * 100"),
+            Constraint(id="hp_cap", then="hp <= 10000"),
         ),
     )
     report = _check(rs)
@@ -62,9 +62,9 @@ def test_unreachable_enum_value_is_reported() -> None:
             Variable(name="x", type="int", min=0, max=10),
             Variable(name="role", type="enum", values=("a", "b")),
         ),
-        rules=(
-            Rule(id="a_sets_x", when="role == a", then="x == 5"),
-            Rule(id="x_floor", then="x >= 8"),
+        constraints=(
+            Constraint(id="a_sets_x", when="role == a", then="x == 5"),
+            Constraint(id="x_floor", then="x >= 8"),
         ),
     )
     report = _check(rs)
@@ -83,7 +83,9 @@ def test_conditional_enum_exclusion_is_not_false_positive() -> None:
             Variable(name="sky", type="enum", values=("day", "night")),
             Variable(name="lighting", type="enum", values=("day", "night")),
         ),
-        rules=(Rule(id="night_sky_needs_dark", when="sky == night", then="lighting == night"),),
+        constraints=(
+            Constraint(id="night_sky_needs_dark", when="sky == night", then="lighting == night"),
+        ),
     )
     report = _check(rs)
     assert not report.has_contradiction
@@ -99,9 +101,9 @@ def test_enum_value_unreachable_by_value_projection_not_per_cell() -> None:
             Variable(name="sky", type="enum", values=("day", "night")),
             Variable(name="lighting", type="enum", values=("day", "night")),
         ),
-        rules=(
-            Rule(id="needs_dark", when="sky == night", then="lighting == night"),
-            Rule(id="forces_day", when="sky == night", then="lighting == day"),
+        constraints=(
+            Constraint(id="needs_dark", when="sky == night", then="lighting == night"),
+            Constraint(id="forces_day", when="sky == night", then="lighting == day"),
         ),
     )
     report = _check(rs)
@@ -115,7 +117,7 @@ def test_unconditionally_pinned_enum_is_not_false_positive() -> None:
     # D5 일관: 무조건 룰로 한 값에 핀된 enum은 나머지 값이 도달 불가여도 정상.
     rs = RuleSet(
         variables=(Variable(name="mode", type="enum", values=("easy", "normal", "hard")),),
-        rules=(Rule(id="pin_normal", then="mode == normal"),),
+        constraints=(Constraint(id="pin_normal", then="mode == normal"),),
     )
     report = _check(rs)
     assert not report.has_contradiction
@@ -171,9 +173,9 @@ def test_duplicate_enum_names_contradiction_resolved_by_context() -> None:
             Variable(name="gate", type="enum", values=("on", "off")),
             Variable(name="valve", type="enum", values=("on", "off")),
         ),
-        rules=(
-            Rule(id="gate_closes_valve", when="gate == on", then="valve == off"),
-            Rule(id="valve_forced_on", then="valve == on"),
+        constraints=(
+            Constraint(id="gate_closes_valve", when="gate == on", then="valve == off"),
+            Constraint(id="valve_forced_on", then="valve == on"),
         ),
     )
     report = _check(rs)
@@ -187,7 +189,7 @@ def test_real_declared_max_blocked_is_reported() -> None:
     # D9: prob∈[0,1]인데 룰이 prob<=0.5로 막으면 선언 max=1.0 끝점에 도달 불가.
     rs = RuleSet(
         variables=(Variable(name="prob", type="real", min=0.0, max=1.0),),
-        rules=(Rule(id="cap_half", then="prob <= 0.5"),),
+        constraints=(Constraint(id="cap_half", then="prob <= 0.5"),),
     )
     report = _check(rs)
     assert report.has_contradiction
@@ -202,7 +204,7 @@ def test_real_declared_min_blocked_is_reported() -> None:
     # D9: 룰이 prob>=0.6이면 선언 min=0.0 끝점에 도달 불가.
     rs = RuleSet(
         variables=(Variable(name="prob", type="real", min=0.0, max=1.0),),
-        rules=(Rule(id="floor", then="prob >= 0.6"),),
+        constraints=(Constraint(id="floor", then="prob >= 0.6"),),
     )
     report = _check(rs)
     bounds = {(b.variable, b.bound) for b in report.bound_unreachables}
@@ -214,7 +216,7 @@ def test_dependent_real_excluded_from_bound_check() -> None:
     # D9: 공식으로 값이 결정되는 종속 real은 끝점 미달이 정상 → 거짓양성 없음(D5 일관).
     rs = RuleSet(
         variables=(Variable(name="ratio", type="real", min=0.0, max=1.0),),
-        rules=(Rule(id="fixed", then="ratio == 1"),),
+        constraints=(Constraint(id="fixed", then="ratio == 1"),),
     )
     report = _check(rs)
     assert report.bound_unreachables == ()
@@ -227,7 +229,7 @@ def test_real_endpoints_reachable_has_no_contradiction() -> None:
             Variable(name="common", type="real", min=0.0, max=1.0),
             Variable(name="rare", type="real", min=0.0, max=1.0),
         ),
-        rules=(Rule(id="sum_one", then="common + rare == 1.0"),),
+        constraints=(Constraint(id="sum_one", then="common + rare == 1.0"),),
     )
     report = _check(rs)
     assert not report.has_contradiction
@@ -242,9 +244,9 @@ def test_unmet_expectation_reports_culprits() -> None:
             Variable(name="hp", type="int", min=0),
             Variable(name="role", type="enum", values=("warrior", "mage")),
         ),
-        rules=(
-            Rule(id="warrior_hp", when="role == warrior", then="hp == level * 100"),
-            Rule(id="hp_cap", then="hp <= 5000"),
+        constraints=(
+            Constraint(id="warrior_hp", when="role == warrior", then="hp == level * 100"),
+            Constraint(id="hp_cap", then="hp <= 5000"),
         ),
         expects=(Expect(id="warrior_max_level", that="role == warrior and level == 100"),),
     )
@@ -261,7 +263,7 @@ def test_met_expectation_has_no_contradiction() -> None:
     # D10: 도달 가능한 단언은 모순이 아니다.
     rs = RuleSet(
         variables=(Variable(name="level", type="int", min=1, max=100),),
-        rules=(Rule(id="cap", then="level <= 100"),),
+        constraints=(Constraint(id="cap", then="level <= 100"),),
         expects=(Expect(id="reach_100", that="level == 100"),),
     )
     report = _check(rs)

@@ -6,7 +6,7 @@
 산출물(Translation):
 - z3_vars:           변수명 → Z3 변수(int/real/bool/enum sort 상수)
 - domain_constraints: 선언 범위(int/real min/max) 제약 목록
-- rule_constraints:  rule_id → 룰 제약(`when`이면 Implies(when, then))
+- rule_constraints:  constraint_id → 제약식(`when`이면 Implies(when, then))
 - enum_encoding:     enum 변수명 → {값: z3 EnumSort 상수}
 
 assert_and_track(Solver 작업)은 여기서 하지 않는다 — 검사 단계(S5)의 책임이다.
@@ -78,16 +78,16 @@ def translate(ruleset: RuleSet) -> Translation:
                 symbols[value] = const
 
     rule_constraints: dict[str, Any] = {}
-    for rule in ruleset.rules:
+    for constraint in ruleset.constraints:
         try:
-            then_expr = _translate_expr(_parse(rule.then), symbols, enum_encoding)
-            if rule.when is not None:
-                when_expr = _translate_expr(_parse(rule.when), symbols, enum_encoding)
-                rule_constraints[rule.id] = z3.Implies(when_expr, then_expr)
+            then_expr = _translate_expr(_parse(constraint.then), symbols, enum_encoding)
+            if constraint.when is not None:
+                when_expr = _translate_expr(_parse(constraint.when), symbols, enum_encoding)
+                rule_constraints[constraint.id] = z3.Implies(when_expr, then_expr)
             else:
-                rule_constraints[rule.id] = then_expr
+                rule_constraints[constraint.id] = then_expr
         except TranslationError as e:
-            raise TranslationError(f"룰 '{rule.id}': {e}") from e
+            raise TranslationError(f"제약 '{constraint.id}': {e}") from e
 
     expect_constraints: dict[str, Any] = {}
     for expect in ruleset.expects:

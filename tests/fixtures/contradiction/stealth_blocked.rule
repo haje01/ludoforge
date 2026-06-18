@@ -6,7 +6,7 @@ domain:
     stealthed: { type: bool }
     attacking: { type: bool }
 
-rules:
+constraints:
   - id: always_attacking
     author: planner_A
     desc: "전투 중에는 항상 공격 상태"

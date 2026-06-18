@@ -25,7 +25,7 @@ domain:
     role:     { type: enum, values: [fighter, wizard] }
     status:   { type: enum, values: [exploring, won, dead] }
 
-rules:
+constraints:
   # 클래스별 목표 보물액(원작: fighter 10k, wizard 20~30k). 게임 내내 불변.
   - id: fighter_win_target
     when: "role == fighter"
@@ -91,7 +91,7 @@ transitions:
     when: "status == dead"
     then: "next.status == dead"
 
-properties:
+checks:
   - id: winnable
     kind: reachable
     desc: "승리 상태에 도달 가능해야 한다(어떤 클래스로든 이길 길이 존재)"
