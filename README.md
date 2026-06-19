@@ -1,6 +1,6 @@
 # Ludoforge
 
-> 게임 기획 검증 툴킷 — 게임 룰을 하나의 DSL로 작성하면, 논리는 SMT solver(Z3/BMC)로
+> 게임 기획 검증 툴킷 — 게임 룰을 하나의 [DSL](docs/concepts.md#dsl-domain-specific-language-도메인-특화-언어)로 작성하면, 논리는 [SMT solver](docs/concepts.md#smt-solver--z3)(Z3/[BMC](docs/concepts.md#bmc-bounded-model-checking-유계-모델-검사))로
 > **결정론적으로 증명**하고(논리 백엔드), 확률은 PRISM으로 **계산**한다(확률 백엔드).
 
 여러 기획자가 각자 합리적으로 쓴 룰이 함께 두면 모순되는 일(예: "전사 HP =
@@ -9,7 +9,7 @@
 
 정적 모순뿐 아니라 턴·이동·누적이 있는 **동역학**도 다룬다 — 하나의 DSL을 공유하며
 **논리는 Z3/BMC로 증명**(`ludoforge bmc`), **확률은 PRISM으로 계산**(`ludoforge prob`)
-하는 다중 백엔드 구조다. 배경은 [개념 문서 §8](docs/concepts.md)을 참고.
+하는 [다중 백엔드](docs/concepts.md#86-다중-백엔드-아키텍처--모델은-하나-질문은-여럿) 구조다. 배경은 [개념 문서 §8](docs/concepts.md)을 참고.
 
 ## 주요 기능
 
@@ -17,19 +17,19 @@
 - **스키마·참조 무결성 검증**: 미정의 심볼 참조, 중복 rule id, 표현식 구문 오류,
   변수 범위(min>max) 등 형식 오류를 Z3 검사 이전에 탐지.
 - **논리 모순 검증**: Z3로 번역해 도달 가능성 검사 — 기획자가 합법이라 여기는
-  상태를 룰들이 봉쇄하면 모순으로 보고하고, **범인 룰(unsat core)** 을 짚는다.
+  상태를 룰들이 봉쇄하면 모순으로 보고하고, **범인 룰([unsat core](docs/concepts.md#assert_and_track--unsat-core-이-프로젝트의-존재-이유))** 을 짚는다.
 - **사람이 읽는 리포트**: 어떤 룰이 충돌하는지, 어떤 입력에서 깨지는지 한국어로 출력.
-- **전이 시스템 검사(BMC)**: 턴·이동·누적이 있는 동역학을 `transitions`로 기술하고,
-  도달성·불변식·데드락을 k 스텝 BMC로 검증 — 반례 경로를 함께 제시(`ludoforge bmc`).
+- **[전이 시스템](docs/concepts.md#82-전이-시스템--상태가-변하는-모델) 검사(BMC)**: 턴·이동·누적이 있는 동역학을 `transitions`로 기술하고,
+  [도달성](docs/concepts.md#그래서--도달-가능성reachability-검사)·[불변식](docs/concepts.md#84-논리-백엔드의-bmc--논리로-동역학-검증-d15)·[데드락](docs/concepts.md#84-논리-백엔드의-bmc--논리로-동역학-검증-d15)을 k 스텝 BMC로 검증 — 반례 경로를 함께 제시(`ludoforge bmc`).
 - **확률 검사(PRISM)**: 같은 전이 시스템을 PRISM 확률 모델로 번역해 승리
-  확률·기대값 등 PCTL 속성을 검사(`ludoforge prob`). 확률 백엔드는 PRISM이 설치돼
+  확률·기대값 등 [PCTL](docs/concepts.md#88-pctl-구문-기초) 속성을 검사(`ludoforge prob`). 확률 백엔드는 PRISM이 설치돼
   있어야 동작한다([설치 안내](#prism-설치-확률-검사에-필요)).
 
 ## 실행 환경
 
 - Python 3.11+ / 패키지 관리자 `uv`
 - 핵심 의존성(자동 설치): `z3-solver`, `pyyaml`, `typer`, `pytest`, `ruff`, `mypy`
-- **외부 도구 — PRISM**: 확률 백엔드(`ludoforge prob`)가 호출하는 확률 모델검사기.
+- **외부 도구 — PRISM**: 확률 백엔드(`ludoforge prob`)가 호출하는 확률 [모델검사기](docs/concepts.md#모델-검사-model-checking).
   Java(JRE/JDK)가 필요하며 별도로 설치한다([설치 안내](#prism-설치-확률-검사에-필요)).
   논리 검사(`check`·`bmc`)만 쓸 때는 없어도 된다.
 
@@ -252,13 +252,13 @@ uv run mypy            # 타입 검사 (strict)
 - [기본 개념 설명 (일반 프로그래머용)](docs/concepts.md) — SMT/Z3, unsat core,
   도달성 검사 등 핵심 용어와 배경 지식.
 - [설계 결정 기록 (ADR)](docs/decisions.md) — 주요 결정과 기각한 대안·그 이유.
-- [CLAUDE.md](CLAUDE.md) — 아키텍처/도메인 의사결정 SSOT.
+- [CLAUDE.md](CLAUDE.md) — 아키텍처/도메인 의사결정 [SSOT](docs/concepts.md#ssot-single-source-of-truth-단일-진실-원천).
 - [PLAN.md](PLAN.md) / [PROGRESS.md](PROGRESS.md) — 구현 계획과 진행 상태.
 
 > **1차**(수직 슬라이스): 정수 선형 수치 공식 + 조건부(`when`) 룰 + enum + 도달성 검사.
-> **2차**(표현력 확장): 불리언 상태·상호 배제(D6), 실수 LRA(D7), EnumSort·중복 값 이름
+> **2차**(표현력 확장): 불리언 상태·상호 배제(D6), 실수 [LRA](docs/concepts.md#lia--lra--nia--산술의-종류와-난이도)(D7), [EnumSort](docs/concepts.md#enum-인코딩-enumsort)·중복 값 이름
 > (D8), 실수 끝점 도달성(D9), 명시적 도달성 단언 `expect:`(D10).
-> **3차**(다중 백엔드, 완료): 공유 IR(`core`) 위에 전이 시스템(init/transitions/
+> **3차**(다중 백엔드, 완료): 공유 [IR](docs/concepts.md#ir-intermediate-representation-중간-표현)(`core`) 위에 전이 시스템(init/transitions/
 > checks, D12)을 두고, **논리 백엔드**(Z3/BMC — 도달성·불변식·데드락, D15)와
 > **확률 백엔드**(PRISM — 확률·PCTL, D16) 두 백엔드로 동역학을 검사한다. 보드게임
 > *던전!*(WotC)을 논리·확률 양쪽으로 검증하는 것이 동기였다.
