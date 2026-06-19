@@ -5,7 +5,7 @@
 
 여러 기획자가 각자 합리적으로 쓴 룰이 함께 두면 모순되는 일(예: "전사 HP =
 레벨×100" + "HP 상한 5000" + "레벨 상한 100" → 레벨 51부터 모순)을,
-시뮬레이션처럼 우연히 마주치는 게 아니라 **모순의 존재 자체를 증명**한다.
+시뮬레이션처럼 우연히 마주치는 게 아니라 **수학적으로 증명**한다.
 
 정적 모순뿐 아니라 턴·이동·누적이 있는 **동역학**도 다룬다 — 하나의 DSL을 공유하며
 **논리는 Z3/BMC로 증명**(`ludoforge bmc`), **확률은 PRISM으로 계산**(`ludoforge prob`)
@@ -24,6 +24,41 @@
 - **확률 검사(PRISM)**: 같은 전이 시스템을 PRISM 확률 모델로 번역해 승리
   확률·기대값 등 [PCTL](docs/concepts.md#88-pctl-구문-기초) 속성을 검사(`ludoforge prob`). 확률 백엔드는 PRISM이 설치돼
   있어야 동작한다([설치 안내](#prism-설치-확률-검사에-필요)).
+
+## 한눈에 보기
+
+각각은 멀쩡한 룰 몇 개가 함께 두면 깨지는 상황을, 시뮬레이션처럼 *우연히* 마주치길
+기다리는 대신 **수학적으로 증명**한다. 아래를 `warrior.rule`로 저장하고 검사해 보자:
+
+```yaml
+domain:
+  variables:
+    level: { type: int, min: 1, max: 100 }       # ① 레벨 상한 100
+    hp:    { type: int, min: 0 }
+    role:  { type: enum, values: [warrior, mage] }
+
+constraints:
+  - id: warrior_hp_formula        # ② 전사 HP = 레벨 × 100  (기획자 A)
+    when: "role == warrior"
+    then: "hp == level * 100"
+  - id: global_hp_cap             # ③ 모든 HP는 5000 이하    (기획자 B)
+    then: "hp <= 5000"
+```
+
+```bash
+ludoforge check warrior.rule
+```
+
+```text
+❌ 모순 1건이 발견되었습니다.
+
+[1] role=warrior일 때 'level'은(는) 최대 50까지만 도달 가능합니다 (선언 max=100).
+    → 범인 룰: global_hp_cap (warrior.rule), warrior_hp_formula (warrior.rule)
+```
+
+①②③ 각각은 합리적이지만, 전사는 HP 상한(5000) 때문에 **레벨 50을 넘을 수 없다** —
+"레벨 100까지 성장"이라는 설계 의도와 충돌한다. 도구는 이 모순을 증명하고 범인 룰을
+함께 짚는다. 더 많은 예제는 [`examples/`](examples/README.md)에 있다.
 
 ## 실행 환경
 
