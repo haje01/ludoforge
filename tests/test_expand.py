@@ -96,6 +96,67 @@ def test_no_for_is_passthrough(tmp_path: Path) -> None:
     assert [t.id for t in rs.transitions] == ["plain"]
 
 
+def test_table_lookup_1d(tmp_path: Path) -> None:
+    body = (
+        "tables:\n"
+        "  lim: { a: 3, b: 7 }\n"
+        "constraints:\n"
+        '  - id: "c_${k}"\n'
+        "    for: [ { k: a }, { k: b } ]\n"
+        '    when: "m == ${k}"\n'
+        '    then: "g <= ${lim[k]}"\n'
+    )
+    rs = load_rule_file(_write(tmp_path, body))
+    assert rs.constraints[0].then == "g <= 3"
+    assert rs.constraints[1].then == "g <= 7"
+
+
+def test_table_lookup_2d_with_product_preserves_type(tmp_path: Path) -> None:
+    body = (
+        "tables:\n"
+        "  win:\n"
+        "    a: { x: 0.9, y: 0.1 }\n"
+        "    b: { x: 0.2, y: 0.8 }\n"
+        "transitions:\n"
+        '  - id: "t_${mm}_${nn}"\n'
+        "    for: { mm: [a, b], nn: [x, y] }\n"
+        '    when: "m == ${mm}"\n'
+        "    outcomes:\n"
+        '      - { weight: "${win[mm][nn]}", then: "next.g == g" }\n'
+    )
+    rs = load_rule_file(_write(tmp_path, body))
+    assert [t.id for t in rs.transitions] == ["t_a_x", "t_a_y", "t_b_x", "t_b_y"]
+    # ${win[mm][nn]} 전체 치환 → float 타입 보존
+    assert rs.transitions[0].outcomes[0].weight == 0.9
+    assert rs.transitions[3].outcomes[0].weight == 0.8
+
+
+def test_undefined_table_is_error(tmp_path: Path) -> None:
+    body = (
+        "transitions:\n"
+        '  - id: "t_${k}"\n'
+        "    for: [ { k: a } ]\n"
+        '    when: "m == ${nope[k]}"\n'
+        '    then: "next.g == g"\n'
+    )
+    with pytest.raises(LoaderError, match="nope"):
+        load_rule_file(_write(tmp_path, body))
+
+
+def test_missing_table_key_is_error(tmp_path: Path) -> None:
+    body = (
+        "tables:\n"
+        "  lim: { a: 3 }\n"  # b 없음
+        "constraints:\n"
+        '  - id: "c_${k}"\n'
+        "    for: [ { k: b } ]\n"
+        '    when: "m == ${k}"\n'
+        '    then: "g <= ${lim[k]}"\n'
+    )
+    with pytest.raises(LoaderError, match="색인"):
+        load_rule_file(_write(tmp_path, body))
+
+
 def test_bad_for_shape_is_error(tmp_path: Path) -> None:
     body = (
         "transitions:\n"

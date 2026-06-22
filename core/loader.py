@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import ast
 import itertools
 import re
 from pathlib import Path
@@ -19,8 +20,8 @@ from core.ir import Check, Constraint, Expect, Outcome, RuleSet, Transition, Var
 _VALID_TYPES = ("int", "enum", "bool", "real")
 # 검사(check) kind별 필요 필드(D12). reachable/invariant는 `that`, prob는 `spec`(PCTL).
 _CHECK_KINDS = ("reachable", "invariant", "prob", "no_deadlock")
-# 템플릿 치환 토큰 `${name}` (Tier 1 확장, D18).
-_TEMPLATE_TOKEN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+# 템플릿 치환 토큰 `${expr}` — expr는 파라미터/테이블 색인식(Tier 1/2 확장, D18).
+_TEMPLATE_TOKEN = re.compile(r"\$\{([^}]+)\}")
 
 
 class LoaderError(Exception):
@@ -95,15 +96,17 @@ def load_rule_file(path: str | Path) -> RuleSet:
 
     variables = _parse_variables(raw.get("domain", {}), path)
     # `for:` 템플릿을 구체 항목으로 펼친 뒤(D18) 파싱한다 — IR·백엔드는 구체 항목만 본다.
+    # `tables:`는 desugar 시점 데이터(템플릿 `${name[...]}`이 참조), IR엔 안 들어간다.
+    tables = _parse_tables(raw.get("tables", {}), path)
     constraints = _parse_constraints(
-        _expand_items(raw.get("constraints", []), "constraints", path), path
+        _expand_items(raw.get("constraints", []), "constraints", path, tables), path
     )
     expects = _parse_expects(raw.get("expects", []), path)
     init = _parse_init(raw.get("init"), path)
     transitions = _parse_transitions(
-        _expand_items(raw.get("transitions", []), "transitions", path), path
+        _expand_items(raw.get("transitions", []), "transitions", path, tables), path
     )
-    checks = _parse_checks(_expand_items(raw.get("checks", []), "checks", path), path)
+    checks = _parse_checks(_expand_items(raw.get("checks", []), "checks", path, tables), path)
     return RuleSet(
         variables=variables,
         constraints=constraints,
@@ -114,28 +117,41 @@ def load_rule_file(path: str | Path) -> RuleSet:
     )
 
 
-def _expand_items(items: Any, section: str, path: Path) -> Any:
-    """`for:` 템플릿 항목을 구체 항목들로 펼친다(Tier 1 desugar, D18).
+def _parse_tables(spec: Any, path: Path) -> dict[str, Any]:
+    """`tables:` 데이터 섹션(이름→상수/표)을 그대로 반환한다(Tier 2, D18).
 
-    항목이 `for`를 가지면 그 바인딩마다 항목을 복제하고 `${param}`을 치환한다. `for`가
-    없는 항목·리스트 아닌 값은 그대로 통과(타입 오류는 각 _parse_*가 보고). 펼치기는 순수
-    구문 변환이라 결정론 경계를 건드리지 않으며, 생성 항목의 id는 템플릿대로 추적 가능하다.
+    템플릿 `${name[...]}`이 참조하는 desugar 시점 데이터다 — IR엔 들어가지 않는다. 구조는
+    검증하지 않으며, 잘못된 참조/색인은 치환 시점에 LoaderError로 보고한다.
+    """
+    if not isinstance(spec, dict):
+        raise LoaderError(f"{path}: 'tables'는 매핑이어야 합니다(이름→데이터).")
+    return spec
+
+
+def _expand_items(items: Any, section: str, path: Path, tables: dict[str, Any]) -> Any:
+    """`for:` 템플릿 항목을 구체 항목들로 펼친다(Tier 1/2 desugar, D18).
+
+    항목이 `for`를 가지면 그 바인딩마다 항목을 복제하고 `${expr}`(파라미터·`tables` 색인)을
+    치환한다. `for`가 없는 항목·리스트 아닌 값은 그대로 통과(타입 오류는 각 _parse_*가 보고).
+    펼치기는 순수 구문 변환이라 결정론 경계를 건드리지 않으며, 생성 id는 템플릿대로 추적 가능하다.
     """
     if not isinstance(items, list):
         return items
     out: list[Any] = []
     for index, item in enumerate(items):
         if isinstance(item, dict) and "for" in item:
-            out.extend(_expand_template(item, section, index, path))
+            out.extend(_expand_template(item, section, index, path, tables))
         else:
             out.append(item)
     return out
 
 
-def _expand_template(item: dict[str, Any], section: str, index: int, path: Path) -> list[Any]:
+def _expand_template(
+    item: dict[str, Any], section: str, index: int, path: Path, tables: dict[str, Any]
+) -> list[Any]:
     records = _for_records(item["for"], section, index, path)
     template = {k: v for k, v in item.items() if k != "for"}
-    return [_subst_node(template, rec, section, index, path) for rec in records]
+    return [_subst_node(template, rec, tables, section, index, path) for rec in records]
 
 
 def _for_records(spec: Any, section: str, index: int, path: Path) -> list[dict[str, Any]]:
@@ -166,30 +182,65 @@ def _for_records(spec: Any, section: str, index: int, path: Path) -> list[dict[s
     )
 
 
-def _subst_node(node: Any, rec: dict[str, Any], section: str, index: int, path: Path) -> Any:
+def _subst_node(
+    node: Any, rec: dict[str, Any], tables: dict[str, Any], section: str, index: int, path: Path
+) -> Any:
     if isinstance(node, dict):
-        return {k: _subst_node(v, rec, section, index, path) for k, v in node.items()}
+        return {k: _subst_node(v, rec, tables, section, index, path) for k, v in node.items()}
     if isinstance(node, list):
-        return [_subst_node(v, rec, section, index, path) for v in node]
+        return [_subst_node(v, rec, tables, section, index, path) for v in node]
     if isinstance(node, str):
-        return _subst_str(node, rec, section, index, path)
+        return _subst_str(node, rec, tables, section, index, path)
     return node
 
 
-def _subst_str(text: str, rec: dict[str, Any], section: str, index: int, path: Path) -> Any:
-    """문자열의 `${name}`을 치환한다. 전체가 `${name}`이면 값의 타입을 보존한다."""
+def _subst_str(
+    text: str, rec: dict[str, Any], tables: dict[str, Any], section: str, index: int, path: Path
+) -> Any:
+    """`${expr}`를 치환한다. 전체가 `${expr}`이면 값의 타입을 보존한다(weight 숫자 등).
+
+    expr는 파라미터/테이블 이름과 색인(`win[monster][cls]`)을 쓰는 제한된 식 — ast로 파싱해
+    화이트리스트 노드(Name·Subscript·Constant)만 평가한다(eval 미사용, 번역기와 같은 규율).
+    """
     where = f"{section}[{index}]"
-
-    def lookup(name: str) -> Any:
-        if name not in rec:
-            raise LoaderError(f"{path}: {where} 템플릿의 미정의 파라미터: '${{{name}}}'")
-        return rec[name]
-
+    names = {**tables, **rec}
     whole = _TEMPLATE_TOKEN.fullmatch(text)
     if whole is not None:
-        # 문자열 전체가 ${name} → 레코드 값의 타입을 보존(예: weight 숫자, gold 정수).
-        return lookup(whole.group(1))
-    return _TEMPLATE_TOKEN.sub(lambda mo: str(lookup(mo.group(1))), text)
+        return _eval_template(whole.group(1), names, where, path)
+
+    def repl(mo: re.Match[str]) -> str:
+        return str(_eval_template(mo.group(1), names, where, path))
+
+    return _TEMPLATE_TOKEN.sub(repl, text)
+
+
+def _eval_template(src: str, names: dict[str, Any], where: str, path: Path) -> Any:
+    try:
+        tree = ast.parse(src.strip(), mode="eval")
+    except SyntaxError as e:
+        raise LoaderError(f"{path}: {where} 템플릿 식 구문 오류: '{src}' ({e.msg})") from e
+    return _eval_template_node(tree.body, names, src, where, path)
+
+
+def _eval_template_node(
+    node: ast.AST, names: dict[str, Any], src: str, where: str, path: Path
+) -> Any:
+    if isinstance(node, ast.Name):
+        if node.id not in names:
+            raise LoaderError(f"{path}: {where} 템플릿의 미정의 파라미터/테이블: '{node.id}'")
+        return names[node.id]
+    if isinstance(node, ast.Constant):
+        return node.value
+    if isinstance(node, ast.Subscript):
+        base = _eval_template_node(node.value, names, src, where, path)
+        key = _eval_template_node(node.slice, names, src, where, path)
+        try:
+            return base[key]
+        except (KeyError, IndexError, TypeError) as e:
+            raise LoaderError(f"{path}: {where} 템플릿 색인 실패: '{src}' ({e!r})") from e
+    raise LoaderError(
+        f"{path}: {where} 템플릿 식에 허용되지 않는 요소: '{src}' ({type(node).__name__})"
+    )
 
 
 def _parse_variables(domain: Any, path: Path) -> tuple[Variable, ...]:

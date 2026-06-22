@@ -48,6 +48,22 @@ constraints:
     when: "role == wizard"
     then: "win_gold == 30"
 
+# 전투 데이터 테이블(Tier 2, D18) — 클래스×몬스터 격파 프로필. 전투 전이가 색인 참조한다.
+# win 승률·miss 무소득(=1-win-death)·death 사망률(합=1.0), reward 보물값·cap gold 가드.
+# 클래스·몬스터를 늘리려면 도메인 enum과 아래 표의 행/열만 추가하면 된다.
+tables:
+  reward: { goblin: 2, dragon: 10 }
+  cap:    { goblin: 28, dragon: 20 }   # 보상+gold ≤ 30 보장(PRISM 오버플로 방지)
+  win:                                 # win[monster][cls] — 2d6 격파 목표값 환산
+    goblin: { fighter: 0.92, cleric: 0.83, rogue: 0.72, wizard: 0.83 }
+    dragon: { fighter: 0.58, cleric: 0.28, rogue: 0.08, wizard: 0.72 }
+  miss:                                # 실패(무소득) 후 재탐험
+    goblin: { fighter: 0.07, cleric: 0.16, rogue: 0.26, wizard: 0.16 }
+    dragon: { fighter: 0.38, cleric: 0.66, rogue: 0.84, wizard: 0.26 }
+  death:                               # 드문 사망
+    goblin: { fighter: 0.01, cleric: 0.01, rogue: 0.02, wizard: 0.01 }
+    dragon: { fighter: 0.04, cleric: 0.06, rogue: 0.08, wizard: 0.02 }
+
 init: "gold == 0 and room == hall and monster == none and status == exploring"
 
 transitions:
@@ -84,27 +100,17 @@ transitions:
     when: "room == l3 and status == exploring and monster == none and gold <= 20"
     then: "next.monster == dragon"
 
-  # ── 전투 ── 클래스×몬스터 격파표를 for: 템플릿 한 벌로 펼친다(Tier 1 확장, D18).
-  # 각 행은 (클래스 cls·몬스터 monster) 한 조합의 전투 프로필: 승률 win / 무소득 miss /
-  # 사망 death(합=1.0) · 보물 reward · gold 가드 cap. 승률은 2d6 격파 목표값 환산:
-  #   ≥4→0.92 ≥5→0.83 ≥6→0.72 ≥7→0.58 ≥9→0.28 ≥11→0.08. fighter 강·rogue 약·wizard 주문.
-  # 실패(miss)는 무소득 후 몬스터 소멸(재탐험), 사망은 드물게. 클래스·몬스터가 늘면 행만
-  # 추가하면 된다 — 펼침 결과는 fight_<몬스터>_<클래스> 전이들(추적 가능한 id).
+  # ── 전투 ── 클래스×몬스터를 곱(for product)으로 펼치고, 가중치는 위 tables에서 색인
+  # 참조한다(Tier 2, D18). 승률은 2d6 격파 목표값 환산(fighter 강·rogue 약·wizard 주문).
+  # 실패(miss)는 무소득 후 몬스터 소멸(재탐험), 사망은 드물게.
+  # 펼침 결과 = fight_<몬스터>_<클래스> 전이 8개(추적 가능한 id).
   - id: "fight_${monster}_${cls}"
-    for:
-      - { monster: goblin, cls: fighter, win: 0.92, miss: 0.07, death: 0.01, reward: 2,  cap: 28 }
-      - { monster: goblin, cls: cleric,  win: 0.83, miss: 0.16, death: 0.01, reward: 2,  cap: 28 }
-      - { monster: goblin, cls: rogue,   win: 0.72, miss: 0.26, death: 0.02, reward: 2,  cap: 28 }
-      - { monster: goblin, cls: wizard,  win: 0.83, miss: 0.16, death: 0.01, reward: 2,  cap: 28 }
-      - { monster: dragon, cls: fighter, win: 0.58, miss: 0.38, death: 0.04, reward: 10, cap: 20 }
-      - { monster: dragon, cls: cleric,  win: 0.28, miss: 0.66, death: 0.06, reward: 10, cap: 20 }
-      - { monster: dragon, cls: rogue,   win: 0.08, miss: 0.84, death: 0.08, reward: 10, cap: 20 }
-      - { monster: dragon, cls: wizard,  win: 0.72, miss: 0.26, death: 0.02, reward: 10, cap: 20 }
-    when: "role == ${cls} and monster == ${monster} and status == exploring and gold <= ${cap}"
+    for: { monster: [goblin, dragon], cls: [fighter, cleric, rogue, wizard] }
+    when: "role == ${cls} and monster == ${monster} and status == exploring and gold <= ${cap[monster]}"
     outcomes:
-      - { weight: "${win}",   then: "next.gold == gold + ${reward} and next.monster == none" }
-      - { weight: "${miss}",  then: "next.monster == none" }
-      - { weight: "${death}", then: "next.gold == 0 and next.room == hall and next.status == dead and next.monster == none" }
+      - { weight: "${win[monster][cls]}",   then: "next.gold == gold + ${reward[monster]} and next.monster == none" }
+      - { weight: "${miss[monster][cls]}",  then: "next.monster == none" }
+      - { weight: "${death[monster][cls]}", then: "next.gold == 0 and next.room == hall and next.status == dead and next.monster == none" }
 
   # ── 승리 ── 목표액 이상 보물을 든 채 hall에 있으면 즉시 승리.
   - id: claim_victory

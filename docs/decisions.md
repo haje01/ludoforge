@@ -446,28 +446,33 @@
 
 ---
 
-## D18. DSL 템플릿 확장 — `for:` / `${param}` (Tier 1)
+## D18. DSL 템플릿 확장 — `for:` / `${expr}` / `tables:` (Tier 1+2)
 
-- **상태:** 확정 (2026-06-22)
+- **상태:** 확정 (2026-06-22) — Tier 1(템플릿·곱) + Tier 2(데이터 테이블) 도입, 산술 계산식만 보류
 - **맥락:** 클래스의존 전투(D-dungeon)처럼 구조가 같고 데이터만 다른 항목이 클래스×몬스터
   곱으로 늘어난다(4×2=8 전투 전이, 클래스·몬스터·아이템이 늘면 폭증). `.rule`이 보일러
   플레이트로 길어지고 오타 위험이 커진다.
 - **결정:** `constraints`/`transitions`/`checks` 항목에 `for:` 템플릿을 둔다. **로더가
   파싱 직후 구체 항목으로 펼친다(desugar)** — IR·translator·bmc·prism_gen은 무변경, 구체
   항목만 소비. 백엔드별로 펼치지 않고 프론트 1곳에서 펼쳐 검증 대상이 투명하다.
-  - `for:` = **레코드 리스트**(행별 데이터) 또는 **매핑 `{param:[값]}`의 데카르트 곱**.
-  - `${name}` 치환: 문자열 전체가 `${name}`이면 **값의 타입 보존**(weight 숫자 등), 아니면
-    문자열 보간. 미정의 파라미터는 LoaderError(템플릿 위치 보고).
+  - **Tier 1** — `for:` = **레코드 리스트**(행별 데이터) 또는 **매핑 `{param:[값]}`의
+    데카르트 곱**. `${name}` 치환.
+  - **Tier 2** — 최상위 `tables:`(이름→상수/표, desugar 시점 데이터·IR엔 안 들어감)와
+    색인 참조 `${win[monster][cls]}`. 곱 `for:`와 합쳐 데이터를 표로 분리한다.
+  - `${expr}`는 ast로 파싱해 화이트리스트 노드(**Name·Subscript·Constant**)만 평가 —
+    `eval` 미사용(§7 규율). 문자열 전체가 `${expr}`이면 **값의 타입 보존**(weight 숫자),
+    아니면 문자열 보간. 미정의 이름·색인 실패는 LoaderError(위치 보고).
   - 생성 id는 템플릿대로 **결정적·추적 가능**(`fight_dragon_rogue`) → unsat core·반례
     리포트가 여전히 사람이 읽는 범인을 짚는다(원칙 4).
-- **기각한 대안:**
+- **기각/보류한 대안:**
   - *백엔드(PRISM/Z3)에서 각자 펼치기*: 3 백엔드에 같은 로직 중복, 검증 대상 불투명.
   - *IR에 파라미터화 유지*: IR·세 백엔드를 모두 손봐야 함. 펼침은 순수 desugar라 IR 이전이 맞다.
-  - *데이터 테이블·계산식(Tier 2: `win[$m][$c]`, `1-win-death`)*: 유용하나 YAML로 어색
-    (자체 문법 승격 트리거, §5). 필요해지면 후속.
-- **영향:** `core/loader.py`에 확장 패스(`_expand_items`/`_for_records`/`_subst_*`) 추가,
-  `load_rule_file`이 세 섹션에 적용. CLAUDE.md §4.2 문서화, test_expand.py 추가. dungeon!
-  전투 8개를 8행 데이터+1벌 구조로 압축(펼침 결과는 기존 IR과 동일 — 기존 테스트 무변경).
+  - *산술 계산식(`${1 - win - death}`)*: 부동소수 정밀도가 dungeon 골든값(0.07 등)을 깨고
+    PRISM 출력을 더럽혀 **보류**(`miss`는 표에 명시). 필요 시 Tier 2.5(반올림 규약 동반).
+- **영향:** `core/loader.py`에 확장 패스(`_expand_items`/`_for_records`/`_subst_*`/`_eval_template*`)
+  + `tables:` 파싱. `load_rule_file`이 세 섹션에 적용. CLAUDE.md §4.2 문서화, test_expand.py(11건).
+  dungeon! 전투 8개를 `tables:`(win/miss/death/reward/cap) + 곱 `for:` 한 벌로 표현(펼침 결과는
+  기존 IR과 동일 — 기존 테스트 무변경).
   **한계:** 소스만 줄이고 검증 모델은 그대로(PRISM/Z3엔 여전히 N·M 명령). 데이터도 잔존.
 
 ---
