@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import itertools
+import re
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +19,8 @@ from core.ir import Check, Constraint, Expect, Outcome, RuleSet, Transition, Var
 _VALID_TYPES = ("int", "enum", "bool", "real")
 # 검사(check) kind별 필요 필드(D12). reachable/invariant는 `that`, prob는 `spec`(PCTL).
 _CHECK_KINDS = ("reachable", "invariant", "prob", "no_deadlock")
+# 템플릿 치환 토큰 `${name}` (Tier 1 확장, D18).
+_TEMPLATE_TOKEN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
 class LoaderError(Exception):
@@ -90,11 +94,16 @@ def load_rule_file(path: str | Path) -> RuleSet:
         raise LoaderError(f"{path}: 최상위는 매핑이어야 합니다 (domain/constraints 키).")
 
     variables = _parse_variables(raw.get("domain", {}), path)
-    constraints = _parse_constraints(raw.get("constraints", []), path)
+    # `for:` 템플릿을 구체 항목으로 펼친 뒤(D18) 파싱한다 — IR·백엔드는 구체 항목만 본다.
+    constraints = _parse_constraints(
+        _expand_items(raw.get("constraints", []), "constraints", path), path
+    )
     expects = _parse_expects(raw.get("expects", []), path)
     init = _parse_init(raw.get("init"), path)
-    transitions = _parse_transitions(raw.get("transitions", []), path)
-    checks = _parse_checks(raw.get("checks", []), path)
+    transitions = _parse_transitions(
+        _expand_items(raw.get("transitions", []), "transitions", path), path
+    )
+    checks = _parse_checks(_expand_items(raw.get("checks", []), "checks", path), path)
     return RuleSet(
         variables=variables,
         constraints=constraints,
@@ -103,6 +112,84 @@ def load_rule_file(path: str | Path) -> RuleSet:
         transitions=transitions,
         checks=checks,
     )
+
+
+def _expand_items(items: Any, section: str, path: Path) -> Any:
+    """`for:` 템플릿 항목을 구체 항목들로 펼친다(Tier 1 desugar, D18).
+
+    항목이 `for`를 가지면 그 바인딩마다 항목을 복제하고 `${param}`을 치환한다. `for`가
+    없는 항목·리스트 아닌 값은 그대로 통과(타입 오류는 각 _parse_*가 보고). 펼치기는 순수
+    구문 변환이라 결정론 경계를 건드리지 않으며, 생성 항목의 id는 템플릿대로 추적 가능하다.
+    """
+    if not isinstance(items, list):
+        return items
+    out: list[Any] = []
+    for index, item in enumerate(items):
+        if isinstance(item, dict) and "for" in item:
+            out.extend(_expand_template(item, section, index, path))
+        else:
+            out.append(item)
+    return out
+
+
+def _expand_template(item: dict[str, Any], section: str, index: int, path: Path) -> list[Any]:
+    records = _for_records(item["for"], section, index, path)
+    template = {k: v for k, v in item.items() if k != "for"}
+    return [_subst_node(template, rec, section, index, path) for rec in records]
+
+
+def _for_records(spec: Any, section: str, index: int, path: Path) -> list[dict[str, Any]]:
+    """`for` 명세를 바인딩 레코드 목록으로 정규화한다.
+
+    - 리스트(레코드들): 각 레코드를 그대로 한 번씩.
+    - 매핑(파라미터→리스트): 값들의 데카르트 곱(product).
+    """
+    where = f"{section}[{index}]"
+    if isinstance(spec, list):
+        records: list[dict[str, Any]] = []
+        for r in spec:
+            if not isinstance(r, dict):
+                raise LoaderError(f"{path}: {where}의 for 레코드는 매핑이어야 합니다: {r!r}")
+            records.append(r)
+        return records
+    if isinstance(spec, dict):
+        names = list(spec.keys())
+        value_lists: list[list[Any]] = []
+        for name in names:
+            values = spec[name]
+            if not isinstance(values, list):
+                raise LoaderError(f"{path}: {where}의 for '{name}'은(는) 리스트여야 합니다.")
+            value_lists.append(values)
+        return [dict(zip(names, combo, strict=True)) for combo in itertools.product(*value_lists)]
+    raise LoaderError(
+        f"{path}: {where}의 for는 리스트(레코드) 또는 매핑(파라미터→리스트)이어야 합니다."
+    )
+
+
+def _subst_node(node: Any, rec: dict[str, Any], section: str, index: int, path: Path) -> Any:
+    if isinstance(node, dict):
+        return {k: _subst_node(v, rec, section, index, path) for k, v in node.items()}
+    if isinstance(node, list):
+        return [_subst_node(v, rec, section, index, path) for v in node]
+    if isinstance(node, str):
+        return _subst_str(node, rec, section, index, path)
+    return node
+
+
+def _subst_str(text: str, rec: dict[str, Any], section: str, index: int, path: Path) -> Any:
+    """문자열의 `${name}`을 치환한다. 전체가 `${name}`이면 값의 타입을 보존한다."""
+    where = f"{section}[{index}]"
+
+    def lookup(name: str) -> Any:
+        if name not in rec:
+            raise LoaderError(f"{path}: {where} 템플릿의 미정의 파라미터: '${{{name}}}'")
+        return rec[name]
+
+    whole = _TEMPLATE_TOKEN.fullmatch(text)
+    if whole is not None:
+        # 문자열 전체가 ${name} → 레코드 값의 타입을 보존(예: weight 숫자, gold 정수).
+        return lookup(whole.group(1))
+    return _TEMPLATE_TOKEN.sub(lambda mo: str(lookup(mo.group(1))), text)
 
 
 def _parse_variables(domain: Any, path: Path) -> tuple[Variable, ...]:

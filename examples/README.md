@@ -34,6 +34,9 @@
 - 논리(승리/사망 도달성·불변식·규칙 건전성·데드락): `ludoforge bmc examples/dungeon.rule --k 12` (D15, k 유계)
 - 확률(최적 전략 승리 확률 등 PCTL): `ludoforge prob examples/dungeon.rule` (D16, PRISM 설치 시)
 
+8개 전투 전이(클래스×몬스터)는 `for:` 템플릿 한 벌로 펼쳐 쓴다 — 클래스·몬스터가 늘면
+행만 추가하면 된다(Tier 1 확장, CLAUDE.md §4.2 / D18).
+
 ## 실행 예
 
 ```bash

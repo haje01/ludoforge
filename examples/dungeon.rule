@@ -84,59 +84,27 @@ transitions:
     when: "room == l3 and status == exploring and monster == none and gold <= 20"
     then: "next.monster == dragon"
 
-  # ── 전투: 고블린 ── 약한 몬스터(보물 +2). 클래스별 승률만 다르다(2d6 환산).
-  # 실패는 무소득 후 몬스터 소멸(재탐험), 사망은 드물게. win/retry/death 합 = 1.0.
-  - id: fight_goblin_fighter      # 2d6≥4 → 0.92
-    when: "role == fighter and monster == goblin and status == exploring and gold <= 28"
+  # ── 전투 ── 클래스×몬스터 격파표를 for: 템플릿 한 벌로 펼친다(Tier 1 확장, D18).
+  # 각 행은 (클래스 cls·몬스터 monster) 한 조합의 전투 프로필: 승률 win / 무소득 miss /
+  # 사망 death(합=1.0) · 보물 reward · gold 가드 cap. 승률은 2d6 격파 목표값 환산:
+  #   ≥4→0.92 ≥5→0.83 ≥6→0.72 ≥7→0.58 ≥9→0.28 ≥11→0.08. fighter 강·rogue 약·wizard 주문.
+  # 실패(miss)는 무소득 후 몬스터 소멸(재탐험), 사망은 드물게. 클래스·몬스터가 늘면 행만
+  # 추가하면 된다 — 펼침 결과는 fight_<몬스터>_<클래스> 전이들(추적 가능한 id).
+  - id: "fight_${monster}_${cls}"
+    for:
+      - { monster: goblin, cls: fighter, win: 0.92, miss: 0.07, death: 0.01, reward: 2,  cap: 28 }
+      - { monster: goblin, cls: cleric,  win: 0.83, miss: 0.16, death: 0.01, reward: 2,  cap: 28 }
+      - { monster: goblin, cls: rogue,   win: 0.72, miss: 0.26, death: 0.02, reward: 2,  cap: 28 }
+      - { monster: goblin, cls: wizard,  win: 0.83, miss: 0.16, death: 0.01, reward: 2,  cap: 28 }
+      - { monster: dragon, cls: fighter, win: 0.58, miss: 0.38, death: 0.04, reward: 10, cap: 20 }
+      - { monster: dragon, cls: cleric,  win: 0.28, miss: 0.66, death: 0.06, reward: 10, cap: 20 }
+      - { monster: dragon, cls: rogue,   win: 0.08, miss: 0.84, death: 0.08, reward: 10, cap: 20 }
+      - { monster: dragon, cls: wizard,  win: 0.72, miss: 0.26, death: 0.02, reward: 10, cap: 20 }
+    when: "role == ${cls} and monster == ${monster} and status == exploring and gold <= ${cap}"
     outcomes:
-      - { weight: 0.92, then: "next.gold == gold + 2 and next.monster == none" }
-      - { weight: 0.07, then: "next.monster == none" }
-      - { weight: 0.01, then: "next.gold == 0 and next.room == hall and next.status == dead and next.monster == none" }
-  - id: fight_goblin_cleric       # 2d6≥5 → 0.83
-    when: "role == cleric and monster == goblin and status == exploring and gold <= 28"
-    outcomes:
-      - { weight: 0.83, then: "next.gold == gold + 2 and next.monster == none" }
-      - { weight: 0.16, then: "next.monster == none" }
-      - { weight: 0.01, then: "next.gold == 0 and next.room == hall and next.status == dead and next.monster == none" }
-  - id: fight_goblin_rogue        # 2d6≥6 → 0.72
-    when: "role == rogue and monster == goblin and status == exploring and gold <= 28"
-    outcomes:
-      - { weight: 0.72, then: "next.gold == gold + 2 and next.monster == none" }
-      - { weight: 0.26, then: "next.monster == none" }
-      - { weight: 0.02, then: "next.gold == 0 and next.room == hall and next.status == dead and next.monster == none" }
-  - id: fight_goblin_wizard       # 주문(2d6≥5) → 0.83
-    when: "role == wizard and monster == goblin and status == exploring and gold <= 28"
-    outcomes:
-      - { weight: 0.83, then: "next.gold == gold + 2 and next.monster == none" }
-      - { weight: 0.16, then: "next.monster == none" }
-      - { weight: 0.01, then: "next.gold == 0 and next.room == hall and next.status == dead and next.monster == none" }
-
-  # ── 전투: 드래곤 ── 강한 몬스터(보물 +10). 클래스 격차가 크다: fighter 양호,
-  # cleric 어려움, rogue 매우 약함, wizard는 주문(Fireball)으로 안전.
-  - id: fight_dragon_fighter      # 2d6≥7 → 0.58
-    when: "role == fighter and monster == dragon and status == exploring and gold <= 20"
-    outcomes:
-      - { weight: 0.58, then: "next.gold == gold + 10 and next.monster == none" }
-      - { weight: 0.38, then: "next.monster == none" }
-      - { weight: 0.04, then: "next.gold == 0 and next.room == hall and next.status == dead and next.monster == none" }
-  - id: fight_dragon_cleric       # 2d6≥9 → 0.28
-    when: "role == cleric and monster == dragon and status == exploring and gold <= 20"
-    outcomes:
-      - { weight: 0.28, then: "next.gold == gold + 10 and next.monster == none" }
-      - { weight: 0.66, then: "next.monster == none" }
-      - { weight: 0.06, then: "next.gold == 0 and next.room == hall and next.status == dead and next.monster == none" }
-  - id: fight_dragon_rogue        # 2d6≥11 → 0.08 (사실상 무모)
-    when: "role == rogue and monster == dragon and status == exploring and gold <= 20"
-    outcomes:
-      - { weight: 0.08, then: "next.gold == gold + 10 and next.monster == none" }
-      - { weight: 0.84, then: "next.monster == none" }
-      - { weight: 0.08, then: "next.gold == 0 and next.room == hall and next.status == dead and next.monster == none" }
-  - id: fight_dragon_wizard       # 주문(2d6≥6) → 0.72
-    when: "role == wizard and monster == dragon and status == exploring and gold <= 20"
-    outcomes:
-      - { weight: 0.72, then: "next.gold == gold + 10 and next.monster == none" }
-      - { weight: 0.26, then: "next.monster == none" }
-      - { weight: 0.02, then: "next.gold == 0 and next.room == hall and next.status == dead and next.monster == none" }
+      - { weight: "${win}",   then: "next.gold == gold + ${reward} and next.monster == none" }
+      - { weight: "${miss}",  then: "next.monster == none" }
+      - { weight: "${death}", then: "next.gold == 0 and next.room == hall and next.status == dead and next.monster == none" }
 
   # ── 승리 ── 목표액 이상 보물을 든 채 hall에 있으면 즉시 승리.
   - id: claim_victory
