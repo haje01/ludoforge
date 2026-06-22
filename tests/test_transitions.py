@@ -31,7 +31,7 @@ def _write(tmp_path: Path, body: str) -> Path:
 def test_loads_dungeon_transition_system() -> None:
     rs = load_rule_file(EXAMPLES / "dungeon.rule")
 
-    assert rs.init == "gold == 0 and room == hall and status == exploring"
+    assert rs.init == "gold == 0 and room == hall and monster == none and status == exploring"
 
     tids = [t.id for t in rs.transitions]
     assert tids == [
@@ -39,9 +39,17 @@ def test_loads_dungeon_transition_system() -> None:
         "enter_l2",
         "enter_l3",
         "return_to_hall",
-        "fight_l1",
-        "fight_l2",
-        "fight_l3",
+        "encounter_l1",
+        "encounter_l2",
+        "encounter_l3",
+        "fight_goblin_fighter",
+        "fight_goblin_cleric",
+        "fight_goblin_rogue",
+        "fight_goblin_wizard",
+        "fight_dragon_fighter",
+        "fight_dragon_cleric",
+        "fight_dragon_rogue",
+        "fight_dragon_wizard",
         "claim_victory",
         "won_absorb",
         "dead_absorb",
@@ -49,14 +57,17 @@ def test_loads_dungeon_transition_system() -> None:
 
     # 결정적 전이(bare then) → weight=1.0 단일 Outcome으로 정규화
     enter = rs.transitions[0]
-    assert enter.when == "room == hall and status == exploring"
+    assert enter.when == "room == hall and status == exploring and monster == none"
     assert enter.outcomes == (Outcome(then="next.room == l1", weight=1.0),)
 
-    # 확률 전이(fight_l1) → 3-way 가중치 보존(승리/실패/사망)
-    fight = next(t for t in rs.transitions if t.id == "fight_l1")
+    # 확률 전이(fight_goblin_fighter) → 3-way 가중치 보존(승리/무소득/사망)
+    fight = next(t for t in rs.transitions if t.id == "fight_goblin_fighter")
     assert len(fight.outcomes) == 3
-    assert (fight.outcomes[0].weight, fight.outcomes[0].then) == (0.85, "next.gold == gold + 2")
-    assert fight.outcomes[2].weight == 0.05
+    assert (fight.outcomes[0].weight, fight.outcomes[0].then) == (
+        0.92,
+        "next.gold == gold + 2 and next.monster == none",
+    )
+    assert fight.outcomes[2].weight == 0.01
 
 
 def test_loads_dungeon_properties() -> None:

@@ -31,8 +31,10 @@ def test_model_header_and_enum_consts() -> None:
     assert model.startswith("mdp")
     assert "const int hall = 0;" in model
     assert "const int l1 = 1;" in model
-    assert "const int fighter = 0;" in model
-    assert "const int wizard = 1;" in model
+    # role enum 순서: rogue·cleric·fighter·wizard
+    assert "const int rogue = 0;" in model
+    assert "const int fighter = 2;" in model
+    assert "const int wizard = 3;" in model
 
 
 def test_variable_declarations() -> None:
@@ -47,10 +49,11 @@ def test_deterministic_and_probabilistic_commands() -> None:
     # 결정적 전이(weight 1.0) — 확률 접두 없음
     assert "[enter_l1]" in model
     assert "(room'=l1)" in model
-    # 확률 전이 — 가중치 보존(합=1), 사망 분기는 다중 갱신
-    assert "0.85:(gold'=(gold + 2))" in model
-    assert "0.1:(gold'=gold)" in model
-    assert "0.05:(gold'=0) & (room'=hall) & (status'=dead)" in model
+    # 확률 전이 — 가중치 보존(합=1). fight_goblin_fighter: 승0.92 / 무소득0.07 / 사망0.01.
+    assert "0.92:(gold'=(gold + 2))" in model
+    assert "0.07:(monster'=none)" in model
+    # 사망 분기는 다중 갱신
+    assert "0.01:(gold'=0) & (room'=hall) & (status'=dead) & (monster'=none)" in model
 
 
 def test_init_block_encodes_init_and_rules() -> None:
