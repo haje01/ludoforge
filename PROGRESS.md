@@ -36,9 +36,74 @@
 
 전체 테스트 146 + PRISM 통합 1 = 147. ruff/mypy(strict) clean.
 
+## 4차 마일스톤 — 정량 추정 백엔드 (Monte Carlo `sim/`) — ✅ 완료 (2026-06-24)
+
+정량 백엔드 무게중심을 PRISM(증명)→Monte Carlo(추정)로 이동. PRISM은 소형 모델 교차검증
+오라클로 유지. Phase 0~5 완료 — `ludoforge sim` 동작, PRISM 교차검증(추정↔증명 일치),
+real·고차원 스케일 우위 실증. 계획·근거는 [PLAN.md](PLAN.md)·[decisions.md D19](docs/decisions.md).
+
+| 단계 | 내용 | 상태 | 비고 |
+|------|------|------|------|
+| Phase 0 | 범위 합의 & D19 기록, D13·D14 갱신/개정, CLAUDE.md 정련 | ✅ | 코드 변경 없음 |
+| Phase 1 | sim 엔진 코어 (engine.py·평가기·DTMC 게이트·1 run 표집) | ✅ | D15 프레임 재사용, 테스트 13건 |
+| Phase 2 | 집계 & 리포트 (Welford·히스토그램·rule-of-three·CI·sweep) | ✅ | distribution kind·흡수감지, 테스트 12건 |
+| Phase 3 | runner & CLI (multiprocessing·SeedSequence·`ludoforge sim`) | ✅ | 워커 무관 재현성, 테스트 6건 |
+| Phase 4 | PRISM 오라클 교차검증 (sim↔PRISM CI 내 일치 회귀) | ✅ | DTMC 던전판·constraints 파생, 테스트 3건 |
+| Phase 5 | real·고차원 시연 (PRISM 거부 모델을 sim으로) | ✅ | market_sim(real 복리), 테스트 3건 |
+
+4차 마일스톤 전체 197건 통과(sim 37 + PRISM 교차검증 실측 포함). ruff/mypy(strict) clean.
+
 상태 범례: ⬜ 대기 / 🔵 진행중 / ✅ 완료 / ⚠️ 막힘
 
 ## 작업 로그
+- 2026-06-24: 4차 마일스톤 Phase 5 완료 + 마일스톤 마감(real·고차원 시연). `examples/market_sim.rule`
+  — 두 자산(gold·silver, real)을 30라운드 복리로 굴리는 다변수 연속 모델. PRISM은 real을
+  유한상태 게이트(D13)에서 즉시 거부, sim은 표집으로 연속 분포 추정(평균 2.66·금 2배 84.9%·
+  연속이라 백분위 생략 평균/CI만·불변식 0위반 rule of three). 테스트 3건(PRISM 거부·sim 추정·
+  rule-of-three). test_corpus 기대표에 market_sim 추가. 전체 197건 통과. **4차 마일스톤(정량
+  추정 백엔드) 완료** — Phase 0~5 끝. `ludoforge sim`으로 Monte Carlo 추정, PRISM 교차검증으로
+  추정↔증명 일치 확립, real·고차원 스케일 우위 실증.
+- 2026-06-24: 4차 마일스톤 Phase 4 완료(PRISM 오라클 교차검증). DTMC 던전판
+  `examples/dungeon_sim.rule`(전략을 가드에 인코딩 → 결정적, win_gold는 클래스별 constraints
+  파생). sim engine에 constraints 전파(initial_state — role→win_gold, PRISM init 인코딩 대응),
+  sweep_configs가 constraint 파생 변수 제외. `distribution` kind를 BMC(skipped)·PRISM(continue)이
+  건너뛰도록 수정(이전엔 BMC가 no_deadlock로 오인·PRISM은 에러). 교차검증 회귀(PRISM 4.10.1
+  실측): role 고정 시 Pmax=정확값이 sim 95% CI에 포함(fighter 0.922·rogue 0.834·wizard 0.945,
+  |Δ|<0.0022). 테스트 3건(constraints 파생·DTMC sweep·sim↔PRISM, prism 미설치 시 skip).
+  test_corpus 기대표에 dungeon_sim 추가. 전체 193건 통과, ruff/mypy(strict) clean.
+- 2026-06-24: 4차 마일스톤 Phase 3 완료(러너·병렬·CLI). aggregate를 RNG-무관 배치 단위로
+  리팩터(BatchAggregate·run_batch·merge_batches·finalize_config; simulate는 직렬 참조 구현
+  으로 유지). `sim/runner.py` — numpy SeedSequence([seed,ci]).spawn(청크수)로 청크별 독립
+  스트림, multiprocessing.Pool 병렬, 청크 수 워커 무관(min(samples,64))·병합 청크 순서 고정
+  → **워커 1↔N 비트 동일**. engine에 SupportsRandom Protocol(stdlib/numpy rng 공용), random
+  import 제거. CLI `ludoforge sim`(-n/-H/-s/-w). numpy 의존성 추가(<2.2 핀 — 2.2+ 스텁 PEP695
+  type이 mypy target 3.11 파싱 실패). 테스트 6건(청크 분할·재현성·워커무관·승률·CLI 동작/거부).
+  전체 189건 통과, ruff/mypy(strict) clean. 향후 분산은 BatchAggregate.merge·pickle 가능한
+  청크 task라 transport만 교체(Ray/dask/k8s).
+- 2026-06-24: 4차 마일스톤 Phase 2 완료(집계·sweep·리포트). IR/loader/schema에 `kind:
+  distribution`(+`expr` 수치식 필드, next.* 불가) 추가. `sim/aggregate.py` — 결합가능 집계
+  ProportionAggregate(Wilson CI·rule-of-three)·DistributionAggregate(Welford+값빈도 백분위,
+  _HIST_CAP 초과 시 평균만), `simulate`(sweep 설정별 N회 표집·체크별 집계). `sim/report.py`
+  ("증명 아님" 라벨·CI·rule-of-three·절단 비율 한국어). engine에 sweep_configs(자유 enum/bool
+  데카르트 곱)·initial_state overrides·**흡수(fixpoint) 상태 자연종료 감지**(절단 지표 정상화)·
+  eval_expr 추가. DTMC 클래스밸런스 픽스처 arena.rule. 테스트 12건(통계·merge·sweep·승률
+  추정 win³ 일치·rule-of-three·분포·재현성·리포트). Phase 1 동전 테스트 2건은 흡수감지 의미
+  변경 반영해 갱신. 전체 183건 통과, sim/core/tests ruff/mypy(strict) clean. CLI(`ludoforge
+  sim`)·multiprocessing은 Phase 3. 던전!은 MDP+win_gold(constraints 파생)라 sim 비대상 — DTMC
+  던전판은 Phase 4 오라클로.
+- 2026-06-23: 4차 마일스톤 Phase 1 완료(sim 엔진 코어). `sim/engine.py` 신설 — IR 전이
+  시스템 인터프리터(가드 평가→DTMC 게이트(enabled>1 거부)→weight 표집→next.* 배정+프레임
+  유지 D15), ast 화이트리스트 평가기(`eval` 미사용, enum=불투명 문자열), `run_once`(지평
+  H까지/자연 종료까지, terminated/truncated 보고). DTMC 픽스처 coin.rule·비결정 픽스처
+  nondet.rule 추가. 테스트 13건(평가기·초기상태·프레임·재현성·DTMC 거부). 던전!은 MDP+자유
+  init이라 Phase 1 거부 대상(경계 문서화). pyproject에 `sim` 등록. 전체 171건 통과, sim/
+  테스트 ruff/mypy(strict) clean(기존 범위 밖 docs/build_slides.py 드리프트는 미수정).
+  재현성은 stdlib random.Random(seed) — Phase 3에서 numpy SeedSequence.spawn로 교체 예정.
+- 2026-06-23: 4차 마일스톤(정량 추정) Phase 0 완료. 사용자가 PRISM 상태폭발 천장을 이유로
+  정량 검증을 Monte Carlo 추정으로 전환 결정(4가지: PRISM=오라클 유지·DTMC만 허용·튜닝=
+  목표 승격·로컬 mp+분산 구조). decisions.md D19 기록, D13(증명기)·D14(비목표 선) 갱신/개정.
+  CLAUDE.md §1 개요·비목표·§4.1 checks kind(distribution)·§6 디렉토리(`sim/`) 정련.
+  PLAN/PROGRESS에 4차 마일스톤 추가. 코드 변경 없음 — 사용자 비준 후 Phase 1 착수.
 - 2026-06-16: 1차 마일스톤 완료(S0~S8). 협업 패턴 문서화, 기획 모순 예제 모음(examples/).
 - 2026-06-16: 2차 마일스톤 완료(D6~D10). bool/상호배제, 실수 LRA, enum EnumSort, 실수
   끝점 도달성, `expect:` 명시 단언. 테스트 99건.

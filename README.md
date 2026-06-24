@@ -1,15 +1,18 @@
 # Ludoforge
 
 > 게임 기획 검증 툴킷 — 게임 룰을 하나의 [DSL](docs/concepts.md#dsl-domain-specific-language-도메인-특화-언어)로 작성하면, 논리는 [SMT solver](docs/concepts.md#smt-solver--z3)(Z3/[BMC](docs/concepts.md#bmc-bounded-model-checking-유계-모델-검사))로
-> **결정론적으로 증명**하고(논리 백엔드), 확률은 PRISM으로 **계산**한다(확률 백엔드).
+> **결정론적으로 증명**하고(논리 백엔드), 정량 속성(승률·기대값·분포)은 Monte Carlo로
+> **추정**한다(sim 백엔드; 소형 모델은 PRISM으로 교차검증).
 
 여러 기획자가 각자 합리적으로 쓴 룰이 함께 두면 모순되는 일(예: "전사 HP =
 레벨×100" + "HP 상한 5000" + "레벨 상한 100" → 레벨 51부터 모순)을,
 시뮬레이션처럼 우연히 마주치는 게 아니라 **수학적으로 증명**한다.
 
 정적 모순뿐 아니라 턴·이동·누적이 있는 **동역학**도 다룬다 — 하나의 DSL을 공유하며
-**논리는 Z3/BMC로 증명**(`ludoforge bmc`), **확률은 PRISM으로 계산**(`ludoforge prob`)
-하는 [다중 백엔드](docs/concepts.md#86-다중-백엔드-아키텍처--모델은-하나-질문은-여럿) 구조다. 배경은 [개념 문서 §8](docs/concepts.md)을 참고.
+**논리는 Z3/BMC로 증명**(`ludoforge bmc`), **정량은 Monte Carlo로 추정**(`ludoforge sim`,
+소형 모델은 `ludoforge prob`의 PRISM으로 교차검증)하는 [다중 백엔드](docs/concepts.md#86-다중-백엔드-아키텍처--모델은-하나-질문은-여럿) 구조다. *존재·건전성은
+결정론적 증명, 정량 크기는 정직한 추정*(신뢰구간·"증명 아님" 라벨)으로 나눈다(D19). 배경은
+[개념 문서 §8](docs/concepts.md)을 참고.
 
 ## 주요 기능
 
@@ -21,9 +24,13 @@
 - **사람이 읽는 리포트**: 어떤 룰이 충돌하는지, 어떤 입력에서 깨지는지 한국어로 출력.
 - **[전이 시스템](docs/concepts.md#82-전이-시스템--상태가-변하는-모델) 검사(BMC)**: 턴·이동·누적이 있는 동역학을 `transitions`로 기술하고,
   [도달성](docs/concepts.md#그래서--도달-가능성reachability-검사)·[불변식](docs/concepts.md#84-논리-백엔드의-bmc--논리로-동역학-검증-d15)·[데드락](docs/concepts.md#84-논리-백엔드의-bmc--논리로-동역학-검증-d15)을 k 스텝 BMC로 검증 — 반례 경로를 함께 제시(`ludoforge bmc`).
-- **확률 검사(PRISM)**: 같은 전이 시스템을 PRISM 확률 모델로 번역해 승리
-  확률·기대값 등 [PCTL](docs/concepts.md#88-pctl-구문-기초) 속성을 검사(`ludoforge prob`). 확률 백엔드는 PRISM이 설치돼
-  있어야 동작한다([설치 안내](#prism-설치-확률-검사에-필요)).
+- **정량 추정(Monte Carlo, sim)**: 같은 전이 시스템을 표집 시뮬레이션해 승리 확률·기대
+  게임 길이·직업별 분포를 *추정*(`ludoforge sim`). 신뢰구간·미관측 사건의 rule-of-three
+  상한·절단 비율을 정직하게 보고(증명 아님). DTMC만 지원하고, real·고차원·큰 범위 모델도
+  상태폭발 없이 다룬다. 병렬(`--workers`)이며 결과는 워커 수와 무관하게 재현된다(D19).
+- **확률 증명 오라클(PRISM)**: 소형 유한 모델을 PRISM 확률 모델로 번역해 승리 확률 등
+  [PCTL](docs/concepts.md#88-pctl-구문-기초) 속성을 *정확히* 계산(`ludoforge prob`) — sim 추정의 교차검증 오라클이다.
+  PRISM이 설치돼 있어야 동작한다([설치 안내](#prism-설치-확률-검사에-필요)).
 
 ## 한눈에 보기
 
@@ -72,10 +79,11 @@ ludoforge check warrior.rule
 
 ```
 core/         # 공유 DSL 프론트엔드(SSOT): schema.py(검증) loader.py(.rule→IR) ir.py(중간표현)
-ludoforge/    # 우산: 통합 CLI 진입점 — cli.py (check / bmc / prob)
+ludoforge/    # 우산: 통합 CLI 진입점 — cli.py (check / bmc / sim / prob)
 logic/        # 논리 증명 백엔드(Z3)
   solver/     # translator.py(IR→Z3) checks.py(정적 검사) bmc.py(전이 BMC) report.py(리포트)
-prob/         # 확률 증명 백엔드(PRISM): prism_gen.py(IR→PRISM) runner.py(실행·파싱)
+sim/          # 확률 추정 백엔드(Monte Carlo): engine.py(인터프리터) aggregate.py(집계) runner.py(병렬) report.py
+prob/         # 확률 증명 오라클(PRISM): prism_gen.py(IR→PRISM) runner.py(실행·파싱)
 rules/        # 실제 기획 룰 (.rule), git SSOT
 examples/     # 게임 기획 모순/정합 예제 (.rule)
 tests/        # 모순/정합 코퍼스 포함
@@ -189,10 +197,42 @@ wizard도 각각 이길 길이 있음을 확인한다(클래스 건전성).
 확률(PRISM) 백엔드 몫이라 건너뛴다. **종료코드:** `0` 정상 · `1` 증명된 위반
 (불변식/데드락) · `2` 오류 · `3` k 한계 미확인.
 
-### 확률 검사 (PRISM)
+### 정량 추정 (Monte Carlo · sim)
 
-같은 전이 시스템을 **PRISM 확률 모델**로 번역해, BMC로는 못 보는 *정량* 질문(승리
-확률, 기대 게임 길이)을 검사한다 — 공유 DSL 하나에서 논리 증명(Z3/BMC)과 확률
+BMC로는 못 보는 *정량* 질문(승리 확률, 기대 게임 길이, 직업별 분포)을 **표집
+시뮬레이션**으로 추정한다. 망라적 증명(PRISM)은 상태폭발에 막히지만, sim은 상태공간을
+빌드하지 않고 표집만 하므로 **real·고차원·큰 범위** 모델도 다룬다. 증명이 아니라 추정이라
+**신뢰구간**과 함께 보고하고, 한 번도 관측되지 않은 사건은 "불가능"이라 하지 않고
+**rule-of-three 상한**으로 보고한다(존재 증명은 `bmc` 몫).
+
+```bash
+ludoforge sim examples/dungeon_sim.rule -n 20000 -w 4   # 직업별 승률 추정(+신뢰구간)
+ludoforge sim examples/market_sim.rule  -n 20000        # real 복리 자산 분포(PRISM이 못 푸는 모델)
+```
+
+```text
+[설정] role=fighter
+  절단(지평 H 미종료): 0/20000 (0.0%) · 자연종료 20000/20000
+  [1] 'winnable' (reachable) — ...: 도달 P̂ = 0.9221  95% CI [0.9184, 0.9258]  (18442/20000)
+```
+
+`init`이 고정하지 않은 enum/bool 자유변수(예 `role`)는 **설정별로 분리해(sweep)** 각각
+추정한다 — 직업별 승률 비교가 곧 이것이다. **DTMC만 지원**한다(도달 상태마다 가드가 참인
+전이가 최대 1개): 비결정 모델은 친절히 거부하고 `bmc`/`prob`로 안내한다. `--workers`로
+병렬 실행하며 결과는 워커 수와 무관하게 재현된다(`--seed`). `kind: distribution` 검사는
+종료 상태에서 식 값을 모아 평균·신뢰구간·백분위로 추정한다(sim 전용). **종료코드:**
+`0` 정상 · `2` 로드/검증/sim 오류(비결정 모델 등).
+
+> **증명이 아니라 추정이다.** sim은 표집이라 희귀한 모순·도달성을 놓칠 수 있다 — 그건
+> `bmc`(Z3)가 증명으로 잡는다. sim은 *얼마나 자주/얼마나 큰가*(정량)를 신뢰구간과 함께
+> 답하고, 존재·건전성(*가능한가/항상 그런가*)은 논리 백엔드가 증명한다(D19).
+
+### 확률 증명 오라클 (PRISM)
+
+소형 유한 모델을 **PRISM 확률 모델**로 번역해 승리 확률·기대값 등 정량 속성을 *정확히*
+계산한다. PRISM은 sim 추정의 **교차검증 오라클**이다 — DTMC를 PRISM에 넣으면
+`Pmax=Pmin=정확값`이라, 같은 모델의 sim 추정이 그 값을 신뢰구간 안에 담는지 회귀로
+확인한다(추정기 신뢰 확립). 공유 DSL 하나에서 논리 증명(Z3/BMC)·정량 추정(sim)·확률
 증명(PRISM)을 각각의 백엔드로(다중 백엔드 아키텍처).
 
 이 명령은 [PRISM](https://www.prismmodelchecker.org/)이 설치돼 있다고 전제한다
@@ -304,4 +344,8 @@ uv run mypy            # 타입 검사 (strict)
 > checks, D12)을 두고, **논리 백엔드**(Z3/BMC — 도달성·불변식·데드락, D15)와
 > **확률 백엔드**(PRISM — 확률·PCTL, D16) 두 백엔드로 동역학을 검사한다. 보드게임
 > *던전!*(WotC)을 논리·확률 양쪽으로 검증하는 것이 동기였다.
+> **4차**(정량 추정, 완료): 정량 백엔드 무게중심을 PRISM(증명)에서 **Monte Carlo
+> 추정**(`sim`, D19)으로 옮겨 상태폭발 천장을 넘는다 — DTMC 표집으로 승률·분포를
+> 신뢰구간과 함께 추정(`ludoforge sim`)하고, PRISM은 소형 모델 **교차검증 오라클**로
+> 남겨 추정↔증명 일치를 확인한다. real·고차원도 상태공간 빌드 없이 다룬다.
 > CI PR 코멘트 연동은 후속 단계다.

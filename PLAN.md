@@ -10,7 +10,105 @@
 
 **기반(완료):** 1차·2차 마일스톤으로 정적 논리 검사기가 end-to-end 동작한다
 (`ludoforge check <path>`, LIA/real/enum/bool, 6가지 모순 유형, 테스트 99건).
-상세는 [PROGRESS.md](PROGRESS.md)와 decisions.md D1~D10 참조.
+3차(다중 백엔드)로 전이 시스템·BMC(`ludoforge bmc`)·PRISM(`ludoforge prob`)이 붙었다.
+상세는 [PROGRESS.md](PROGRESS.md)와 decisions.md D1~D18 참조.
+
+---
+
+## 4차 마일스톤 — 정량 추정 백엔드 (Monte Carlo `sim/`) — ✅ 완료 (2026-06-24)
+
+> 설계 근거·결정은 **decisions.md D19**(D13·D14 갱신/개정). 한 줄: **정량 백엔드의 무게
+> 중심을 망라적 증명(PRISM)에서 표집 추정(Monte Carlo)으로 옮긴다** — PRISM 상태폭발
+> 천장을 우회해 고차원·연속(real)·큰 범위를 다루고, 분포를 사람에게 보여 튜닝을 돕는다.
+> PRISM은 소형 모델 *교차검증 오라클*로 남는다.
+
+### 1. 동기와 한 줄 목표
+
+PRISM(D16)은 정확하지만 상태폭발이 너무 쉽게 천장에 닿는다(gold·win_gold `[0..30000]`만
+으로 ~70억 상태 → 빌드 멈춤). 그런데 **정확값이 필요한 영역이 곧 폭발로 불가능한 영역**
+이다. 존재·건전성(승리 가능·데드락·불변식)은 **이미 Z3/BMC가 증명**하므로, 정량 *크기*
+(승률·기대 길이·분포)는 **표집 추정**으로 내려 고차원까지 확장하고 분포를 사람이 읽게 한다.
+
+### 2. 4대 구조 결정 (사용자 비준 2026-06-23, D19)
+
+1. **PRISM은 오라클로 유지** — 소형 유한 모델에서 증명기로 시뮬레이터를 교차검증(신뢰 부여).
+2. **DTMC만 허용** — 도달 상태마다 enabled 전이 ≤1(분기는 outcome 가중치로만). 비결정은
+   거부(BMC/PRISM-mdp 몫). D15 weight-erasure의 대칭 반대: 가중치 살리고 비결정 막는다.
+3. **튜닝을 목표로 승격**(D14 개정) — 분포·직업별 승률을 *추정*으로 답한다("증명 아님" 라벨).
+4. **로컬 multiprocessing 우선 + 분산 구조 설계** — 결합가능 집계로 transport는 후속 교체.
+
+### 3. 핵심 설계 포인트
+
+- **재사용:** IR은 이미 guarded-command 전이 시스템 → sim은 그 *인터프리터*다. D15 프레임
+  (미제약 변수=유지) 의미·ast 화이트리스트 규율(§7, `eval` 없는 *평가기*) 그대로.
+- **초기 자유변수 = sweep**(전이 비결정과 구분): `init`이 안 고정한 enum/bool은 설정
+  파라미터 → 값별로 분리해 각각 N회 표집·분포 보고(= 직업별 승률 비교).
+- **재현성:** numpy `SeedSequence.spawn(N)` — 워커 수·스케줄 무관 동일 결과.
+- **정직성(DNA):** 모든 리포트에 N·신뢰구간·지평 H·미종료 비율·미관측 rule-of-three(≈3/N)·
+  "증명 아님 · 표집 추정" 라벨. 0/N을 "불가능"이라 하지 않는다(존재 증명은 Z3/BMC).
+
+### 4. 단계별 계획 (작은 PR · TDD · Tidy First)
+
+> 게이트(매 PR): `pytest` + `ruff check` + `ruff format` + `mypy`(strict).
+
+**Phase 0 — 범위 합의 & D19 기록** *(행위 변경 없음)* — ✅ 완료 (2026-06-23)
+- decisions.md D19 기록, D13·D14 갱신/개정, CLAUDE.md §1 비목표·§4.1·§6 정련. 사용자 비준.
+
+**Phase 1 — sim 엔진 코어 (`sim/engine.py` + 표현식 evaluator)** *(행위적 변경)* — ✅ 완료 (2026-06-23)
+- IR 전이 시스템 인터프리터: 상태=변수 dict, 가드 평가→enabled 1개 선택(DTMC 게이트:
+  enabled>1이면 거부)→weight로 outcome 표집→next.* 배정+프레임 유지(D15). 지평 H까지/종료까지.
+- ast 화이트리스트 **평가기**(Name·BinOp·Compare·BoolOp·UnaryOp·Constant→파이썬 값, `eval` 금지).
+- **성공 기준:** DTMC 픽스처(coin) 1 run이 결정적 seed에서 재현, 비결정(enabled>1) 모델
+  (nondet)은 친절히 거부. **던전!은 MDP(hall 귀환 시 enter/claim 동시 enabled)+자유 init**
+  이라 Phase 1 거부 대상 — 거부 메시지로 경계 문서화(재현 픽스처가 아님). 자유 init sweep은 Phase 2.
+
+**Phase 2 — 집계 & 리포트 (`sim/aggregate.py`, `sim/report.py`)** *(행위적 변경)* — ✅ 완료 (2026-06-24)
+- 결합가능 집계: ProportionAggregate(Wilson CI·rule-of-three), DistributionAggregate
+  (Welford 평균/분산 + 값→빈도 카운터로 이산 백분위, _HIST_CAP 초과 시 평균만). 둘 다 merge 지원.
+  checks kind 매핑: reachable→P̂(도달), invariant→위반분수+예시 trace, distribution→평균·CI·백분위.
+- IR/loader/schema에 `kind: distribution`(+`expr` 필드, next.* 불가) 추가. 초기 자유변수
+  sweep(enum/bool 데카르트 곱, int/real 자유는 거부). 흡수(fixpoint) 상태 자연 종료 감지로
+  절단 지표 정상화. "증명 아님" 라벨·신뢰구간 한국어 리포트.
+- **성공 기준:** DTMC 클래스밸런스 픽스처(arena)에서 직업별 승률 추정+CI 출력(fighter 0.73 >
+  wizard 0.42 > rogue 0.22 = win³ 일치), 미관측 사건(progress≥4)은 3/N 상한으로 보고. 던전!은
+  여전히 MDP+constraints 파생(win_gold)이라 sim 비대상 — DTMC 던전판은 Phase 4 오라클.
+
+**Phase 3 — runner & CLI (`sim/runner.py`, `ludoforge sim`)** *(행위적 변경)* — ✅ 완료 (2026-06-24)
+- `multiprocessing.Pool`로 청크 병렬, numpy `SeedSequence([seed,ci]).spawn(청크수)`로 청크별
+  독립 스트림. 청크 수는 **워커 수와 무관**(min(samples,64)), 병합은 **청크 순서대로** →
+  부동소수까지 결정적. CLI `ludoforge sim <path> [-n samples] [-H horizon] [-s seed] [-w workers]`.
+- 분산 심: 집계가 결합 가능(BatchAggregate.merge)·청크 task가 pickle 가능 → transport만 교체하면
+  Ray/dask/k8s로 확장(구현은 로컬 multiprocessing). aggregate를 RNG-무관 run_batch로 리팩터.
+- **성공 기준:** 워커 1↔4 SimReport가 **비트 단위 동일**(테스트), 청크 병렬로 코어 분산. numpy
+  의존성 추가(스텁 호환 위해 <2.2 핀).
+
+**Phase 4 — PRISM 오라클 교차검증** *(검증)* — ✅ 완료 (2026-06-24)
+- **DTMC 던전판**(`examples/dungeon_sim.rule`): 전략을 가드에 인코딩(목표 미달이면 싸우고
+  달성이면 귀환·승리 — 상호 배타 가드)해 결정적. `win_gold`는 클래스별 constraints로 파생.
+- sim에 **constraints 전파**(initial_state) 추가 — role로부터 win_gold 파생(PRISM init 인코딩
+  대응). sweep는 constraint 파생 변수를 제외. `distribution`을 BMC·PRISM이 건너뛰도록 수정.
+- 같은 DTMC를 role 고정해 PRISM에 넣으면 Pmax=Pmin=정확값 → sim 직업별 승률 추정의 95% CI가
+  그 값을 포함(fighter 0.922·rogue 0.834·wizard 0.945, |Δ|<0.0022). PRISM 미설치 시 skip.
+- **성공 기준:** sim↔PRISM 일치 회귀 통과(PRISM 4.10.1 실측). 추정기 신뢰 확립 — D13 반론 무력화.
+
+**Phase 5 — real·고차원 시연** *(신규 표현력 시연)* — ✅ 완료 (2026-06-24)
+- `examples/market_sim.rule`: 두 자산(gold·silver, **real**)을 30라운드 복리로 굴리는 다변수
+  연속 모델. PRISM은 real을 유한상태 게이트(D13)에서 **즉시 거부**, sim은 표집으로 연속 분포를
+  추정(평균 2.66 성장·금 2배 84.9%·연속이라 백분위 생략·평균/CI만, 불변식 0위반→rule of three).
+- **성공 기준:** PRISM이 거부하는 real 모델을 sim이 분포로 답한다(테스트로 PRISM 거부 + sim
+  추정 동시 확인). 연속 데이터의 히스토그램 넘침→평균/CI degradation도 정직하게 시연.
+
+### 5. 위험 & 미해결 질문
+
+- **DTMC 정적 검사:** v1은 런타임(표집 중 enabled>1 발견) 거부. 정적 사전 거부(Z3로 두
+  가드 동시 충족 가능성 질의)는 후속 — 도달 불가 상태의 가짜 충돌을 피하려면 정교 필요.
+- **초기 자유변수 폭발:** 자유 enum/bool 조합이 곱으로 커질 수 있음 → 상한+절단 보고.
+  연속(real) 초기 자유변수의 sweep 의미는 미정(표집? 거부?) — 일단 init가 고정 요구.
+- **지평 H 편향:** H 내 미종료 run의 reachable/distribution 해석 — 절단 비율을 항상 보고,
+  H를 늘려 수렴 확인하는 가이드.
+- **CI 산정:** 비율은 Wilson, 평균은 t-기반 — 표본 독립 가정(SeedSequence가 보장) 명시.
+- **distribution kind 변경 범위:** `core/ir.py`·loader·schema에 `expr` 필드/kind 추가 —
+  세 백엔드 중 sim 전용임을 스키마가 명확히(다른 백엔드는 무시/거부).
 
 ---
 

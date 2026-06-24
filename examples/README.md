@@ -20,7 +20,8 @@
 | [`day_night_cycle.rule`](day_night_cycle.rule) | enum 도달 불가 (중복 값) | sky·lighting이 같은 값 이름(day/night)을 쓰며, 두 시스템이 밤 조명을 상충 강제해 sky=night 봉쇄 (D8) |
 | [`balanced_stats.rule`](balanced_stats.rule) | (정합) | 공격력=레벨×10, 상한 500, 레벨 상한 50이 정확히 맞아떨어져 모순 없음 |
 | [`balanced_build.rule`](balanced_build.rule) | (정합, expect 충족) | stat_budget과 같은 예산이지만 "공40·방40 균형 빌드"(합 80)는 도달 가능 → `expect:` 충족 (D10) |
-| [`dungeon.rule`](dungeon.rule) | (전이 시스템) | 던전!(WotC 2012판) 모델 — 클래스 4종·클래스별 전투 난이도(2d6 환산)·몬스터 2종(고블린/드래곤)·조우→전투·승패. 보물 모아 중앙 귀환 승리, 전투 실패 시 드물게 사망. `bmc`/`prob`로 검사 (D12·D15·D16) |
+| [`dungeon.rule`](dungeon.rule) | (전이 시스템, MDP) | 던전!(WotC 2012판) 모델 — 클래스 4종·클래스별 전투 난이도(2d6 환산)·몬스터 2종(고블린/드래곤)·조우→전투·승패. 보물 모아 중앙 귀환 승리, 전투 실패 시 드물게 사망. `bmc`/`prob`로 검사 (D12·D15·D16) |
+| [`dungeon_sim.rule`](dungeon_sim.rule) | (전이 시스템, DTMC) | 던전판을 **전략 해소(DTMC)**해 `sim`(Monte Carlo)으로 직업별 승률을 추정. win_gold는 클래스별 constraints 파생. PRISM 정확값과 교차검증 (D19) |
 | [`team_example/`](team_example/) | (협업 패턴) | 공유 `_domain.rule` + 기획자별 constraints 파일을 디렉토리로 병합 검사 |
 
 `team_example/`만은 여러 파일을 병합해야 하므로 **디렉토리째** 검사한다:
@@ -33,6 +34,14 @@
 두 백엔드로 검사한다:
 - 논리(승리/사망 도달성·불변식·규칙 건전성·데드락): `ludoforge bmc examples/dungeon.rule --k 12` (D15, k 유계)
 - 확률(최적 전략 승리 확률 등 PCTL): `ludoforge prob examples/dungeon.rule` (D16, PRISM 설치 시)
+
+`dungeon_sim.rule`은 같은 던전을 **DTMC(전략 해소)**로 다시 쓴 sim 백엔드 예제다. 던전!(MDP)은
+중앙 귀환 시 "더 탐험 vs 승리 선언"처럼 *선택*이 있어 sim(표집)으로 못 본다 — 이를 가드에
+인코딩("목표 미달이면 싸우고, 달성이면 귀환·승리")해 결정적으로 만든다. `win_gold`는 클래스별
+constraints로 파생한다. Monte Carlo로 직업별 승률을 *추정*하고(증명 아님, 신뢰구간 동반),
+소형이라 PRISM 정확값과 교차검증한다(D19):
+- 추정(직업별 승률·기대 보물 분포): `ludoforge sim examples/dungeon_sim.rule -n 20000 -w 4`
+- 교차검증(role 고정 시 PRISM Pmax=정확값 ↔ sim CI): `tests/test_sim_oracle.py`
 
 8개 전투 전이(클래스×몬스터)는 `tables:`(전투 격파표) + 곱 `for:` 템플릿 한 벌로 펼쳐 쓴다
 — 클래스·몬스터가 늘면 도메인 enum과 표의 행/열만 추가하면 된다(템플릿 확장 Tier 1+2,
