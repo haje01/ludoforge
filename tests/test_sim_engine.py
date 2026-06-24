@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 
+from core.ir import Outcome, RuleSet, Transition, Variable
 from core.loader import load_rule_file
 from sim.engine import (
     DtmcViolation,
@@ -145,3 +146,52 @@ def test_dtmc_violation_rejected_with_friendly_message() -> None:
     assert "DTMC 위배" in msg
     assert "a" in msg and "b" in msg  # 동시 enabled 전이 id를 짚는다
     assert "ludoforge bmc" in msg  # 대안 백엔드 안내
+
+
+# ---------- 무작위 정책: 선택 표집 (D20) ----------
+
+
+def _build_choice_set(pref_a: float | None, pref_b: float | None) -> RuleSet:
+    """init(x==0)에서 a·b 두 전이가 동시 enabled인 선택 집합 모델을 만든다."""
+    return RuleSet(
+        variables=(Variable(name="x", type="int", min=0, max=5),),
+        init="x == 0",
+        transitions=(
+            Transition(id="a", when="x == 0", pref=pref_a, outcomes=(Outcome(then="next.x == 1"),)),
+            Transition(id="b", when="x == 0", pref=pref_b, outcomes=(Outcome(then="next.x == 2"),)),
+        ),
+    )
+
+
+def test_choice_sampling_matches_declared_pref() -> None:
+    """모든 co-enabled가 pref 선언 시 enabled끼리 정규화 표집 — 도달 분포가 pref(0.3)에 수렴."""
+    rs = load_rule_file(FIXTURES / "policy_choice.rule")
+    n = 4000
+    a_count = sum(
+        1 for s in range(n) if run_once(rs, random.Random(s), horizon=10).states[-1]["pick"] == "a"
+    )
+    frac = a_count / n
+    # 기댓값 0.3, 3σ≈0.022(n=4000) — 여유 있게 0.03 이내.
+    assert abs(frac - 0.3) < 0.03
+
+
+def test_choice_sampling_is_reproducible() -> None:
+    """선택 표집도 같은 seed → 동일 궤적(D19 재현성, RNG 추가 draw 1회는 결정적)."""
+    rs = load_rule_file(FIXTURES / "policy_choice.rule")
+    r1 = run_once(rs, random.Random(123), horizon=10)
+    r2 = run_once(rs, random.Random(123), horizon=10)
+    assert r1 == r2
+
+
+def test_choice_set_with_missing_pref_rejected() -> None:
+    """co-enabled에 pref 미선언(None)이 섞이면 거부 — 의도치 않은 가드 중첩 안전망(D20)."""
+    rs = _build_choice_set(pref_a=0.5, pref_b=None)
+    with pytest.raises(DtmcViolation):
+        run_once(rs, random.Random(0), horizon=10)
+
+
+def test_choice_set_with_zero_pref_sum_rejected() -> None:
+    """모두 pref=0이면 정규화 불가 — outcome weight 합 0과 동형으로 거부(D20)."""
+    rs = _build_choice_set(pref_a=0.0, pref_b=0.0)
+    with pytest.raises(SimError, match="pref"):
+        run_once(rs, random.Random(0), horizon=10)

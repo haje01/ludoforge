@@ -112,6 +112,80 @@ PRISM(D16)은 정확하지만 상태폭발이 너무 쉽게 천장에 닿는다(
 
 ---
 
+## 5차 마일스톤 — sim 선택 확률(무작위 정책) — 📋 계획 (2026-06-24)
+
+> 설계 근거·결정은 **decisions.md D20**(D19의 "DTMC만 허용"을 *조건부* 완화). 한 줄:
+> **플레이어 *선택* 비결정에 확률(`pref`)을 배정해 무작위 정책으로 해소** — 게임 규칙과
+> 전략을 분리하고, 최적이 아닌 현실 플레이어의 행동을 모델링/민감도 분석한다.
+
+### 1. 동기와 한 줄 목표
+
+D19 sim은 enabled 전이가 2개 이상이면 거부해, 전략을 가드에 박아넣게 한다
+(`examples/dungeon_sim.rule`이 "목표 미달이면 싸우고 채우면 귀환"을 상호배타 가드로 인코딩).
+이는 **규칙과 정책을 한 파일에 엉키게** 하고(전략 바꾸려면 `.rule` 복제), PRISM `Pmax`가
+주는 *최적 천장*만 볼 수 있게 한다. 현실 플레이어는 최적이 아니다 — **행동 모델링·민감도
+분석**(귀환을 70%로 일찍 하면 승률은?)은 Monte Carlo가 잘하는 D19 튜닝 영역인데 표현 불가.
+→ **전이 레벨 선호도 `pref`로 플레이어 선택에 확률을 배정**(매 스텝 2단 표집: 정책으로 전이
+선택 → weight로 outcome 선택).
+
+### 2. 핵심 설계 (D20)
+
+- **`pref: float = 1.0`(전이 상대 가중치)** — enabled된 것들끼리 **런타임 정규화**(상태 의존).
+  `outcomes.weight`(환경 우연, D12)와 **다른 키워드**(플레이어 정책).
+- **안전망 = 명시적 opt-in** — enabled>1일 때 *모든* co-enabled가 `pref` 선언 시에만 표집,
+  **하나라도 누락/혼재면 `DtmcViolation` 거부**(의도치 않은 가드 중첩을 조용히 덮지 않는다).
+- **dialect 분리** — `pref`는 sim 전용. BMC는 erase(weight-erasure 일관), PRISM은 무시·Pmax 유지.
+- **정직성** — "주어진 정책 하의 추정 · Pmax 아님" 라벨. 고정 정책 승률은 Pmax의 *하한*.
+- **상태 의존 정책** — 가드(후보 좁힘)+`pref`(잔여 해소) 합성. `pref`의 런타임 식(`${state expr}`)은 후속.
+
+### 3. 단계별 계획 (작은 PR · TDD · Tidy First)
+
+> 게이트(매 PR): `pytest` + `ruff check` + `ruff format` + `mypy`(strict).
+
+**Phase 1 — IR·로더·스키마에 `pref` 도입** *(구조+행위)* — ✅ 완료 (2026-06-24)
+- `core/ir.py`: `Transition.pref: float | None = None`(None=미선언 — opt-in 안전망 위해
+  "1.0 선언"과 구분, D20 결정3). `core/loader.py`: `_parse_pref`(생략 None·음수·비수 거부),
+  `for:`/`${expr}` 템플릿 호환(전체-`${expr}`이면 타입 보존, D18). `core/schema.py`:
+  `_check_transition_prefs`(IR 직접 구성 시 음수 방어).
+- **성공 기준 충족:** `pref` 있는 `.rule` 로드·음수/비수 거부·템플릿 타입 보존, `pref` 무선언
+  기존 파일 None(전체 203 통과·기존 197 무변경 = 하위 호환), BMC/PRISM 무변경. 테스트 6건.
+
+**Phase 2 — sim 엔진 선택 표집** *(행위적 변경, 핵심)* — ✅ 완료 (2026-06-24)
+- `sim/engine.py` `run_once`의 `len(enabled) > 1` 분기를 `_select_transition`으로 교체: enabled
+  1개면 그대로(rng 미소비 → 기존 DTMC 재현성·비트 동일 보존), 2개+면 모든 전이가 `pref`
+  보유 시 정규화 표집(2단 표집: 정책→outcome), 미선언(None) 혼재 시 `DtmcViolation`, 합 0이면
+  SimError. 엔진 docstring을 D19→D20으로 갱신.
+- **성공 기준 충족:** 골든 픽스처(`tests/fixtures/policy_choice.rule`, pref 0.3/0.7)에서 도달
+  분포가 0.3에 수렴(n=4000, |Δ|<0.03), 선택 표집 재현성, 혼재·합0·기존 nondet 모두 거부.
+  테스트 5건 추가(전체 207 통과·기존 무변경 = 하위 호환).
+
+**Phase 3 — 리포트 라벨 & 예제** *(행위+문서)* — ✅ 완료 (2026-06-24)
+- `sim/engine.py` `uses_policy(ruleset)`(pref 선언 여부) + `SimReport.uses_policy` 플래그
+  (두 생성 지점 runner·aggregate에서 채움). `sim/report.py`: 조건부 정책 라벨 "주어진 정책
+  (pref) 하의 추정 — 최적(Pmax) 아님 …하한". 선택 없는 순수 DTMC엔 안 띄움(오해 방지).
+- 예제 `examples/dungeon_policy.rule`: 던전을 MDP로 두고 "욕심(fight) vs 안전(leave)"을 `pref`
+  로 가른 sim 시연(2단 표집). CLAUDE.md §4.1(`pref` 문법·예시·dialect)·concepts.md §9.4.1
+  (무작위 정책)·examples/README 갱신.
+- **성공 기준 충족:** 정책 라벨 노출(policy_choice·dungeon_policy), 예제 sim/bmc 동작·문서
+  링크 일관, arena(pref 무선언) 라벨 미노출 회귀. 테스트 3건(전체 211 통과·기존 무변경).
+
+**Phase 4 — (선택) 민감도 sweep & PRISM 유도-DTMC 교차검증** *(검증·확장)*
+- `pref` 한 점을 쓸어(예 0→1) 승률 곡선 출력(민감도). PRISM이 `pref`를 살려 유도 DTMC의
+  `P=?`를 풀어 sim 추정과 교차검증(선택 표집 정확성을 증명기로 재확인).
+- **성공 기준:** sweep 곡선이 단조/직관과 일치, 유도-DTMC P=?가 sim CI에 포함. (PRISM 유도
+  모드는 비용 보고 후 착수 — v1 비목표일 수 있음.)
+
+### 4. 위험 & 미해결 질문
+
+- **`pref` 합성 의미:** 가드+`pref`로 상태 의존 정책을 표현할 때, 도달 불가 가드 조합이
+  가짜 선택 집합을 만들지 — 골든 코퍼스로 확인.
+- **PRISM 유도-DTMC 모드 비용:** `pref`→PRISM 확률 명령 매핑이 기존 Pmax 경로와 충돌 없이
+  공존하는지(dialect 게이트). v1은 sim 단독 골든 검증으로 갈음 가능.
+- **런타임 식 `pref`(후속):** `${state expr}` 정책은 표현식 evaluator 재사용 가능하나 스코프
+  확대 — v1은 상수 `pref`로 한정.
+
+---
+
 ## 다중 백엔드 마일스톤 — ✅ 완료 (2026-06-17)
 
 > **상태: 완료.** Phase 0~4 모두 끝났다(D11~D16). 공유 IR(`forge_core`) 위에 RuleForge

@@ -29,6 +29,7 @@ from sim.engine import (
     initial_state,
     run_once,
     sweep_configs,
+    uses_policy,
 )
 
 # 95% 신뢰수준 정규근사 z값. Monte Carlo는 표본이 커 CLT 정규근사가 충분하다(t 미사용).
@@ -217,6 +218,7 @@ class SimReport:
     seed: int
     configs: tuple[ConfigResult, ...]
     skipped: tuple[str, ...]  # sim이 다루지 않는 체크(prob/no_deadlock)
+    uses_policy: bool = False  # pref(무작위 정책, D20)로 선택을 해소했는가 → 정책 라벨
 
 
 _PERCENTILES = (5, 50, 95)
@@ -347,7 +349,12 @@ def simulate(ruleset: RuleSet, *, samples: int, horizon: int, seed: int) -> SimR
         results.append(finalize_config(config, batch, sim_checks))
 
     return SimReport(
-        samples=samples, horizon=horizon, seed=seed, configs=tuple(results), skipped=skipped
+        samples=samples,
+        horizon=horizon,
+        seed=seed,
+        configs=tuple(results),
+        skipped=skipped,
+        uses_policy=uses_policy(ruleset),
     )
 
 

@@ -80,6 +80,13 @@ class Transition:
     `outcomes`는 항상 1개 이상이다 — DSL의 bare `then`은 로더가 단일 Outcome(weight=1.0)으로
     정규화한다. 여러 개면 확률 분기(가중치 합은 보통 1, 검증은 확률 백엔드 몫).
     `source`는 정의 파일명(병합 시 범인 추적용).
+
+    `pref`는 **플레이어 선택**의 상대 가중치다(sim 전용, decisions.md D20). 한 상태에서
+    여러 전이가 동시에 enabled일 때 sim이 enabled된 것들끼리 `pref`로 정규화해 무작위
+    정책으로 표집한다(매 스텝 2단 표집: 정책으로 전이 선택 → weight로 outcome 선택).
+    `None`은 **미선언**이다 — co-enabled 집합에 하나라도 None이 섞이면 sim은 의도치 않은
+    가드 중첩으로 보고 거부한다(명시적 opt-in 안전망, D20). 균등 선택은 같은 `pref`를
+    명시해 얻는다. `outcomes.weight`(환경 우연, D12)와 의미가 다르다 — BMC/PRISM은 무시한다.
     """
 
     id: str
@@ -87,6 +94,7 @@ class Transition:
     when: str | None = None
     desc: str | None = None
     source: str | None = None
+    pref: float | None = None
 
 
 @dataclass(frozen=True)

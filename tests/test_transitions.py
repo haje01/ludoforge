@@ -118,6 +118,74 @@ def test_negative_weight_rejected(tmp_path: Path) -> None:
         load_rule_file(_write(tmp_path, body))
 
 
+# ---------- 로더: 전이 선호도 pref (D20, 무작위 정책) ----------
+
+
+def test_transition_pref_defaults_to_none(tmp_path: Path) -> None:
+    """pref 미선언 전이는 None(=미선언, D20) — co-enabled에 섞이면 sim이 거부한다."""
+    body = (
+        "domain: {variables: {g: {type: int, min: 0, max: 9}}}\n"
+        "transitions:\n  - id: t\n    then: 'next.g == 1'\n"
+    )
+    rs = load_rule_file(_write(tmp_path, body))
+    assert rs.transitions[0].pref is None
+
+
+def test_transition_pref_parsed(tmp_path: Path) -> None:
+    """pref가 IR에 실린다 — 플레이어 선택의 상대 가중치(D20)."""
+    body = (
+        "domain: {variables: {g: {type: int, min: 0, max: 9}}}\n"
+        "transitions:\n"
+        "  - id: a\n    pref: 0.3\n    then: 'next.g == 1'\n"
+        "  - id: b\n    pref: 0.7\n    then: 'next.g == 2'\n"
+    )
+    rs = load_rule_file(_write(tmp_path, body))
+    assert (rs.transitions[0].pref, rs.transitions[1].pref) == (0.3, 0.7)
+
+
+def test_negative_pref_rejected(tmp_path: Path) -> None:
+    body = (
+        "domain: {variables: {g: {type: int, min: 0, max: 9}}}\n"
+        "transitions:\n  - id: t\n    pref: -1\n    then: 'next.g == 0'\n"
+    )
+    with pytest.raises(LoaderError, match="음수"):
+        load_rule_file(_write(tmp_path, body))
+
+
+def test_non_numeric_pref_rejected(tmp_path: Path) -> None:
+    body = (
+        "domain: {variables: {g: {type: int, min: 0, max: 9}}}\n"
+        "transitions:\n  - id: t\n    pref: high\n    then: 'next.g == 0'\n"
+    )
+    with pytest.raises(LoaderError, match="pref"):
+        load_rule_file(_write(tmp_path, body))
+
+
+def test_pref_template_type_preserved(tmp_path: Path) -> None:
+    """전체-`${expr}` pref는 값 타입 보존(D18) — 표에서 정책을 끌어올 수 있다."""
+    body = (
+        "domain: {variables: {g: {type: int, min: 0, max: 9}}}\n"
+        "tables: {policy: {go: 0.4}}\n"
+        "transitions:\n"
+        "  - id: 't_${k}'\n"
+        "    for: {k: [go]}\n"
+        "    pref: '${policy[k]}'\n"
+        "    then: 'next.g == 1'\n"
+    )
+    rs = load_rule_file(_write(tmp_path, body))
+    assert rs.transitions[0].pref == 0.4
+
+
+def test_schema_rejects_negative_pref() -> None:
+    """IR을 직접 만들어도 음수 pref는 스키마가 거부(방어적 검증, D20)."""
+    rs = RuleSet(
+        variables=(Variable(name="g", type="int", min=0, max=9),),
+        transitions=(Transition(id="t", pref=-0.5, outcomes=(Outcome(then="next.g == 0"),)),),
+    )
+    with pytest.raises(SchemaError, match="pref"):
+        validate(rs)
+
+
 def test_property_invalid_kind_rejected(tmp_path: Path) -> None:
     body = _DOM + "checks:\n  - {id: p, kind: bogus}\n"
     with pytest.raises(LoaderError, match="kind"):

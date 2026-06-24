@@ -566,6 +566,79 @@
 
 ---
 
+## D20. sim 선택 확률 — 무작위 정책(randomized policy)으로 플레이어 비결정 해소
+
+- **상태:** 확정 (2026-06-24, 사용자 비준) — D19의 "DTMC만 허용(enabled>1 거부)"을 *조건부로* 완화한다.
+- **맥락:** D19의 sim은 도달 상태마다 enabled 전이가 최대 1개여야 하고(2개 이상이면
+  `DtmcViolation`), 그래서 플레이어 *전략*을 가드에 박아넣어야 한다 —
+  `examples/dungeon_sim.rule`이 "목표 미달이면 싸우고 채우면 귀환"을 `gold < win_gold` /
+  `gold >= win_gold` 상호배타 가드로 인코딩한 게 그 예다. 두 문제가 있다.
+  (1) **게임 규칙과 플레이어 정책이 한 파일에 엉킨다** — 같은 규칙을 다른 전략으로 돌리려면
+  `.rule`을 통째로 복제해야 한다(SSOT 드리프트). (2) **현실 플레이어는 최적이 아닌데**
+  PRISM `Pmax`는 *이론적 최적* 천장만 준다. "귀환을 70% 확률로 일찍 하는 플레이어의 승률은?"
+  같은 *행동(behavior) 모델링*·민감도 분석은 Monte Carlo가 잘하는 일이고 D19가 sim에 맡긴
+  튜닝/추정 영역인데, 지금은 표현할 길이 없다.
+- **핵심 개념:** 게임 MDP의 비결정성은 두 종류다 — **환경/우연**(전투 승패·몬스터 뽑기,
+  이미 `outcomes.weight`로 모델, D12)과 **플레이어 선택**(더 깊이 갈까/귀환할까, 현재 미모델).
+  본 결정은 후자에 확률을 배정해 **무작위 메모리리스 정책(randomized scheduler)으로 비결정을
+  해소**한다. 그 결과는 다시 DTMC라서 sim 엔진과 자연히 맞는다 — 매 스텝 **2단 표집**:
+  ① enabled 전이들 중 정책 확률로 하나 고르고 → ② 그 전이의 outcome을 weight로 고른다.
+- **결정:**
+  - **(1) 전이 레벨 선호도 `pref`(상대 가중치).** `Transition`에 `pref: float | None = None`
+    추가(None=**미선언**). 어떤 전이들이 *동시에* enabled인지는 정적으로 모르므로(상태 의존),
+    분포를 정적으로 붙이지 않고 **런타임에 enabled된 것들끼리 `pref`로 정규화**한다. 균등
+    선택을 원하면 co-enabled 전이에 **같은 `pref`를 명시**한다(생략은 균등이 아니라 거부 — (3)).
+  - **(2) `weight`와 다른 키워드.** `outcomes.weight`는 *환경 우연*(D12, BMC가 erase),
+    `pref`는 *플레이어 정책*으로 의미가 다르다. 같은 `weight`로 쓰면 D12 의미론이 흐려져
+    별도 식별자를 둔다. (`pref` = preference.)
+  - **(3) 안전망 유지 — 선택은 명시적 opt-in.** enabled>1일 때 *모든* co-enabled 전이가
+    `pref`를 선언했으면 선택 집합으로 보고 표집한다. **하나라도 `pref` 없는 게 섞여 있으면
+    여전히 `DtmcViolation`으로 거부**한다(=의도치 않은 가드 중첩이라는 모델링 버그를 조용히
+    표집으로 덮지 않는다, §실패는 크게 드러내기). 전부 `pref` 없으면 D19 그대로 거부.
+    `pref` 합이 0이면 outcome weight-합-0과 동형으로 오류.
+  - **(4) 백엔드 dialect(D11) — `pref`는 sim 전용 주석.** BMC는 `pref`를 erase한다(어차피
+    모든 경로를 탐색 = 선택 비결정 자체가 BMC의 일, weight-erasure와 일관). PRISM은 기본
+    `pref`를 무시하고 `Pmax`(MDP, 모든 스케줄러 최적화)를 유지한다 — `distribution`이 sim
+    전용인 것과 동형. (PRISM이 `pref`를 살려 *유도 DTMC*의 `P=?`를 푸는 모드는 후속.)
+  - **(5) 정직성 라벨(D19 격상).** sim 리포트는 결과가 **"주어진 정책 하의 추정 · Pmax 아님"**
+    임을 명시한다. 고정 무작위 정책의 승률은 항상 `Pmax`의 **하한**이다(정책이 우연히 최적일
+    때만 일치). D19의 교차검증 구도("sim DTMC == PRISM Pmax")는 *선택이 없는*(모든 enabled
+    집합이 단일) 모델에서만 성립 — `pref`로 선택이 생기면 PRISM `Pmax`가 아니라 *같은 정책으로
+    유도한 DTMC의 `P=?`* 와 비교해야 한다.
+  - **(6) 상태 의존 정책은 가드+`pref` 합성으로.** v1의 `pref`는 상수다. 상태에 따라 전략을
+    바꾸려면 가드로 후보를 좁히고(`when`) 잔여 비결정을 `pref`로 푼다 — 상태 의존이 그대로
+    표현된다. `pref`에 `${state expr}`(런타임 식) 허용은 후속(표현식 evaluator 재사용).
+- **기각/대비한 대안:**
+  - *enabled>1을 무조건 균등 표집(opt-in 없이)*: 의도치 않은 가드 중첩(모델 버그)을 조용히
+    덮어 "실패는 크게 드러내기" 원칙 위배 → 명시적 `pref` opt-in으로 (3).
+  - *`weight` 키워드 재사용*: 환경 우연(D12)과 플레이어 정책을 한 이름으로 뭉개면 weight-erasure
+    의미론이 모호 → 별도 `pref`로 (2).
+  - *별도 정책 오버레이 파일(규칙 1개 × 정책 N개)*: SSOT 분리엔 가장 깔끔하나 인프라 비용↑.
+    인라인 `pref`로 시작하고 오버레이는 후속 경로로 남긴다.
+  - *`pref`를 PRISM에도 즉시 반영(유도 DTMC P=?)*: 교차검증 가치는 있으나 v1 비목표 —
+    선택 표집 자체의 정확성은 닫힌형 혼합을 아는 골든 모델로 sim 단독 검증(아래 성공 기준).
+- **영향:**
+  - `core/ir.py`: `Transition`에 `pref: float | None = None`(None=미선언).
+  - `core/loader.py`: `_parse_transition`이 `pref` 파싱(생략 시 None, 음수·비수 거부).
+    `for:`/`${expr}` 템플릿과 호환(전체-`${expr}`이면 타입 보존, D18).
+  - `core/schema.py`: `pref` 음수 금지 정도(sim 전용이라 가벼운 검증). BMC/PRISM 경로는 무변경.
+  - `sim/engine.py`: `run_once`의 `len(enabled) > 1` 분기를 — 모든 enabled가 `pref` 보유 시
+    정규화 표집, 혼재/부재 시 `DtmcViolation` — 으로 교체. `_sample_transition` 헬퍼 추가.
+    RNG는 기존 counter-based 스트림 그대로(추가 draw 1회, 순서 결정적 → 워커 무관 재현성 유지).
+  - `sim/report.py`: "주어진 정책 하의 추정 · Pmax 아님" 라벨.
+  - 문서: CLAUDE.md §4.1(`pref` 문법·dialect 표)·§2(안전망), concepts.md §8(정책/스케줄러).
+  - 예제: `examples/dungeon_sim.rule`의 가드-인코딩 전략을 `pref` 정책으로 분리한 변형 예제
+    (규칙은 MDP로 두고 정책만 `pref`로) 추가 검토.
+- **성공 기준:**
+  - 닫힌형을 아는 골든 모델(한 상태에서 `pref` p/(1-p)로 갈리는 2전이 → 도달 분포)에서 sim
+    추정이 p를 95% CI 안에 맞춘다(선택 표집 정확성, PRISM 없이 sim 단독).
+  - 모든 enabled가 `pref` 미선언인 비결정 모델은 여전히 친절히 거부(`DtmcViolation`).
+  - `pref` 일부 누락(혼재)도 거부(안전망). `pref` 합 0도 오류.
+  - 기존 DTMC 예제(`dungeon_sim.rule`)는 `pref` 무선언이라 **동작·결과 불변**(하위 호환).
+  - BMC/PRISM은 `pref`를 무시하고 기존과 동일 결과(dialect 분리 회귀).
+
+---
+
 ## 참고
 - 결정의 도메인 배경: [concepts.md](concepts.md) (특히 §4 — 도달 가능성 검사)
 - 살아있는 계획·진행: [../PLAN.md](../PLAN.md) / [../PROGRESS.md](../PROGRESS.md)

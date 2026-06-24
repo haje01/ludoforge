@@ -1,0 +1,19 @@
+# 무작위 정책(D20) 골든 픽스처 — 닫힌형을 아는 모델로 sim 선택 표집을 검증한다.
+# init(pick==none)에서 choose_a·choose_b 두 전이가 동시에 enabled이고, 둘 다 pref를
+# 명시했으므로 sim은 enabled끼리 pref로 정규화해 표집한다(0.3 : 0.7). 한 번 고르면
+# pick!=none이라 두 가드 모두 거짓 → enabled 0개로 자연 종료 → 최종 pick==a 비율 기댓값 0.3.
+domain:
+  variables:
+    pick: { type: enum, values: [none, a, b] }
+
+init: "pick == none"
+
+transitions:
+  - id: choose_a
+    when: "pick == none"
+    pref: 0.3
+    then: "next.pick == a"
+  - id: choose_b
+    when: "pick == none"
+    pref: 0.7
+    then: "next.pick == b"

@@ -25,6 +25,7 @@ from sim.engine import enum_constants, sweep_configs
 from sim.report import format_sim_report
 
 FIXTURES = Path(__file__).parent / "fixtures"
+EXAMPLES = Path(__file__).parent.parent / "examples"
 
 
 def _by_id(cfg_result: object) -> dict[str, object]:
@@ -170,3 +171,36 @@ def test_report_has_proof_disclaimer_and_estimates() -> None:
     assert "role=fighter" in text
     assert "rule of three" in text  # 미관측 사건 안내
     assert "95% CI" in text
+
+
+def test_report_shows_policy_label_when_pref_used() -> None:
+    """pref(무작위 정책, D20)를 쓰는 모델은 'Pmax 아님' 정책 라벨을 노출한다."""
+    rs = load_rule_file(FIXTURES / "policy_choice.rule")
+    report = simulate(rs, samples=500, horizon=10, seed=1)
+    assert report.uses_policy is True
+    text = format_sim_report(report)
+    assert "최적(Pmax) 아님" in text
+    assert "정책(pref)" in text
+
+
+def test_report_omits_policy_label_without_pref() -> None:
+    """pref 없는 순수 DTMC 모델은 정책 라벨을 띄우지 않는다(오해 방지·기존 출력 불변)."""
+    rs = load_rule_file(FIXTURES / "arena.rule")
+    report = simulate(rs, samples=500, horizon=20, seed=1)
+    assert report.uses_policy is False
+    assert "최적(Pmax) 아님" not in format_sim_report(report)
+
+
+def test_dungeon_policy_example_runs_with_policy() -> None:
+    """examples/dungeon_policy.rule(pref 정책 시연)이 로드·검증·표집되고 정책 라벨을 단다."""
+    rs = load_rule_file(EXAMPLES / "dungeon_policy.rule")
+    validate(rs)
+    report = simulate(rs, samples=500, horizon=20, seed=1)
+    assert report.uses_policy is True
+    results = _by_id(report.configs[0])
+    # 욕심 정책: 전멸(died) 위험이 실재하고(>0), 보물 분포가 산출된다.
+    died = results["died"]
+    assert isinstance(died, ProportionResult)
+    assert died.successes > 0
+    assert isinstance(results["final_gold"], DistributionResult)
+    assert "최적(Pmax) 아님" in format_sim_report(report)

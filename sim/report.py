@@ -16,12 +16,17 @@ from sim.aggregate import (
 from sim.engine import RunResult
 
 _LABEL = "⚠️ 증명 아님 · 표집 추정(Monte Carlo) — 정확값 보장 아님, 신뢰구간으로 읽으세요."
+_POLICY_LABEL = (
+    "📐 주어진 정책(pref) 하의 추정 — 최적(Pmax) 아님. 이 값은 *이 정책*의 결과이며 "
+    "Pmax의 하한입니다(정책이 우연히 최적일 때만 일치)."
+)
 
 
 def format_sim_report(report: SimReport) -> str:
-    lines: list[str] = [
-        "Monte Carlo 추정 결과 (sim)",
-        _LABEL,
+    lines: list[str] = ["Monte Carlo 추정 결과 (sim)", _LABEL]
+    if report.uses_policy:
+        lines.append(_POLICY_LABEL)
+    lines += [
         f"표본 N={report.samples} · 지평 H={report.horizon} · seed={report.seed}",
         "",
     ]

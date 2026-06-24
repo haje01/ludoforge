@@ -161,3 +161,26 @@ real·고차원 스케일 우위 실증. 계획·근거는 [PLAN.md](PLAN.md)·[
   옛 경로에서 생성돼 깨져 있었음 — 둘 다 해소. 역사 문서(decisions/PLAN/PROGRESS)는 본문
   보존+상단 노트. GitHub 저장소 개명에 맞춰 URL을 `haje01/ludoforge`로 갱신(README·
   build_slides). 검증: 147 통과, mypy/ruff clean, check/bmc/prob CLI 동작.
+- 2026-06-24: **5차 마일스톤(sim 선택 확률) Phase 1 완료** — decisions.md D20 비준·확정.
+  IR `Transition.pref: float | None = None`(플레이어 선택 상대 가중치, sim 전용·BMC/PRISM
+  무시. None=미선언 — opt-in 안전망 위해 "1.0 선언"과 구분), loader `_parse_pref`(생략 None·
+  음수/비수 거부·`for:`/`${expr}` 템플릿 타입 보존 호환), schema `_check_transition_prefs`
+  (IR 직접 구성 시 음수 방어). pref 테스트 6건. 전체 203 통과(기존 197 무변경 = 하위 호환),
+  ruff/format/mypy(strict) clean. 착수 중 D20 초안의 결정(1)"기본 1.0→균등"과 결정(3)"미선언
+  시 거부" 모순을 발견 — None=미선언으로 정정(균등은 같은 pref 명시로 얻음).
+- 2026-06-24: **Phase 2 완료(sim 엔진 선택 표집)** — `run_once`의 `len(enabled)>1` 분기를
+  `_select_transition`으로 교체: enabled 1개면 rng 미소비(기존 DTMC 재현성·비트 동일 보존),
+  2개+면 모든 전이 `pref` 보유 시 enabled끼리 정규화해 표집(2단 표집: 정책→outcome), 미선언
+  혼재 시 `DtmcViolation`, 합 0이면 SimError. 골든 픽스처 policy_choice.rule(pref 0.3/0.7) →
+  도달 분포 0.3 수렴(n=4000, |Δ|<0.03) + 재현성 + 혼재/합0/기존 nondet 거부, 테스트 5건.
+  엔진 docstring D19→D20 갱신. 전체 207 통과, ruff/format/mypy clean. **리포트 라벨·예제는
+  Phase 3.**
+- 2026-06-24: **Phase 3 완료(리포트 정책 라벨 & 예제)** — `sim/engine.py uses_policy(ruleset)`
+  (pref 선언 여부) + `SimReport.uses_policy`(runner·aggregate 두 생성 지점에서 채움), report에
+  조건부 정책 라벨("주어진 정책(pref) 하의 추정 — 최적(Pmax) 아님 …하한"). 선택 없는 순수
+  DTMC엔 미노출(오해 방지). 예제 `examples/dungeon_policy.rule`(던전 MDP+정책: 욕심 fight vs
+  안전 leave를 pref 0.6/0.4로 가른 2단 표집 시연; sim은 보물 분포·전멸 위험 추정, bmc/prism은
+  pref 무시). CLAUDE.md §4.1(pref 문법·예시·dialect)·concepts.md §9.4.1(무작위 정책)·
+  examples/README·test_corpus 기대표 갱신. 테스트 3건(정책 라벨 노출/미노출/예제 동작).
+  전체 211 통과, ruff/format/mypy clean. **5차 마일스톤 Phase 1~3 완료(핵심 기능 완성),
+  Phase 4(민감도 sweep·PRISM 유도-DTMC 교차검증)는 선택.**

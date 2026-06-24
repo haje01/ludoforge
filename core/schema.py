@@ -46,6 +46,7 @@ def validate(ruleset: RuleSet) -> None:
     errors.extend(_check_duplicate_expect_ids(ruleset))
     errors.extend(_check_duplicate_ids("transition", [t.id for t in ruleset.transitions]))
     errors.extend(_check_duplicate_ids("check", [c.id for c in ruleset.checks]))
+    errors.extend(_check_transition_prefs(ruleset))
     errors.extend(_check_references(ruleset))
 
     if errors:
@@ -78,6 +79,18 @@ def check_finite_state(ruleset: RuleSet) -> None:
         raise SchemaError(
             "확률 백엔드(유한 상태) 검증 실패:\n" + "\n".join(f"- {e}" for e in errors)
         )
+
+
+def _check_transition_prefs(ruleset: RuleSet) -> list[str]:
+    """전이 선호도(pref, D20)는 음수일 수 없다 — IR 직접 구성 시의 방어적 검증.
+
+    로더는 파싱 시 이미 거부하나, IR을 코드로 만들면 우회되므로 여기서도 막는다.
+    """
+    return [
+        f"전이 '{t.id}': pref는 음수일 수 없습니다 (현재 {t.pref})"
+        for t in ruleset.transitions
+        if t.pref is not None and t.pref < 0
+    ]
 
 
 def _check_variable_bounds(ruleset: RuleSet) -> list[str]:

@@ -415,6 +415,7 @@ def _parse_transition(item: Any, index: int, path: Path) -> Transition:
         when=_parse_opt_str(item.get("when"), tid, "when", path),
         desc=_parse_opt_str(item.get("desc"), tid, "desc", path),
         source=path.name,
+        pref=_parse_pref(item.get("pref"), tid, path),
     )
 
 
@@ -431,6 +432,21 @@ def _parse_outcomes(outcomes: Any, tid: str, path: Path) -> tuple[Outcome, ...]:
         weight = _parse_weight(item.get("weight"), tid, i, path)
         parsed.append(Outcome(then=then, weight=weight))
     return tuple(parsed)
+
+
+def _parse_pref(value: Any, tid: str, path: Path) -> float | None:
+    """전이 선호도(플레이어 정책, D20). 생략 시 None(미선언). 음수는 거부.
+
+    `outcomes.weight`와 달리 sim 전용으로 enabled 전이끼리 정규화된다(BMC/PRISM은 무시).
+    None은 미선언 — co-enabled 집합에 섞이면 sim이 거부한다(opt-in 안전망). 합 검증은 표집 몫.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise LoaderError(f"{path}: 전이 '{tid}'의 pref는 실수여야 합니다: {value!r}")
+    if value < 0:
+        raise LoaderError(f"{path}: 전이 '{tid}'의 pref는 음수일 수 없습니다: {value}")
+    return float(value)
 
 
 def _parse_weight(value: Any, tid: str, index: int, path: Path) -> float:

@@ -5,12 +5,13 @@ BMC(D15)와 같은 골격을 공유하되 해석만 다르다:
 
 - **프레임 = 미변경 유지(D15):** outcome이 `next.X`로 건드리지 않은 변수는 다음 상태에서
   값이 유지된다(`apply_outcome`가 현재 상태를 복사 후 touched 변수만 덮어쓴다).
-- **DTMC만 허용(D19):** 도달 상태마다 가드(`when`) 참인 전이가 **최대 1개**여야 한다.
-  enabled가 2개 이상이면 확률이 스케줄러 선택에 의존해 의미가 모호하므로 `DtmcViolation`으로
-  **명시적 거부**한다(그 비결정은 BMC `ludoforge bmc`·PRISM-mdp `ludoforge prob` 몫). D15의
-  weight-erasure(가중치 버리고 비결정 허용)와 정확히 대칭의 반대 — sim은 *가중치를 살리고
-  비결정을 막는다*.
-- **가중치는 살린다:** 단일 전이의 outcome들을 weight로 표집한다(합이 1이 아니면 정규화).
+- **비결정 해소(D19→D20):** 도달 상태에 enabled 전이가 2개 이상이면, 모든 전이가 `pref`
+  (플레이어 선호도)를 **명시한 경우에만** enabled끼리 정규화해 무작위 정책으로 표집한다
+  (D20). 하나라도 미선언(None)이 섞이면 의도치 않은 가드 중첩으로 보고 `DtmcViolation`으로
+  **명시적 거부**한다(그 비결정은 BMC `ludoforge bmc`·PRISM-mdp `ludoforge prob` 몫). enabled가
+  1개면 선택이 없어 rng를 소비하지 않는다(기존 DTMC 모델의 재현성·비트 동일 보존).
+- **2단 표집:** ① enabled 전이를 `pref`로 골라(정책) → ② 그 전이의 outcome을 weight로
+  표집한다(환경 우연, 합이 1이 아니면 정규화). weight는 D12 의미, `pref`는 D20 의미로 구분.
 
 표현식은 `ast.parse(mode="eval")` 후 화이트리스트 노드만 **파이썬 값으로 평가**한다 — Z3
 번역(translator)·PRISM 렌더(prism_gen)와 달리 *평가기*이지만 `eval`은 절대 쓰지 않는다(§7).
@@ -142,6 +143,15 @@ def evaluate(node: ast.AST, env: dict[str, Any]) -> Any:
 
 
 # ---------- 전이 시스템 인터프리터 ----------
+
+
+def uses_policy(ruleset: RuleSet) -> bool:
+    """모델이 무작위 정책(`pref`)으로 플레이어 선택을 해소하는가(D20).
+
+    전이 하나라도 `pref`를 명시했으면 True — 리포트가 "주어진 정책 하의 추정 · Pmax 아님"
+    라벨을 조건부로 띄울지 판단하는 신호다(선택 없는 순수 DTMC엔 정책 개념이 없다).
+    """
+    return any(t.pref is not None for t in ruleset.transitions)
 
 
 def enum_constants(ruleset: RuleSet) -> dict[str, Any]:
@@ -319,9 +329,7 @@ def run_once(
         enabled = enabled_transitions(ruleset, state, constants)
         if not enabled:
             return RunResult(tuple(states), tuple(actions), terminated=True, truncated=False)
-        if len(enabled) > 1:
-            raise _dtmc_violation(state, enabled)
-        t = enabled[0]
+        t = _select_transition(enabled, state, rng)
         if _is_absorbing(t, state, constants):
             # 흡수 상태(모든 outcome이 상태를 유지) — 더 펼쳐도 stutter뿐이라 자연 종료로 본다.
             return RunResult(tuple(states), tuple(actions), terminated=True, truncated=False)
@@ -391,6 +399,32 @@ def _next_assignment(node: ast.expr) -> tuple[str, ast.expr]:
 def _is_absorbing(t: Transition, state: State, constants: dict[str, Any]) -> bool:
     """전이 t가 상태 s에서 흡수(모든 outcome이 s를 그대로 둠)인가 — fixpoint 종료 판정."""
     return all(apply_outcome(oc.then, state, constants) == state for oc in t.outcomes)
+
+
+def _select_transition(enabled: list[Transition], state: State, rng: SupportsRandom) -> Transition:
+    """enabled 전이 중 하나를 고른다(무작위 정책, D20).
+
+    - enabled 1개: 그 전이(선택 없음 → **rng 미소비**로 기존 DTMC 모델의 재현성·비트 동일 유지).
+    - enabled 2개 이상: 모든 전이가 `pref`를 명시했으면 enabled끼리 정규화해 표집하고,
+      하나라도 미선언(None)이 섞이면 의도치 않은 가드 중첩으로 보고 `DtmcViolation` 거부
+      (명시적 opt-in 안전망). `pref` 합이 0이면 정규화 불가로 SimError.
+    """
+    if len(enabled) == 1:
+        return enabled[0]
+    prefs = [t.pref for t in enabled]
+    if any(p is None for p in prefs):
+        raise _dtmc_violation(state, enabled)
+    total = sum(p for p in prefs if p is not None)
+    if total <= 0:
+        ids = ", ".join(t.id for t in enabled)
+        raise SimError(f"선택 집합 {{{ids}}}의 pref 합이 0입니다 — 정규화할 수 없습니다.")
+    threshold = rng.random() * total
+    acc = 0.0
+    for t, p in zip(enabled, prefs, strict=True):
+        acc += p if p is not None else 0.0
+        if threshold < acc:
+            return t
+    return enabled[-1]  # 부동소수 오차 안전망
 
 
 def _sample_outcome(t: Transition, rng: SupportsRandom) -> str:
