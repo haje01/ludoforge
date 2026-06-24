@@ -24,9 +24,9 @@
 - **사람이 읽는 리포트**: 어떤 룰이 충돌하는지, 어떤 입력에서 깨지는지 한국어로 출력.
 - **[전이 시스템](docs/concepts.md#82-전이-시스템--상태가-변하는-모델) 검사(BMC)**: 턴·이동·누적이 있는 동역학을 `transitions`로 기술하고,
   [도달성](docs/concepts.md#그래서--도달-가능성reachability-검사)·[불변식](docs/concepts.md#84-논리-백엔드의-bmc--논리로-동역학-검증-d15)·[데드락](docs/concepts.md#84-논리-백엔드의-bmc--논리로-동역학-검증-d15)을 k 스텝 BMC로 검증 — 반례 경로를 함께 제시(`ludoforge bmc`).
-- **정량 추정(Monte Carlo, sim)**: 같은 전이 시스템을 표집 시뮬레이션해 승리 확률·기대
-  게임 길이·직업별 분포를 *추정*(`ludoforge sim`). 신뢰구간·미관측 사건의 rule-of-three
-  상한·절단 비율을 정직하게 보고(증명 아님). DTMC만 지원하고, real·고차원·큰 범위 모델도
+- **정량 추정([Monte Carlo](docs/concepts.md#93-새-용어-사전), sim)**: 같은 전이 시스템을 표집 시뮬레이션해 승리 확률·기대
+  게임 길이·직업별 분포를 *[추정](docs/concepts.md#9-4차-확장--정량-추정-증명에서-추정으로-sim-d19)*(`ludoforge sim`). 신뢰구간·미관측 사건의 rule-of-three
+  상한·절단 비율을 정직하게 보고(증명 아님). [DTMC만](docs/concepts.md#94-왜-dtmc만-받나) 지원하고, real·고차원·큰 범위 모델도
   상태폭발 없이 다룬다. 병렬(`--workers`)이며 결과는 워커 수와 무관하게 재현된다(D19).
 - **확률 증명 오라클(PRISM)**: 소형 유한 모델을 PRISM 확률 모델로 번역해 승리 확률 등
   [PCTL](docs/concepts.md#88-pctl-구문-기초) 속성을 *정확히* 계산(`ludoforge prob`) — sim 추정의 교차검증 오라클이다.
@@ -200,10 +200,11 @@ wizard도 각각 이길 길이 있음을 확인한다(클래스 건전성).
 ### 정량 추정 (Monte Carlo · sim)
 
 BMC로는 못 보는 *정량* 질문(승리 확률, 기대 게임 길이, 직업별 분포)을 **표집
-시뮬레이션**으로 추정한다. 망라적 증명(PRISM)은 상태폭발에 막히지만, sim은 상태공간을
+시뮬레이션**으로 추정한다. 망라적 증명(PRISM)은 [상태폭발](docs/concepts.md#상태-폭발-state-explosion)에 막히지만, sim은 상태공간을
 빌드하지 않고 표집만 하므로 **real·고차원·큰 범위** 모델도 다룬다. 증명이 아니라 추정이라
 **신뢰구간**과 함께 보고하고, 한 번도 관측되지 않은 사건은 "불가능"이라 하지 않고
-**rule-of-three 상한**으로 보고한다(존재 증명은 `bmc` 몫).
+**rule-of-three 상한**으로 보고한다(존재 증명은 `bmc` 몫). 배경·용어는
+[개념 문서 §9](docs/concepts.md#9-4차-확장--정량-추정-증명에서-추정으로-sim-d19) 참고.
 
 ```bash
 ludoforge sim examples/dungeon_sim.rule -n 20000 -w 4   # 직업별 승률 추정(+신뢰구간)
