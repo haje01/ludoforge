@@ -25,7 +25,6 @@ from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
-from pptx.oxml.ns import qn
 from pptx.util import Emu, Inches, Pt
 
 # ── 디자인 토큰 (GitHub Dark 계열 개발자 톤) ──────────────────────────────
@@ -125,7 +124,7 @@ def _space_after(para, pt: float):
 
 
 # ── 슬라이드 골격 ────────────────────────────────────────────────────────
-def new_slide(prs) -> "Slide":  # noqa: F821
+def new_slide(prs):
     slide = prs.slides.add_slide(prs.slide_layouts[6])  # 빈 레이아웃
     bg = slide.background
     bg.fill.solid()
@@ -165,9 +164,7 @@ def add_title(slide, title: str, kicker: str | None = None):
     for r in p.runs:
         r.font.bold = True
     # 하단 구분선
-    line = slide.shapes.add_shape(
-        MSO_SHAPE.RECTANGLE, MARGIN_X, Inches(1.48), CONTENT_W, Pt(1.2)
-    )
+    line = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, MARGIN_X, Inches(1.48), CONTENT_W, Pt(1.2))
     _solid(line, BORDER)
 
 
@@ -210,9 +207,7 @@ def render_note(slide, text, y, color=BLUE, width=None):
     h = Inches(0.62)
     bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, MARGIN_X, y, Inches(0.07), h)
     _solid(bar, color)
-    box, tf = _add_box(
-        slide, MARGIN_X + Inches(0.25), y, width - Inches(0.25), h
-    )
+    box, tf = _add_box(slide, MARGIN_X + Inches(0.25), y, width - Inches(0.25), h)
     tf.vertical_anchor = MSO_ANCHOR.MIDDLE
     p = tf.paragraphs[0]
     _set_para_runs(p, text, 17, TEXT)
@@ -277,9 +272,7 @@ def render_code(slide, lines, lang, y, label=None, width=None):
     line_h = Inches(0.275)
     body_h = line_h * len(lines)
     panel_h = body_h + pad * 2
-    panel = slide.shapes.add_shape(
-        MSO_SHAPE.ROUNDED_RECTANGLE, MARGIN_X, y, width, panel_h
-    )
+    panel = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, MARGIN_X, y, width, panel_h)
     panel.adjustments[0] = 0.04
     panel.fill.solid()
     panel.fill.fore_color.rgb = PANEL
@@ -287,9 +280,7 @@ def render_code(slide, lines, lang, y, label=None, width=None):
     panel.line.width = Pt(1)
     panel.shadow.inherit = False
 
-    box, tf = _add_box(
-        slide, MARGIN_X + pad, y + pad, width - pad * 2, body_h
-    )
+    box, tf = _add_box(slide, MARGIN_X + pad, y + pad, width - pad * 2, body_h)
     for i, ln in enumerate(lines):
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
         p.line_spacing = 1.0
@@ -366,12 +357,12 @@ def build_title_slide(prs):
 
     p2 = tf.add_paragraph()
     r2 = p2.add_run()
-    r2.text = "MMORPG 룰 정합성 검증기"
+    r2.text = "게임 기획 검증 툴킷"
     r2.font.name, r2.font.size, r2.font.color.rgb = FONT, Pt(26), BLUE
     _space_after(p2, 22)
 
     p3 = tf.add_paragraph()
-    _set_para_runs(p3, "기획 룰의 **논리적 모순을 결정론적으로 증명**하는 도구", 20, TEXT)
+    _set_para_runs(p3, "기획 룰을 **논리는 증명**, **정량은 추정**으로 검증하는 도구", 20, TEXT)
     _space_after(p3, 4)
 
     # 강조 막대
@@ -392,173 +383,360 @@ SLIDES = [
     {
         "title": "왜 이런 툴이 필요한가",
         "blocks": [
-            ("bullets", [
-                ("기획자가 여럿이면, 각자 **합리적으로** 쓴 룰이 함께 두면 모순된다:", 0),
-                ("기획자 A — \"전사 최대 HP = 레벨 × 100\"", 1),
-                ("기획자 B — \"모든 캐릭터 HP는 5000을 넘지 않는다\"", 1),
-                ("기획자 C — \"레벨 상한은 100\"", 1),
-            ]),
-            ("note", "레벨 51 전사는 HP 5100이어야 하는데 상한 5000과 충돌 → 존재할 수 없는 상태가 조용히 생긴다", RED),
-            ("bullets", [
-                ("룰이 수백 개면 사람 눈으로 모든 조합을 검토하는 건 **불가능**하다.", 0),
-            ]),
+            (
+                "bullets",
+                [
+                    ("기획자가 여럿이면, 각자 **합리적으로** 쓴 룰이 함께 두면 모순된다:", 0),
+                    ('기획자 A — "전사 최대 HP = 레벨 × 100"', 1),
+                    ('기획자 B — "모든 캐릭터 HP는 5000을 넘지 않는다"', 1),
+                    ('기획자 C — "레벨 상한은 100"', 1),
+                ],
+            ),
+            (
+                "note",
+                "레벨 51 전사는 HP 5100이어야 하는데 상한 5000과 충돌 → "
+                "존재할 수 없는 상태가 조용히 생긴다",
+                RED,
+            ),
+            (
+                "bullets",
+                [
+                    ("룰이 수백 개면 사람 눈으로 모든 조합을 검토하는 건 **불가능**하다.", 0),
+                ],
+            ),
         ],
     },
     {
         "title": "기존 방식 vs Ludoforge",
         "blocks": [
-            ("table", ["방식", "모순 발견"], [
-                ["사람 리뷰", "놓치기 쉬움 (조합 폭발)"],
-                ["시뮬레이션", "우연히 그 상태를 만나야 발견"],
-                ["Ludoforge", "모순의 존재 자체를 증명 (반례 없이도)"],
-            ]),
-            ("note", "핵심 원칙: 판정은 사람·LLM이 아니라 **Z3(SMT solver)** 가 한다 — 결정론이라 \"거짓 일관성\"을 환각하지 않는다", BLUE),
+            (
+                "table",
+                ["방식", "모순 발견"],
+                [
+                    ["사람 리뷰", "놓치기 쉬움 (조합 폭발)"],
+                    ["시뮬레이션", "우연히 그 상태를 만나야 발견"],
+                    ["Ludoforge", "모순의 존재 자체를 증명 (반례 없이도)"],
+                ],
+            ),
+            (
+                "note",
+                "핵심 원칙: 판정은 사람·LLM이 아니라 **Z3(SMT solver)** 가 한다 — "
+                '결정론이라 "거짓 일관성"을 환각하지 않는다',
+                BLUE,
+            ),
         ],
     },
     {
         "title": "DSL과 Z3",
         "kicker": "알아둘 개념 (1)",
         "blocks": [
-            ("bullets", [
-                ("**DSL** — 게임 룰을 산문 대신 **기계가 검증할 수 있는 구조**(YAML)로 작성.", 0),
-                ("형식화하는 행위 자체가 숨은 가정을 드러낸다.", 2),
-                ("**SMT solver / Z3** — `x + y <= 10 ∧ x > 3` 같은 산술 논리식을 푸는 도구.", 0),
-                ("답은 셋 중 하나:", 2),
-                ("**sat** — 모든 제약을 만족하는 값이 존재 (예시 값을 줌)", 1),
-                ("**unsat** — 어떤 값으로도 전부 만족 불가 = **모순**", 1),
-                ("**unknown** — 시간초과/이론적 한계로 판단 못 함 (숨기지 않고 따로 보고)", 1),
-            ]),
+            (
+                "bullets",
+                [
+                    (
+                        "**DSL** — 게임 룰을 산문 대신 **기계가 검증할 수 있는 구조**(YAML)로 작성.",
+                        0,
+                    ),
+                    ("형식화하는 행위 자체가 숨은 가정을 드러낸다.", 2),
+                    (
+                        "**SMT solver / Z3** — `x + y <= 10 ∧ x > 3` 같은 산술 논리식을 푸는 도구.",
+                        0,
+                    ),
+                    ("답은 셋 중 하나:", 2),
+                    ("**sat** — 모든 제약을 만족하는 값이 존재 (예시 값을 줌)", 1),
+                    ("**unsat** — 어떤 값으로도 전부 만족 불가 = **모순**", 1),
+                    ("**unknown** — 시간초과/이론적 한계로 판단 못 함 (숨기지 않고 따로 보고)", 1),
+                ],
+            ),
         ],
     },
     {
         "title": "범인 룰과 도달성",
         "kicker": "알아둘 개념 (2)",
         "blocks": [
-            ("bullets", [
-                ("**unsat core (범인 룰)** — unsat일 때 Z3가 **모순을 일으킨 최소 룰 집합**을 돌려준다.", 0),
-                ("\"이 룰들이 서로 싸운다\"를 정확히 짚는다.", 2),
-                ("**핵심 통찰** — 룰을 그냥 다 모아 unsat을 물으면 **모순을 놓친다.**", 0),
-                ("Z3가 role=mage처럼 모순을 피해 가는 값을 골라버리기 때문.", 2),
-                ("**도달성 검사** — \"기획자가 합법이라 여기는 상태(레벨 100 전사)를 룰들이 봉쇄하는가?\"", 0),
-                ("봉쇄되면 모순.", 2),
-            ]),
+            (
+                "bullets",
+                [
+                    (
+                        "**unsat core (범인 룰)** — unsat일 때 Z3가 "
+                        "**모순을 일으킨 최소 룰 집합**을 돌려준다.",
+                        0,
+                    ),
+                    ('"이 룰들이 서로 싸운다"를 정확히 짚는다.', 2),
+                    ("**핵심 통찰** — 룰을 그냥 다 모아 unsat을 물으면 **모순을 놓친다.**", 0),
+                    ("Z3가 role=mage처럼 모순을 피해 가는 값을 골라버리기 때문.", 2),
+                    (
+                        '**도달성 검사** — "합법이라 여기는 상태(레벨 100 전사)를 '
+                        '룰들이 봉쇄하는가?"',
+                        0,
+                    ),
+                    ("봉쇄되면 모순.", 2),
+                ],
+            ),
         ],
     },
     {
         "title": "설치 — 준비물은 uv 하나",
         "blocks": [
-            ("code", "bash", None, [
-                "# 1) uv 설치 (Python은 uv가 자동으로 받아온다)",
-                "#    https://docs.astral.sh/uv/getting-started/installation/",
-                "",
-                "# 2) Ludoforge 설치",
-                "uv tool install git+https://github.com/haje01/ludoforge.git",
-                "",
-                "# 3) 어디서나 사용",
-                "ludoforge check <룰 폴더>",
-            ]),
+            (
+                "code",
+                "bash",
+                None,
+                [
+                    "# 1) uv 설치 (Python은 uv가 자동으로 받아온다)",
+                    "#    https://docs.astral.sh/uv/getting-started/installation/",
+                    "",
+                    "# 2) Ludoforge 설치",
+                    "uv tool install git+https://github.com/haje01/ludoforge.git",
+                    "",
+                    "# 3) 어디서나 사용",
+                    "ludoforge check <룰 폴더>",
+                ],
+            ),
             ("note", "Windows 비개발자도 위 3단계면 끝 — 별도 Python 설치 불필요", GREEN),
         ],
     },
     {
         "title": "DSL 구조 — domain + constraints",
         "blocks": [
-            ("code", "yaml", None, [
-                "domain:                       # ① 변수와 그 범위 선언",
-                "  variables:",
-                "    level: { type: int,  min: 1, max: 100 }",
-                "    hp:    { type: int,  min: 0 }",
-                "    role:  { type: enum, values: [warrior, mage, archer] }",
-                "",
-                "constraints:                  # ② 지켜야 할 제약",
-                "  - id: warrior_hp_formula",
-                "    when: \"role == warrior\"   # 조건 → Implies(when, then)",
-                "    then: \"hp == level * 100\"",
-                "  - id: global_hp_cap",
-                "    then: \"hp <= 5000\"",
-            ]),
+            (
+                "code",
+                "yaml",
+                None,
+                [
+                    "domain:                       # ① 변수와 그 범위 선언",
+                    "  variables:",
+                    "    level: { type: int,  min: 1, max: 100 }",
+                    "    hp:    { type: int,  min: 0 }",
+                    "    role:  { type: enum, values: [warrior, mage, archer] }",
+                    "",
+                    "constraints:                  # ② 지켜야 할 제약",
+                    "  - id: warrior_hp_formula",
+                    '    when: "role == warrior"   # 조건 → Implies(when, then)',
+                    '    then: "hp == level * 100"',
+                    "  - id: global_hp_cap",
+                    '    then: "hp <= 5000"',
+                ],
+            ),
             ("note", "각 룰은 `id`로 추적되어, 모순 시 어떤 룰이 범인인지 짚을 수 있다", BLUE),
         ],
     },
     {
         "title": "검증 사례 — 모순을 짚어낸다",
         "blocks": [
-            ("code", "bash", None, [
-                "$ ludoforge check warrior.rule",
-            ]),
-            ("code", "text", None, [
-                "❌ 모순 1건이 발견되었습니다.",
-                "",
-                "[1] role=warrior일 때 'level'은(는) 최대 50까지만",
-                "    도달 가능합니다 (선언 max=100).",
-                "    → 범인 룰: global_hp_cap, warrior_hp_formula",
-            ]),
-            ("note", "어떤 조건에서 / 무엇이 봉쇄됐고 / 누가 범인인지 한국어로 보고 · 모순이면 종료코드 1 → CI에서 PR마다 자동 차단", GREEN),
+            (
+                "code",
+                "bash",
+                None,
+                [
+                    "$ ludoforge check warrior.rule",
+                ],
+            ),
+            (
+                "code",
+                "text",
+                None,
+                [
+                    "❌ 모순 1건이 발견되었습니다.",
+                    "",
+                    "[1] role=warrior일 때 'level'은(는) 최대 50까지만",
+                    "    도달 가능합니다 (선언 max=100).",
+                    "    → 범인 룰: global_hp_cap, warrior_hp_formula",
+                ],
+            ),
+            (
+                "note",
+                "어떤 조건에서 / 무엇이 봉쇄됐고 / 누가 범인인지 한국어로 보고 · "
+                "모순이면 종료코드 1 → CI에서 PR마다 자동 차단",
+                GREEN,
+            ),
         ],
     },
     {
         "title": "팀 협업 — domain과 constraints 분리",
         "blocks": [
-            ("bullets", [
-                ("공유 도메인 1개 + 기획자별 제약 파일. 디렉토리째 검사하면 병합된다.", 0),
-            ]),
-            ("code", "text", None, [
-                "rules/",
-                "  _domain.rule     # 공유: 변수 정의만",
-                "  planner_a.rule   # 기획자 A: 전사 HP 공식 (constraints만)",
-                "  planner_b.rule   # 기획자 B: HP 상한 (constraints만)",
-            ]),
-            ("note", "각 파일은 정상이어도, 합쳤을 때 생기는 **파일 간 모순**까지 잡아낸다 (import 불필요 · 변수 충돌은 오류로 보고)", BLUE),
+            (
+                "bullets",
+                [
+                    ("공유 도메인 1개 + 기획자별 제약 파일. 디렉토리째 검사하면 병합된다.", 0),
+                ],
+            ),
+            (
+                "code",
+                "text",
+                None,
+                [
+                    "rules/",
+                    "  _domain.rule     # 공유: 변수 정의만",
+                    "  planner_a.rule   # 기획자 A: 전사 HP 공식 (constraints만)",
+                    "  planner_b.rule   # 기획자 B: HP 상한 (constraints만)",
+                ],
+            ),
+            (
+                "note",
+                "각 파일은 정상이어도, 합쳤을 때 생기는 **파일 간 모순**까지 잡아낸다 "
+                "(import 불필요 · 변수 충돌은 오류로 보고)",
+                BLUE,
+            ),
         ],
     },
     {
         "title": "표현력 확장 — 2차",
         "kicker": "더 많은 룰을 형식화",
         "blocks": [
-            ("bullets", [
-                ("**불리언 상태 · 상호 배제** — `not (stealthed and attacking)`. 봉쇄된 상태를 찾는다. (D6)", 0),
-                ("**확률 · 실수(LRA)** — `type: real`로 \"확률 합 = 1\"을 직접. `1/3`은 정확한 유리수. (D7)", 0),
-                ("**enum 타입 안전(EnumSort)** — 서로 다른 enum이 같은 값 이름을 써도 안전. (D8)", 0),
-                ("**실수 끝점 도달성** — \"[0,1]로 선언했는데 룰이 0.5로 막음\" 류 봉쇄를 잡는다. (D9)", 0),
-                ("**명시적 도달성 단언 `expect:`** — \"두 스탯 동시 최대\"처럼 조합 도달성을 직접 검증. (D10)", 0),
-            ]),
-            ("note", "도달성 검사가 정수 → 불리언 · 실수 · 변수 조합으로 확장됐다 — 핵심 원리(Z3 · unsat core)는 그대로", BLUE),
+            (
+                "bullets",
+                [
+                    (
+                        "**불리언 상태 · 상호 배제** — `not (stealthed and attacking)`. "
+                        "봉쇄된 상태를 찾는다. (D6)",
+                        0,
+                    ),
+                    (
+                        '**확률 · 실수(LRA)** — `type: real`로 "확률 합 = 1"을 직접. '
+                        "`1/3`은 정확한 유리수. (D7)",
+                        0,
+                    ),
+                    (
+                        "**enum 타입 안전(EnumSort)** — 다른 enum이 같은 값 이름을 써도 안전. (D8)",
+                        0,
+                    ),
+                    (
+                        '**실수 끝점 도달성** — "[0,1]로 선언했는데 룰이 0.5로 막음" 류 '
+                        "봉쇄를 잡는다. (D9)",
+                        0,
+                    ),
+                    (
+                        '**명시적 도달성 단언 `expect:`** — "두 스탯 동시 최대"처럼 '
+                        "조합 도달성을 직접 검증. (D10)",
+                        0,
+                    ),
+                ],
+            ),
+            (
+                "note",
+                "도달성 검사가 정수 → 불리언 · 실수 · 변수 조합으로 확장됐다 — "
+                "핵심 원리(Z3 · unsat core)는 그대로",
+                BLUE,
+            ),
         ],
     },
     {
         "title": "예제 — enum · 불리언 · expect 함께",
         "kicker": "한 룰셋에서 같이 쓰기",
         "blocks": [
-            ("code", "yaml", None, [
-                "domain:",
-                "  variables:",
-                "    role:      { type: enum, values: [rogue, mage] }   # enum",
-                "    stealthed: { type: bool }                          # 불리언 상태",
-                "    attacking: { type: bool }",
-                "constraints:",
-                "  - id: stealth_mutex",
-                "    then: \"not (stealthed and attacking)\"     # 상호 배제",
-                "expects:                                       # 도달성 단언",
-                "  - id: rogue_ambush",
-                "    that: \"role == rogue and stealthed and attacking\"",
-            ]),
-            ("code", "text", None, [
-                "❌ 모순 1건이 발견되었습니다.",
-                "[1] 기대 'rogue_ambush'가 충족되지 않습니다(도달 불가).",
-                "    → 범인 룰: stealth_mutex",
-            ]),
+            (
+                "code",
+                "yaml",
+                None,
+                [
+                    "domain:",
+                    "  variables:",
+                    "    role:      { type: enum, values: [rogue, mage] }   # enum",
+                    "    stealthed: { type: bool }                          # 불리언 상태",
+                    "    attacking: { type: bool }",
+                    "constraints:",
+                    "  - id: stealth_mutex",
+                    '    then: "not (stealthed and attacking)"     # 상호 배제',
+                    "expects:                                       # 도달성 단언",
+                    "  - id: rogue_ambush",
+                    '    that: "role == rogue and stealthed and attacking"',
+                ],
+            ),
+            (
+                "code",
+                "text",
+                None,
+                [
+                    "❌ 모순 1건이 발견되었습니다.",
+                    "[1] 기대 'rogue_ambush'가 충족되지 않습니다(도달 불가).",
+                    "    → 범인 룰: stealth_mutex",
+                ],
+            ),
+        ],
+    },
+    {
+        "title": "동역학과 다중 백엔드 — 3차",
+        "kicker": "시간과 확률을 더하다",
+        "blocks": [
+            (
+                "bullets",
+                [
+                    ("정적 스냅샷을 넘어 **턴·이동·누적이 있는 동역학**을 검사한다.", 0),
+                    ("`init` / `transitions`(가드·확률 분기·`next.X`) / `checks`를 DSL에 추가.", 2),
+                    (
+                        "**모델은 하나, 백엔드는 둘** — 시간과 확률은 다른 수학이라 "
+                        "엔진을 나눈다. (D11)",
+                        0,
+                    ),
+                    (
+                        "**논리 백엔드(Z3/BMC, `ludoforge bmc`)** — 도달성·불변식·데드락을 "
+                        "k 스텝 증명, 반례 경로 제시.",
+                        1,
+                    ),
+                    (
+                        "**확률 증명(PRISM, `ludoforge prob`)** — 승리 확률 등 PCTL을 "
+                        "정확히 계산(유한 상태). (D16)",
+                        1,
+                    ),
+                ],
+            ),
+            (
+                "note",
+                "보드게임 *던전!*(WotC)을 논리·확률 양쪽으로 검증한 게 동기 — "
+                "같은 `.rule` 한 벌에서.",
+                BLUE,
+            ),
+        ],
+    },
+    {
+        "title": "정량 추정 — Monte Carlo (sim) — 4차",
+        "kicker": "증명에서 추정으로 (D19)",
+        "blocks": [
+            (
+                "bullets",
+                [
+                    ("PRISM은 **상태 폭발**이 천장 — 정확한 확률이 필요한 곳이 곧 못 푸는 곳.", 0),
+                    ("정량 경로를 **표집 추정(Monte Carlo, `ludoforge sim`)** 으로 옮긴다.", 0),
+                    ("승률·기대 길이·분포를 **신뢰구간**과 함께 추정 (증명 아님).", 1),
+                    ("real·고차원·큰 범위도 상태폭발 없이 — 미관측 사건은 rule-of-three 상한.", 1),
+                    ("**PRISM은 교차검증 오라클** — 소형 모델에서 증명기가 추정기를 검정.", 0),
+                ],
+            ),
+            (
+                "note",
+                "존재·건전성은 *증명*(Z3/BMC), 정량 크기는 *추정*(sim) — "
+                "한 DSL에서 각자의 수학으로.",
+                GREEN,
+            ),
         ],
     },
     {
         "title": "한계 (현재)",
         "blocks": [
-            ("bullets", [
-                ("**선형 산술(LIA · LRA) 중심** — `level * 100`은 OK, 변수 × 변수(비선형)는 느리거나 판단 불가.", 0),
-                ("우회(상수화·구간분할)를 안내한다.", 2),
-                ("**비목표** — 밸런스의 \"재미\" 평가(시뮬레이션 영역), 런타임 서버 검증 아님.", 0),
-                ("기획 단계 정적 검증 도구다.", 2),
-                ("**아직(후속)** — 실수 범위 정밀 분석(Optimize), 경계 검사 확장, CI PR 코멘트 연동.", 0),
-            ]),
+            (
+                "bullets",
+                [
+                    (
+                        "**선형 산술(LIA·LRA) 중심** — `level*100`은 OK, "
+                        "변수 × 변수(비선형)는 느리거나 판단 불가(우회 안내).",
+                        0,
+                    ),
+                    (
+                        "**비목표** — 밸런스 *재미* 평가, 런타임 서버 검증은 아니다(기획 단계 도구).",
+                        0,
+                    ),
+                    (
+                        "단, 밸런스 *튜닝*(승률·분포)은 4차에서 sim **추정**의 목표로 들어왔다. (D19)",
+                        2,
+                    ),
+                    (
+                        "**아직(후속)** — 실수 범위 정밀 분석(Optimize), "
+                        "DTMC 정적 사전 검사, CI PR 코멘트 연동.",
+                        0,
+                    ),
+                ],
+            ),
         ],
     },
 ]

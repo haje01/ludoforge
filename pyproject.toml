@@ -36,6 +36,12 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+# 슬라이드 생성 스크립트는 한글 콘텐츠 데이터가 많다. ruff-format은 줄 길이를 문자 수로,
+# E501은 한글을 폭 2로 세어 둘이 CJK에서 어긋난다 — 줄 폭은 순전히 미관이라 E501만 면제하고
+# 구조는 ruff-format에 맡긴다.
+[tool.ruff.lint.per-file-ignores]
+"docs/build_slides.py" = ["E501"]
+
 [tool.mypy]
 python_version = "3.11"
 strict = true
