@@ -95,17 +95,21 @@ class Check:
 
     - `reachable`/`invariant`: `that`(현재 상태 술어)를 둔다. 논리 백엔드가 BMC로,
       확률 백엔드가 P>0 / P=1로 해석한다.
-    - `prob`: `spec`(PCTL 문자열)을 둔다 — **확률 백엔드 전용**, 논리 백엔드는 무시한다.
+    - `prob`: `spec`(PCTL 문자열)을 둔다 — **확률(PRISM) 백엔드 전용**, 그 외는 무시한다.
+    - `distribution`: `expr`(수치식)을 둔다 — **sim 백엔드 전용**(D19). 표집 종료 상태에서
+      `expr` 값을 모아 평균·신뢰구간·백분위·히스토그램으로 *추정*한다(증명 아님).
     - `no_deadlock`: 추가 필드 없음.
 
     모델은 공유하되 질의 dialect는 백엔드별이다(D11) — `spec`은 Python 식이 아니라
-    PCTL이라 forge-core는 구문 검사하지 않는다(PRISM이 해석).
+    PCTL이라 forge-core는 구문 검사하지 않는다(PRISM이 해석). `expr`는 Python 식이라
+    참조 무결성을 검사한다(`next.*` 불가 — 현재 상태 식이다).
     """
 
     id: str
     kind: str
     that: str | None = None
     spec: str | None = None
+    expr: str | None = None  # distribution 전용 수치식(sim 백엔드, D19)
     desc: str | None = None
     source: str | None = None
 

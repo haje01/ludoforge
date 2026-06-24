@@ -298,8 +298,8 @@ class _Bmc:
         results: list[PropertyResult] = []
         skipped: list[str] = []
         for c in self.rs.checks:
-            if c.kind == "prob":
-                skipped.append(c.id)
+            if c.kind in ("prob", "distribution"):
+                skipped.append(c.id)  # prob=PRISM 전용, distribution=sim 전용(D19)
                 continue
             if c.kind == "reachable":
                 outcome = self._check_reachable(c.that or "")
@@ -385,7 +385,8 @@ def format_bmc_report(report: BmcReport) -> str:
     if report.skipped_prob:
         lines.append("")
         lines.append(
-            "ℹ️ prob 속성은 확률(PRISM) 백엔드 전용이라 건너뜀: " + ", ".join(report.skipped_prob)
+            "ℹ️ 다른 백엔드 전용 검사라 건너뜀(prob=PRISM, distribution=sim): "
+            + ", ".join(report.skipped_prob)
         )
     return "\n".join(lines)
 

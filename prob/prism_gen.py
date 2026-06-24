@@ -145,6 +145,8 @@ def _properties(ruleset: RuleSet) -> tuple[PrismProperty, ...]:
     for c in ruleset.checks:
         if c.kind == "no_deadlock":
             continue  # PRISM이 데드락을 자동 탐지 — 별도 prop 미생성(리포트에서 안내).
+        if c.kind == "distribution":
+            continue  # distribution은 sim 백엔드 전용(D19) — PRISM은 분포를 다루지 않음.
         if c.kind == "reachable":
             pctl = f"Pmax=? [ F ({_render(_parse(c.that or ''))}) ]"
         elif c.kind == "invariant":

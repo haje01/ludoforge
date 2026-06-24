@@ -18,8 +18,9 @@ import yaml
 from core.ir import Check, Constraint, Expect, Outcome, RuleSet, Transition, Variable
 
 _VALID_TYPES = ("int", "enum", "bool", "real")
-# 검사(check) kind별 필요 필드(D12). reachable/invariant는 `that`, prob는 `spec`(PCTL).
-_CHECK_KINDS = ("reachable", "invariant", "prob", "no_deadlock")
+# 검사(check) kind별 필요 필드(D12·D19). reachable/invariant는 `that`, prob는 `spec`(PCTL),
+# distribution은 `expr`(수치식, sim 백엔드 전용).
+_CHECK_KINDS = ("reachable", "invariant", "prob", "no_deadlock", "distribution")
 # 템플릿 치환 토큰 `${expr}` — expr는 파라미터/테이블 색인식(Tier 1/2 확장, D18).
 _TEMPLATE_TOKEN = re.compile(r"\$\{([^}]+)\}")
 
@@ -467,20 +468,26 @@ def _parse_check(item: Any, index: int, path: Path) -> Check:
 
     that = _parse_opt_str(item.get("that"), cid, "that", path)
     spec = _parse_opt_str(item.get("spec"), cid, "spec", path)
+    expr = _parse_opt_str(item.get("expr"), cid, "expr", path)
 
-    # kind별 필요 필드 강제(D12): reachable/invariant는 that, prob는 spec.
+    # kind별 필요 필드 강제(D12·D19): reachable/invariant는 that, prob는 spec, distribution은 expr.
     if kind in ("reachable", "invariant") and not that:
         raise LoaderError(
             f"{path}: 검사 '{cid}'(kind={kind})에 문자열 'that'(상태 술어)이 필요합니다."
         )
     if kind == "prob" and not spec:
         raise LoaderError(f"{path}: 검사 '{cid}'(kind=prob)에 문자열 'spec'(PCTL)이 필요합니다.")
+    if kind == "distribution" and not expr:
+        raise LoaderError(
+            f"{path}: 검사 '{cid}'(kind=distribution)에 문자열 'expr'(수치식)이 필요합니다."
+        )
 
     return Check(
         id=cid,
         kind=kind,
         that=that,
         spec=spec,
+        expr=expr,
         desc=_parse_opt_str(item.get("desc"), cid, "desc", path),
         source=path.name,
     )

@@ -162,6 +162,11 @@ def _check_references(ruleset: RuleSet) -> list[str]:
             errors.extend(
                 _check_expr_references(f"검사 '{c.id}'", "that", c.that, known, known_vars)
             )
+        if c.kind == "distribution" and c.expr is not None:
+            # distribution expr은 현재 상태 수치식(sim 전용, D19) — next.*는 불가.
+            errors.extend(
+                _check_expr_references(f"검사 '{c.id}'", "expr", c.expr, known, known_vars)
+            )
     return errors
 
 
