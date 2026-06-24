@@ -1,0 +1,20 @@
+# 비결정(MDP) 픽스처(sim Phase 1) — init부터 두 전이(a·b)의 가드가 동시에 참이라
+# sim의 DTMC 게이트(D19)가 거부해야 한다. 이런 비결정은 BMC·PRISM-mdp가 다룬다.
+domain:
+  variables:
+    x: { type: int, min: 0, max: 5 }
+
+init: "x == 0"
+
+transitions:
+  - id: a
+    when: "x >= 0"
+    then: "next.x == x + 1"
+  - id: b
+    when: "x >= 0"
+    then: "next.x == x + 2"
+
+checks:
+  - id: reach
+    kind: reachable
+    that: "x >= 3"

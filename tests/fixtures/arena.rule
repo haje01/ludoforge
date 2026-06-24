@@ -1,0 +1,51 @@
+# DTMC 클래스밸런스 픽스처(sim Phase 2) — 직업별 승률을 sweep으로 추정.
+#
+# role을 init에서 고정하지 않아 sim의 sweep(D19)이 직업별로 분리해 표집한다. 검투장에서
+# 3라운드를 모두 이기면 승리(won), 한 번이라도 지면 사망(dead). 라운드 승률은 직업별로 다름
+# (fighter 강·rogue 약·wizard 중간) → 승률 = win^3 이 직업마다 갈린다(클래스 밸런스).
+#
+# DTMC 불변: fighting & progress<3 이면 role이 가리키는 fight_<cls> 하나만 enabled
+# (다른 fight_*는 role 불일치, reach_goal은 progress>=3 불일치). progress>=3이면 reach_goal만.
+# won/dead는 흡수. → 도달 상태마다 enabled 전이 정확히 1개.
+domain:
+  variables:
+    progress: { type: int, min: 0, max: 3 }
+    status:   { type: enum, values: [fighting, won, dead] }
+    role:     { type: enum, values: [fighter, rogue, wizard] }
+
+tables:
+  win:  { fighter: 0.9, rogue: 0.6, wizard: 0.75 }   # 라운드 승률(직업별)
+  loss: { fighter: 0.1, rogue: 0.4, wizard: 0.25 }   # 1 - win (산술식 보류, D18 → 표에 명시)
+
+init: "progress == 0 and status == fighting"          # role 자유 → sweep
+
+transitions:
+  - id: "fight_${cls}"
+    for: { cls: [fighter, rogue, wizard] }
+    when: "role == ${cls} and status == fighting and progress < 3"
+    outcomes:
+      - { weight: "${win[cls]}",  then: "next.progress == progress + 1" }
+      - { weight: "${loss[cls]}", then: "next.status == dead" }
+  - id: reach_goal
+    when: "status == fighting and progress >= 3"
+    then: "next.status == won"
+  - id: won_absorb
+    when: "status == won"
+    then: "next.status == won"
+  - id: dead_absorb
+    when: "status == dead"
+    then: "next.status == dead"
+
+checks:
+  - id: survives
+    kind: reachable
+    desc: "3라운드를 모두 이겨 승리할 수 있는가(직업별 승률 비교)"
+    that: "status == won"
+  - id: final_progress
+    kind: distribution
+    desc: "도달한 라운드 수의 분포(0~3)"
+    expr: "progress"
+  - id: impossible_round
+    kind: reachable
+    desc: "4라운드는 존재하지 않음 — 0/N rule-of-three 시연"
+    that: "progress >= 4"
