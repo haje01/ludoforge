@@ -1,0 +1,12 @@
+// 아이템 기획 모순 (enum 도달 불가): 이 존에서 unique 등급은 절대 안 나온다.
+// 검사: ludoforge check examples/starter_zone_drops.lf  (모순 1건, 종료코드 1)
+domain {
+    item_level: int 1..40
+    tier:       enum { normal, magic, rare, unique }
+}
+
+constraint unique_requires_high_level:
+    author "planner_item"
+    desc "unique 등급은 아이템 레벨 50 이상에서만 등장"
+    when tier == unique
+    then item_level >= 50

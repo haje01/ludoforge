@@ -1,0 +1,15 @@
+// 명시적 도달성 단언이 충족되지 않는 모순 (D10 — expect)
+// 검사: ludoforge check examples/stat_budget.lf  (모순 1건, 종료코드 1)
+domain {
+    atk:     int 1..100
+    defense: int 1..100
+}
+
+constraint stat_budget:
+    author "planner_balance"
+    desc "공격+방어 합은 120을 넘지 못한다(스탯 예산)"
+    then atk + defense <= 120
+
+expect max_both_stats:
+    desc "공격과 방어를 동시에 최대(100)로 찍을 수 있어야 한다"
+    atk == 100 and defense == 100

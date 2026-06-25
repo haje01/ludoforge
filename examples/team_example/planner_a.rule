@@ -1,7 +1,0 @@
-# 기획자 A: 전사 HP 공식 (rules만 담는다).
-constraints:
-  - id: warrior_hp_formula
-    author: planner_A
-    desc: "전사 최대 HP는 레벨당 100"
-    when: "role == warrior"
-    then: "hp == level * 100"

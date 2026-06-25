@@ -1,0 +1,45 @@
+// 던전!(정책판) — sim 무작위 정책(pref, D20) 시연: "욕심 vs 안전"을 정책으로 가른다.
+// 게임 규칙(MDP)과 플레이어 전략(pref)이 분리된다 — pref만 바꿔 다른 전략으로 돌릴 수 있다.
+// 검사:
+//   ludoforge sim examples/dungeon_policy.lf    # 정책 라벨 + banked/died/보물 분포 추정
+//   (BMC/PRISM은 pref를 무시 → fight/leave를 비결정으로 본다, D20)
+domain {
+    gold:  int 0..12
+    phase: enum { dungeon, home, dead }
+}
+
+init: gold == 0 and phase == dungeon
+
+// ── 정책 선택(pref): 던전에서 "한 번 더 싸운다" vs "귀환한다" ──
+// 둘 다 enabled → sim이 pref(0.6 : 0.4)로 표집. gold<=10 가드는 보상(+2)이 상한(12)을
+// 넘지 않게 하고, gold==12에선 fight가 막혀 leave만 남는다(선택 없음 → 자동 귀환).
+transition fight:
+    desc "욕심: 보상을 노리고 한 번 더 — 드물게 사망(보물 전부 상실)"
+    when phase == dungeon and gold <= 10
+    pref 0.6
+    outcomes:
+        0.85 -> gold' = gold + 2                  // 승리 +2
+        0.15 -> { gold' = 0; phase' = dead }      // 사망
+transition leave:
+    desc "안전: 지금까지 모은 보물을 들고 귀환"
+    when phase == dungeon
+    pref 0.4
+    then phase' = home
+
+// ── 흡수 상태(자연 종료) ──
+transition home_absorb:
+    when phase == home
+    then phase' = home
+transition dead_absorb:
+    when phase == dead
+    then phase' = dead
+
+check banked_6
+    desc "귀환해 6 이상 보물을 지킬 수 있는가(욕심 정책의 성공)"
+    reachable: phase == home and gold >= 6
+check died
+    desc "욕심내다 전멸할 수도 있다(위험이 실재하는지)"
+    reachable: phase == dead
+check final_gold
+    desc "종료 시 확보한 보물 분포 — 정책의 욕심도(pref)에 따라 달라진다"
+    distribution: gold

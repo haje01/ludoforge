@@ -1,0 +1,84 @@
+// 던전!(DTMC판) — sim 백엔드용 전략 해소 모델(D19). 플레이어 선택을 가드에 인코딩해
+// 결정적으로 만든다 → 도달 상태마다 enabled 전이 1개(DTMC). 같은 모델을 PRISM에 넣으면
+// Pmax=Pmin=정확값이라 sim 추정을 교차검증한다.
+// 검사: ludoforge sim examples/dungeon_sim.lf        # 직업별 승률 추정(+신뢰구간)
+//
+// 주의: loop 변수는 도메인 변수 `monster`와의 충돌을 피해 `mon`으로 쓴다.
+domain {
+    gold:     int 0..12
+    win_gold: int 0..8        // role로부터 constraints 파생
+    room:     enum { hall, l1 }
+    monster:  enum { none, goblin, dragon }
+    role:     enum { fighter, rogue, wizard }
+    status:   enum { exploring, won, dead }
+}
+
+// 클래스별 목표 보물액(게임 내내 불변)
+constraint fighter_target: when role == fighter then win_gold == 6
+constraint rogue_target:   when role == rogue   then win_gold == 4
+constraint wizard_target:  when role == wizard  then win_gold == 8
+
+// 클래스×몬스터 전투 프로필(합=1.0)
+table reward { goblin: 2, dragon: 4 }
+table cap    { goblin: 10, dragon: 8 }
+table win {
+    goblin: { fighter: 0.9, rogue: 0.7, wizard: 0.8 }
+    dragon: { fighter: 0.6, rogue: 0.2, wizard: 0.7 }
+}
+table miss {
+    goblin: { fighter: 0.09, rogue: 0.28, wizard: 0.19 }
+    dragon: { fighter: 0.35, rogue: 0.7,  wizard: 0.28 }
+}
+table death {
+    goblin: { fighter: 0.01, rogue: 0.02, wizard: 0.01 }
+    dragon: { fighter: 0.05, rogue: 0.1,  wizard: 0.02 }
+}
+
+init: gold == 0 and room == hall and monster == none and status == exploring
+
+// ── 중앙(hall): 목표 미달이면 1층으로, 달성이면 승리 선언(상호 배타) ──
+transition enter_l1:
+    when room == hall and status == exploring and monster == none and gold < win_gold
+    then room' = l1
+transition claim_victory:
+    when room == hall and status == exploring and monster == none and gold >= win_gold
+    then status' = won
+
+// ── 1층(몬스터 없음): 목표 미달이면 조우, 달성이면 귀환(상호 배타) ──
+transition encounter:
+    when room == l1 and status == exploring and monster == none and gold < win_gold
+    outcomes:
+        0.6 -> monster' = goblin
+        0.4 -> monster' = dragon
+transition return_to_hall:
+    when room == l1 and status == exploring and monster == none and gold >= win_gold
+    then room' = hall
+
+// ── 전투: 클래스×몬스터 곱으로 펼침. 승=보물+귀소속, 실패=무소득 재시도, 사망=종료 ──
+for mon in [goblin, dragon], cls in [fighter, rogue, wizard]:
+    transition "fight_${mon}_${cls}":
+        when role == cls and monster == mon and status == exploring and gold <= cap[mon]
+        outcomes:
+            win[mon][cls]   -> { gold' = gold + reward[mon]; monster' = none }
+            miss[mon][cls]  -> monster' = none
+            death[mon][cls] -> { status' = dead; monster' = none }
+
+// ── 흡수 상태(sim은 자연 종료로 감지) ──
+transition won_absorb:  when status == won  then status' = won
+transition dead_absorb: when status == dead then status' = dead
+
+check winnable
+    desc "승리에 도달 가능(직업별 승률 = sim 추정 ↔ PRISM 정확값 교차검증 대상)"
+    reachable: status == won
+check death_possible
+    desc "사망도 가능 — 전투에 실제 위험이 있는지"
+    reachable: status == dead
+check final_gold
+    desc "종료 시 보물 분포(sim 전용)"
+    distribution: gold
+check gold_nonneg
+    desc "보물은 음수가 되지 않는다"
+    invariant: gold >= 0
+check sound_victory
+    desc "목표액 미달로는 승리할 수 없다"
+    invariant: status != won or gold >= win_gold

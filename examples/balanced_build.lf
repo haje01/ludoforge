@@ -1,0 +1,15 @@
+// 도달성 단언이 '충족되는' 정합 예제 (D10 — expect)
+// 검사: ludoforge check examples/balanced_build.lf  (모순 없음, 종료코드 0)
+domain {
+    atk:     int 1..100
+    defense: int 1..100
+}
+
+constraint stat_budget:
+    author "planner_balance"
+    desc "공격+방어 합은 120을 넘지 못한다(스탯 예산)"
+    then atk + defense <= 120
+
+expect balanced_build:
+    desc "공격40·방어40 균형 빌드가 가능해야 한다"
+    atk == 40 and defense == 40

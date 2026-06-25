@@ -9,6 +9,7 @@ dependencies = [
     "pyyaml>=6.0",
     "typer>=0.12",
     "numpy>=1.26,<2.2",  # 2.2+ 스텁은 PEP695 type 문법 → mypy(target 3.11) 파싱 실패
+    "lark>=1.1",  # 외부 DSL(자체 문법) 파서 — D21·6차 마일스톤
 ]
 
 [project.scripts]

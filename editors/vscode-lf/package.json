@@ -1,0 +1,26 @@
+{
+  "name": "ludoforge-lf",
+  "displayName": "Ludoforge DSL (.lf)",
+  "description": "Ludoforge 자체 문법(.lf) 구문 강조 — D21 외부 DSL",
+  "version": "0.1.0",
+  "publisher": "ludoforge",
+  "engines": { "vscode": "^1.60.0" },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "lf",
+        "aliases": ["Ludoforge DSL", "lf"],
+        "extensions": [".lf"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "lf",
+        "scopeName": "source.lf",
+        "path": "./syntaxes/lf.tmLanguage.json"
+      }
+    ]
+  }
+}

@@ -1,0 +1,38 @@
+// 연속(real)·다변수 시연(sim Phase 5, D19) — PRISM이 못 푸는 모델을 sim이 추정한다.
+// 검사:
+//   ludoforge sim  examples/market_sim.lf -n 20000 -w 4   # 자산 분포·도달성 추정
+//   ludoforge prob examples/market_sim.lf                 # → real 거부(유한상태 게이트)
+domain {
+    gold:   real 0..        // 연속 복리 자산 (PRISM 거부 사유)
+    silver: real 0..        // 둘째 연속 자산 (다변수 — 격자 폭발 기여)
+    round:  int 0..30
+    status: enum { trading, closed }
+}
+
+init: gold == 1.0 and silver == 1.0 and round == 0 and status == trading
+
+transition trade:
+    when status == trading and round < 30
+    outcomes:
+        0.5 -> { gold' = gold * 1.08; silver' = silver * 1.05; round' = round + 1 }  // 동반 상승
+        0.3 -> { gold' = gold * 0.97; silver' = silver * 1.02; round' = round + 1 }  // 금↓ 은↑
+        0.2 -> { gold' = gold * 1.01; silver' = silver * 0.95; round' = round + 1 }  // 금↑ 은↓
+transition close:
+    when status == trading and round >= 30
+    then status' = closed
+transition closed_absorb:
+    when status == closed
+    then status' = closed
+
+check gold_doubles
+    desc "금 자산을 2배로 불릴 수 있는가"
+    reachable: gold >= 2.0
+check portfolio_positive
+    desc "두 자산은 항상 양수다(곱셈 복리라 0 아래로 안 감)"
+    invariant: gold > 0 and silver > 0
+check final_gold
+    desc "마감 시 금 자산 분포(연속)"
+    distribution: gold
+check final_silver
+    desc "마감 시 은 자산 분포(연속)"
+    distribution: silver
