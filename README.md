@@ -295,9 +295,11 @@ rules/
 ### 에디터 구문 강조
 
 **자체 문법 `.lf`** — VS Code/Cursor용 TextMate 문법 확장이 저장소에 포함돼 있다:
-[`editors/vscode-lf/`](editors/vscode-lf/). 설치 방법은 그 폴더의 README 참고(심볼릭 링크
-또는 VSIX). 키워드·타입·연산자·다음상태 변수(`gold'`)·`//` 주석·`${...}` 보간을 강조한다.
-표준 TextMate 문법이라 Sublime·Notepad++ 등에도 이식 가능하다.
+[`editors/vscode-lf/`](editors/vscode-lf/). 설치는 `Ctrl+Shift+P` →
+**`Developer: Install Extension from Location...`** 로 그 폴더를 고른 뒤 창을 reload 하면 된다
+(WSL/Remote 포함 어디서나 동작 — 수동 복사는 Remote-WSL에서 무시되니 이 방법을 쓴다).
+키워드·타입·연산자·다음상태 변수(`gold'`)·`//` 주석·`${...}` 보간을 강조한다. 표준 TextMate
+문법이라 Sublime·Notepad++ 등에도 이식 가능하다(자세한 설치·대안은 폴더의 README 참고).
 
 아래는 **디프리케이트된 YAML `.rule`** 파일용 legacy 안내다. `.rule`은 YAML 형식이지만
 확장자가 `.yaml`이 아니라 에디터가 기본으로 구문 강조를 적용하지 않는다. `.rule`을
