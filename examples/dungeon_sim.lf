@@ -39,33 +39,33 @@ init: gold == 0 and room == hall and monster == none and status == exploring
 // ── 중앙(hall): 목표 미달이면 1층으로, 달성이면 승리 선언(상호 배타) ──
 transition enter_l1:
     when room == hall and status == exploring and monster == none and gold < win_gold
-    then room' = l1
+    then room = l1
 transition claim_victory:
     when room == hall and status == exploring and monster == none and gold >= win_gold
-    then status' = won
+    then status = won
 
 // ── 1층(몬스터 없음): 목표 미달이면 조우, 달성이면 귀환(상호 배타) ──
 transition encounter:
     when room == l1 and status == exploring and monster == none and gold < win_gold
     outcomes:
-        0.6 -> monster' = goblin
-        0.4 -> monster' = dragon
+        0.6 -> monster = goblin
+        0.4 -> monster = dragon
 transition return_to_hall:
     when room == l1 and status == exploring and monster == none and gold >= win_gold
-    then room' = hall
+    then room = hall
 
 // ── 전투: 클래스×몬스터 곱으로 펼침. 승=보물+귀소속, 실패=무소득 재시도, 사망=종료 ──
 for mon in [goblin, dragon], cls in [fighter, rogue, wizard]:
     transition "fight_${mon}_${cls}":
         when role == cls and monster == mon and status == exploring and gold <= cap[mon]
         outcomes:
-            win[mon][cls]   -> { gold' = gold + reward[mon]; monster' = none }
-            miss[mon][cls]  -> monster' = none
-            death[mon][cls] -> { status' = dead; monster' = none }
+            win[mon][cls]   -> { gold = gold + reward[mon]; monster = none }
+            miss[mon][cls]  -> monster = none
+            death[mon][cls] -> { status = dead; monster = none }
 
 // ── 흡수 상태(sim은 자연 종료로 감지) ──
-transition won_absorb:  when status == won  then status' = won
-transition dead_absorb: when status == dead then status' = dead
+transition won_absorb:  when status == won  then status = won
+transition dead_absorb: when status == dead then status = dead
 
 check winnable
     desc "승리에 도달 가능(직업별 승률 = sim 추정 ↔ PRISM 정확값 교차검증 대상)"

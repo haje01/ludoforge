@@ -47,52 +47,52 @@ init: gold == 0 and room == hall and monster == none and status == exploring
 transition enter_l1:
     desc "Great Hall에서 1층으로 진입"
     when room == hall and status == exploring and monster == none
-    then room' = l1
+    then room = l1
 transition enter_l2:
     when room == l1 and status == exploring and monster == none
-    then room' = l2
+    then room = l2
 transition enter_l3:
     when room == l2 and status == exploring and monster == none
-    then room' = l3
+    then room = l3
 transition return_to_hall:
     desc "어느 층에서든 중앙으로 귀환(이동 추상화)"
     when (room == l1 or room == l2 or room == l3) and status == exploring and monster == none
-    then room' = hall
+    then room = hall
 
 // ── 몬스터 조우 ── 층이 깊을수록 dragon 쪽으로.
 transition encounter_l1:
     desc "1층 조우 — 고블린만 나온다"
     when room == l1 and status == exploring and monster == none and gold <= 28
-    then monster' = goblin
+    then monster = goblin
 transition encounter_l2:
     desc "2층 조우 — 고블린/드래곤 반반"
     when room == l2 and status == exploring and monster == none and gold <= 20
     outcomes:
-        0.5 -> monster' = goblin
-        0.5 -> monster' = dragon
+        0.5 -> monster = goblin
+        0.5 -> monster = dragon
 transition encounter_l3:
     desc "3층 조우 — 드래곤만 나온다"
     when room == l3 and status == exploring and monster == none and gold <= 20
-    then monster' = dragon
+    then monster = dragon
 
 // ── 전투 ── 클래스×몬스터 곱(8개). 가중치는 위 표에서 색인 참조(D18).
 for mon in [goblin, dragon], cls in [fighter, cleric, rogue, wizard]:
     transition "fight_${mon}_${cls}":
         when role == cls and monster == mon and status == exploring and gold <= cap[mon]
         outcomes:
-            win[mon][cls]   -> { gold' = gold + reward[mon]; monster' = none }
-            miss[mon][cls]  -> monster' = none
-            death[mon][cls] -> { gold' = 0; room' = hall; status' = dead; monster' = none }
+            win[mon][cls]   -> { gold = gold + reward[mon]; monster = none }
+            miss[mon][cls]  -> monster = none
+            death[mon][cls] -> { gold = 0; room = hall; status = dead; monster = none }
 
 // ── 승리 ──
 transition claim_victory:
     desc "목표 보물액 달성 + 중앙 귀환 → 승리"
     when room == hall and gold >= win_gold and status == exploring
-    then status' = won
+    then status = won
 
 // ── 종료 상태 흡수 루프 ── (데드락 방지)
-transition won_absorb:  when status == won  then status' = won
-transition dead_absorb: when status == dead then status' = dead
+transition won_absorb:  when status == won  then status = won
+transition dead_absorb: when status == dead then status = dead
 
 check winnable
     desc "승리 상태에 도달 가능해야 한다(어떤 클래스로든 이길 길이 존재)"

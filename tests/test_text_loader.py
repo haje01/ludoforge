@@ -296,7 +296,7 @@ def test_transition_bare_then_is_assignment() -> None:
     domain { room: enum { hall, l1 } }
     transition descend:
         when room == hall
-        then room' = l1
+        then room = l1
     """
     rs = parse_rule_text(src)
     (t,) = rs.transitions
@@ -305,7 +305,7 @@ def test_transition_bare_then_is_assignment() -> None:
     assert t.pref is None
     assert len(t.outcomes) == 1
     assert t.outcomes[0].weight == 1.0
-    # `room' = l1` → 다음 상태 제약 `next.room == l1`로 lowering.
+    # `room = l1` → 다음 상태 제약 `next.room == l1`로 lowering.
     assert _expr_eq(t.outcomes[0].then, "next.room == l1")
 
 
@@ -315,8 +315,8 @@ def test_transition_outcomes_weights() -> None:
     transition fight:
         when room == l2
         outcomes:
-            0.7 -> gold' = gold + 500
-            0.3 -> gold' = gold
+            0.7 -> gold = gold + 500
+            0.3 -> gold = gold
     """
     rs = parse_rule_text(src)
     (t,) = rs.transitions
@@ -326,11 +326,11 @@ def test_transition_outcomes_weights() -> None:
 
 
 def test_transition_multi_assignment() -> None:
-    # `{ a' = ..; b' = .. }` 병렬 대입 → `and` 결합.
+    # `{ a = ..; b = .. }` 병렬 대입 → `and` 결합.
     src = """
     domain { gold: int 0..9  room: enum { hall }  status: enum { dead } }
     transition die:
-        then { gold' = 0; room' = hall; status' = dead }
+        then { gold = 0; room = hall; status = dead }
     """
     rs = parse_rule_text(src)
     (t,) = rs.transitions
@@ -346,7 +346,7 @@ def test_transition_pref() -> None:
     transition dive:
         when room == l2
         pref 0.3
-        then room' = l3
+        then room = l3
     """
     rs = parse_rule_text(src)
     (t,) = rs.transitions
@@ -354,22 +354,15 @@ def test_transition_pref() -> None:
 
 
 def test_effect_comparison_rejected() -> None:
-    # 효과 위치에서 `==`(비교)는 거부 — 효과는 대입(`=`)이어야 한다(D21).
-    src = "domain { room: enum { l1 } } transition t: then room' == l1"
+    # 효과 위치에서 `==`(비교)는 거부 — 효과는 대입(`=`)이어야 한다(D21·D22).
+    src = "domain { room: enum { l1 } } transition t: then room == l1"
     with pytest.raises(TextLoaderError):
         parse_rule_text(src)
 
 
-def test_effect_without_prime_rejected() -> None:
-    # 프라임 없는 LHS 대입은 거부 — 대입은 다음 상태(`var'`)에만(D21).
-    src = "domain { room: enum { l1 } } transition t: then room = l1"
-    with pytest.raises(TextLoaderError):
-        parse_rule_text(src)
-
-
-def test_rhs_prime_rejected() -> None:
-    # 우변은 현재 상태만 — 프라임 참조 불가.
-    src = "domain { gold: int 0..9 } transition t: then gold' = gold' + 1"
+def test_guard_assignment_rejected() -> None:
+    # 가드(`when`)에서 단독 `=`(대입)는 거부 — 술어는 `==`(같은 상태)여야 한다(D22).
+    src = "domain { room: enum { l1 } } transition t: when room = l1 then room = l1"
     with pytest.raises(TextLoaderError):
         parse_rule_text(src)
 
@@ -411,16 +404,16 @@ checks: []
     init: gold == 0 and room == hall and status == exploring
     transition enter_l1:
         when room == hall and status == exploring
-        then room' = l1
+        then room = l1
     transition fight:
         when room == l1 and status == exploring
         outcomes:
-            0.7 -> gold' = gold + 10
-            0.3 -> { status' = dead; gold' = 0 }
+            0.7 -> gold = gold + 10
+            0.3 -> { status = dead; gold = 0 }
     transition dive:
         when room == l1
         pref 0.3
-        then room' = l2
+        then room = l2
     """
     native_rs = parse_rule_text(native_src)
     _assert_ir_equiv(native_rs, yaml_rs)
@@ -517,7 +510,7 @@ def test_for_cartesian_product_order_and_id_interp() -> None:
     for mon in [goblin, dragon], cls in [fighter, rogue]:
         transition "fight_${mon}_${cls}":
             when role == cls and monster == mon
-            then gold' = gold
+            then gold = gold
     """
     rs = parse_rule_text(src)
     assert [t.id for t in rs.transitions] == [
@@ -543,7 +536,7 @@ def test_table_index_in_guard_weight_rhs() -> None:
         transition "fight_${mon}_${cls}":
             when monster == mon and gold <= cap[mon]
             outcomes:
-                win[mon][cls] -> gold' = gold + reward[mon]
+                win[mon][cls] -> gold = gold + reward[mon]
     """
     rs = parse_rule_text(src)
     t0 = rs.transitions[0]  # goblin/fighter
@@ -577,7 +570,7 @@ def test_undefined_table_rejected() -> None:
     for x in [a]:
         transition t:
             when gold <= cap[x]
-            then gold' = gold
+            then gold = gold
     """
     with pytest.raises(TextLoaderError):
         parse_rule_text(src)
@@ -589,7 +582,7 @@ def test_undefined_index_param_rejected() -> None:
     table reward { a: 1 }
     for x in [a]:
         transition t:
-            then gold' = gold + reward[y]
+            then gold = gold + reward[y]
     """
     with pytest.raises(TextLoaderError):
         parse_rule_text(src)
@@ -639,8 +632,8 @@ transitions:
         transition "fight_${mon}_${cls}":
             when role == cls and monster == mon and gold <= cap[mon]
             outcomes:
-                win[mon][cls] -> gold' = gold + reward[mon]
-                0.1 -> status' = dead
+                win[mon][cls] -> gold = gold + reward[mon]
+                0.1 -> status = dead
     """
     native_rs = parse_rule_text(native_src)
     _assert_ir_equiv(native_rs, yaml_rs)
@@ -666,7 +659,7 @@ def test_loop_var_domain_collision_rejected() -> None:
     domain { monster: enum { goblin, dragon } }
     for monster in [goblin, dragon]:
         transition t:
-            then monster' = monster
+            then monster = monster
     """
     with pytest.raises(TextLoaderError, match="도메인 변수와 이름이 같"):
         parse_rule_text(src)
@@ -721,7 +714,7 @@ def test_metadata_roundtrip() -> None:
         then hp == level * 100
     transition grow:
         desc "성장"
-        then hp' = hp + 1
+        then hp = hp + 1
     check reach desc "도달 가능" reachable: hp == 100
     expect ex: desc "조합 도달" role == warrior and level == 100
     """

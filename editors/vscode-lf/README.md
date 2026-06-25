@@ -2,7 +2,7 @@
 
 Ludoforge 자체 문법(`.lf`, D21 외부 DSL)용 TextMate 문법 + 언어 설정이다. 키워드(`domain`·
 `constraint`·`transition`·`for`·`table`·`check` 등), 타입(`int`/`real`/`bool`/`enum`), 논리
-연산자(`and`/`or`/`not`), 비교/대입(`==`/`=`/`->`), 다음 상태 변수(`gold'`), `//` 주석,
+연산자(`and`/`or`/`not`), 비교/대입(`==`/`=`/`->`), `//` 주석,
 문자열·`${...}` 보간, 수치를 강조한다.
 
 ## 설치 (VS Code · Cursor)

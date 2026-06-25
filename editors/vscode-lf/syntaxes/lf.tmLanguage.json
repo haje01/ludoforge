@@ -7,7 +7,6 @@
     { "include": "#strings" },
     { "include": "#keywords" },
     { "include": "#types" },
-    { "include": "#prime" },
     { "include": "#operators" },
     { "include": "#numbers" }
   ],
@@ -46,11 +45,6 @@
     "types": {
       "name": "storage.type.lf",
       "match": "\\b(int|real|bool|enum)\\b"
-    },
-    "prime": {
-      "comment": "다음 상태 변수 var' (전이 효과 대입 LHS)",
-      "name": "variable.other.next-state.lf",
-      "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*'"
     },
     "operators": {
       "patterns": [
