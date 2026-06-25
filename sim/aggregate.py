@@ -339,7 +339,7 @@ def simulate(ruleset: RuleSet, *, samples: int, horizon: int, seed: int) -> SimR
     configs = sweep_configs(ruleset, constants)
     sim_checks = select_sim_checks(ruleset)
     parsed = parse_check_exprs(sim_checks)
-    skipped = tuple(c.id for c in ruleset.checks if c.kind in ("prob", "no_deadlock"))
+    skipped = tuple(c.id for c in ruleset.checks if c.kind == "no_deadlock")
 
     results: list[ConfigResult] = []
     for ci, config in enumerate(configs):

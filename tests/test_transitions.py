@@ -77,10 +77,6 @@ def test_loads_dungeon_properties() -> None:
     assert by_id["winnable"].kind == "reachable"
     assert by_id["winnable"].that == "status == won"
     assert by_id["gold_nonneg"].kind == "invariant"
-    likely = by_id["best_win_prob"]
-    assert likely.kind == "prob"
-    assert likely.spec is not None and likely.spec.startswith("Pmax=?")
-    assert likely.that is None
 
 
 def test_transition_source_is_filename() -> None:
@@ -198,9 +194,10 @@ def test_reachable_property_requires_that(tmp_path: Path) -> None:
         load_rule_file(_write(tmp_path, body))
 
 
-def test_prob_property_requires_spec(tmp_path: Path) -> None:
-    body = _DOM + "checks:\n  - {id: p, kind: prob}\n"
-    with pytest.raises(LoaderError, match="spec"):
+def test_prob_kind_rejected(tmp_path: Path) -> None:
+    # PCTL `prob` check은 D23으로 제거 — kind가 잘못됨으로 거부(PRISM은 테스트 오라클만).
+    body = _DOM + 'checks:\n  - {id: p, kind: prob, spec: "Pmax=? [ F (g==0) ]"}\n'
+    with pytest.raises(LoaderError, match="kind"):
         load_rule_file(_write(tmp_path, body))
 
 

@@ -91,12 +91,11 @@ outcome: sum "->" update                 // weight는 상수/표 색인(desugar 
        | "{" assign (";" assign)* "}"    -> multi_update
 assign: NAME "=" sum                     // var = expr — then 문맥이 곧 다음 상태(D22)
 
-// ── checks(S4) — kind별 dialect 분리(prob=불투명 PCTL, distribution=sim 수치식) ──
+// ── checks(S4) — kind별 dialect 분리(distribution=sim 수치식) ──
 check_decl: "check" id meta* check_kind
 check_kind: "reachable" ":" pred    -> check_reachable
           | "invariant" ":" pred    -> check_invariant
           | "no_deadlock"           -> check_no_deadlock
-          | "prob" ":" STRING       -> check_prob
           | "distribution" ":" pred -> check_distribution
 
 // ── 표현식(술어=같은 상태, `==` 비교) ──
@@ -350,10 +349,6 @@ class _ToIR(lark.Transformer[lark.Token, RuleSet]):
 
     def check_no_deadlock(self, items: list[Any]) -> dict[str, Any]:
         return {"kind": "no_deadlock"}
-
-    def check_prob(self, items: list[lark.Token]) -> dict[str, Any]:
-        # PCTL은 불투명 — 따옴표만 벗기고 그대로 둔다(core는 구문 검사 안 함, D11).
-        return {"kind": "prob", "spec": str(items[0])[1:-1]}
 
     def check_distribution(self, items: list[str]) -> dict[str, Any]:
         return {"kind": "distribution", "expr": items[0]}

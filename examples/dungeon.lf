@@ -121,6 +121,3 @@ check sound_victory
 check no_stuck
     desc "막다른(후속 없는) 상태가 없어야 한다"
     no_deadlock
-check best_win_prob
-    desc "최적 전략의 승리 확률(확률 백엔드 전용; 초기 상태가 클래스별로 달라 범위로 보고)"
-    prob: "Pmax=? [ F (status=won) ]"

@@ -5,7 +5,8 @@
 - 정적 constraints + init = `init…endinit` 술어로 인코딩(프레임 불변 변수에 한해 건전).
 - 전이 = guarded command. 가중치 정규화(합=1), bare then은 결정적 명령.
 - outcome.then은 `next.X == 식`(And 결합) 배정형만 → PRISM 갱신 `(X'=식)`.
-- 속성: reachable→`Pmax=? [F that]`, invariant→`Pmin=? [G that]`, prob→spec 그대로.
+- 속성: reachable→`Pmax=? [F that]`, invariant→`Pmin=? [G that]`. (PCTL `prob`은 D23으로
+  사용자 표면에서 제거 — PRISM은 테스트 오라클이라 reachable→Pmax로 충분.)
 
 표현식은 ast로 파싱해 PRISM 식 문자열로 렌더한다(Python `and/or/not/==` → PRISM
 `&/|/!/=`). enum 값은 위 const라 이름 그대로 쓴다.
@@ -151,10 +152,6 @@ def _properties(ruleset: RuleSet) -> tuple[PrismProperty, ...]:
             pctl = f"Pmax=? [ F ({_render(_parse(c.that or ''))}) ]"
         elif c.kind == "invariant":
             pctl = f"Pmin=? [ G ({_render(_parse(c.that or ''))}) ]"
-        elif c.kind == "prob":
-            if not c.spec:
-                raise ProbError(f"검사 '{c.id}'(prob)에 spec(PCTL)이 없습니다.")
-            pctl = c.spec  # 확률 백엔드 전용 원문(D11)
         else:
             raise ProbError(f"검사 '{c.id}'의 알 수 없는 kind: '{c.kind}'")
         out.append(PrismProperty(prop_id=c.id, kind=c.kind, pctl=pctl, desc=c.desc))

@@ -60,7 +60,6 @@ def _assert_ir_equiv(native: RuleSet, yaml: RuleSet) -> None:
         assert nc.kind == yc.kind
         assert _expr_eq(nc.that, yc.that)  # reachable/invariant
         assert _expr_eq(nc.expr, yc.expr)  # distribution(sim 수치식)
-        assert nc.spec == yc.spec  # prob — PCTL은 불투명, 정확 문자열 비교
         assert nc.desc == yc.desc
 
 
@@ -419,7 +418,7 @@ checks: []
     _assert_ir_equiv(native_rs, yaml_rs)
 
 
-# ── S4: checks(reachable/invariant/no_deadlock/prob/distribution) ─────────────
+# ── S4: checks(reachable/invariant/no_deadlock/distribution) ─────────────
 
 
 def test_check_reachable() -> None:
@@ -427,7 +426,7 @@ def test_check_reachable() -> None:
     (c,) = rs.checks
     assert c.id == "winnable" and c.kind == "reachable"
     assert _expr_eq(c.that, "gold >= 10000")
-    assert c.spec is None and c.expr is None
+    assert c.expr is None
 
 
 def test_check_invariant() -> None:
@@ -441,18 +440,15 @@ def test_check_no_deadlock() -> None:
     rs = parse_rule_text("domain { g: int 0..9 } check no_stuck no_deadlock")
     (c,) = rs.checks
     assert c.kind == "no_deadlock"
-    assert c.that is None and c.spec is None and c.expr is None
+    assert c.that is None and c.expr is None
 
 
-def test_check_prob_is_opaque_string() -> None:
-    # PCTL은 core가 파싱하지 않는다 — 따옴표만 벗긴 문자열 그대로(D11 dialect 분리).
-    rs = parse_rule_text(
-        'domain { room: enum { center } } check likely prob: "Pmax=? [ F (room=center) ]"'
-    )
-    (c,) = rs.checks
-    assert c.kind == "prob"
-    assert c.spec == "Pmax=? [ F (room=center) ]"
-    assert c.that is None
+def test_check_prob_kind_rejected() -> None:
+    # PCTL `prob` check은 D23으로 제거 — `.lf` 문법에서 더는 받지 않는다(파싱 오류).
+    with pytest.raises(TextLoaderError):
+        parse_rule_text(
+            'domain { room: enum { center } } check likely prob: "Pmax=? [ F (room=center) ]"'
+        )
 
 
 def test_check_distribution_is_sim_expr() -> None:
@@ -460,7 +456,7 @@ def test_check_distribution_is_sim_expr() -> None:
     (c,) = rs.checks
     assert c.kind == "distribution"
     assert _expr_eq(c.expr, "gold")
-    assert c.that is None and c.spec is None
+    assert c.that is None
 
 
 def test_golden_equivalence_checks(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -474,7 +470,6 @@ checks:
   - { id: winnable,  kind: reachable, that: "gold >= 20 and room == center" }
   - { id: gold_ok,   kind: invariant, that: "gold >= 0" }
   - { id: no_stuck,  kind: no_deadlock }
-  - { id: likely,    kind: prob, spec: "Pmax=? [ F (room=center) ]" }
   - { id: gold_dist, kind: distribution, expr: "gold" }
 """
     yaml_file = tmp_path / "c.rule"
@@ -489,7 +484,6 @@ checks:
     check winnable  reachable: gold >= 20 and room == center
     check gold_ok   invariant: gold >= 0
     check no_stuck  no_deadlock
-    check likely    prob: "Pmax=? [ F (room=center) ]"
     check gold_dist distribution: gold
     """
     native_rs = parse_rule_text(native_src)

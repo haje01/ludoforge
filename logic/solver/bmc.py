@@ -77,7 +77,7 @@ class PropertyResult:
 class BmcReport:
     k: int
     results: tuple[PropertyResult, ...]
-    skipped_prob: tuple[str, ...]
+    skipped_other: tuple[str, ...]
 
     @property
     def has_violation(self) -> bool:
@@ -298,8 +298,8 @@ class _Bmc:
         results: list[PropertyResult] = []
         skipped: list[str] = []
         for c in self.rs.checks:
-            if c.kind in ("prob", "distribution"):
-                skipped.append(c.id)  # prob=PRISM 전용, distribution=sim 전용(D19)
+            if c.kind == "distribution":
+                skipped.append(c.id)  # distribution=sim 전용(D19)
                 continue
             if c.kind == "reachable":
                 outcome = self._check_reachable(c.that or "")
@@ -308,7 +308,7 @@ class _Bmc:
             else:  # no_deadlock
                 outcome = self._check_no_deadlock()
             results.append(_result(c.id, c.kind, c.desc, outcome))
-        return BmcReport(k=self.k, results=tuple(results), skipped_prob=tuple(skipped))
+        return BmcReport(k=self.k, results=tuple(results), skipped_other=tuple(skipped))
 
 
 # ---------- 헬퍼 ----------
@@ -376,17 +376,17 @@ def _result(
 def format_bmc_report(report: BmcReport) -> str:
     """BmcReport를 한국어 리포트로 변환한다(k-bound 정직성 명시, D15)."""
     lines: list[str] = [f"BMC 검사 (깊이 한계 k={report.k})", ""]
-    if not report.results and not report.skipped_prob:
+    if not report.results and not report.skipped_other:
         lines.append("검사할 항목(checks)이 없습니다.")
         return "\n".join(lines)
 
     for i, r in enumerate(report.results, start=1):
         lines.append(_format_result(i, r))
-    if report.skipped_prob:
+    if report.skipped_other:
         lines.append("")
         lines.append(
-            "ℹ️ 다른 백엔드 전용 검사라 건너뜀(prob=PRISM, distribution=sim): "
-            + ", ".join(report.skipped_prob)
+            "ℹ️ 다른 백엔드 전용 검사라 건너뜀(distribution=sim): "
+            + ", ".join(report.skipped_other)
         )
     return "\n".join(lines)
 

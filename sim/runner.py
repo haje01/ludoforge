@@ -59,7 +59,7 @@ def run_sim(
     constants = enum_constants(ruleset)
     configs = sweep_configs(ruleset, constants)
     sim_checks = select_sim_checks(ruleset)
-    skipped = tuple(c.id for c in ruleset.checks if c.kind in ("prob", "no_deadlock"))
+    skipped = tuple(c.id for c in ruleset.checks if c.kind == "no_deadlock")
 
     results: list[ConfigResult] = []
     for ci, config in enumerate(configs):

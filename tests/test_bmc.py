@@ -85,8 +85,6 @@ def test_dungeon_winnable_reachable() -> None:
     assert by["winnable"].status == "reachable"  # type: ignore[attr-defined]
     # 골드 비음수는 k까지 유지
     assert by["gold_nonneg"].status == "holds_up_to_k"  # type: ignore[attr-defined]
-    # prob 속성은 확률 백엔드 전용이라 건너뜀
-    assert "best_win_prob" in report.skipped_prob
 
 
 def test_dungeon_winning_trace_ends_at_hall_with_target_gold() -> None:

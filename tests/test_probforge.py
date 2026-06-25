@@ -73,8 +73,6 @@ def test_property_mapping() -> None:
     assert props["winnable"].pctl.startswith("Pmax=? [ F (")
     assert "status = won" in props["winnable"].pctl
     assert props["gold_nonneg"].pctl.startswith("Pmin=? [ G (")
-    # prob 속성은 spec 원문 그대로
-    assert props["best_win_prob"].pctl == "Pmax=? [ F (status=won) ]"
 
 
 def test_no_deadlock_property_skipped() -> None:
