@@ -1,0 +1,18 @@
+// 서로 다른 enum이 같은 값 이름을 쓰는 모순 (D8 — EnumSort + 문맥 해석)
+// 검사: ludoforge check examples/day_night_cycle.lf  (모순 발견, 종료코드 1)
+domain {
+    sky:      enum { day, night }
+    lighting: enum { day, night }
+}
+
+constraint night_sky_needs_dark:
+    author "planner_world"
+    desc "밤 하늘이면 조명도 밤"
+    when sky == night
+    then lighting == night
+
+constraint night_combat_forces_day:
+    author "planner_combat"
+    desc "밤 전투 가시성을 위해 조명을 낮으로 강제(상충 룰)"
+    when sky == night
+    then lighting == day

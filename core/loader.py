@@ -1,8 +1,12 @@
-"""로더: .rule(YAML) 파일을 IR(RuleSet)로 변환한다.
+"""로더: 룰 파일을 IR(RuleSet)로 변환한다. 두 프론트엔드를 확장자로 디스패치한다(D21).
 
-책임 경계: **구조적 파싱만** 한다 — YAML 형식, 필수 키 존재, 필드 타입.
-참조 무결성(미정의 심볼 참조, 중복 constraint id, 순환 의존)은 S3 스키마 검증의 몫이다.
-파싱 실패 시 어떤 파일/필드가 문제인지 명시한 LoaderError를 던진다(CLAUDE.md §7).
+- `.lf`  — 자체 문법(외부 DSL). `core/text_loader`가 파싱(권장).
+- `.rule`/`.yaml` — YAML(**디프리케이트**, D21). 하위 호환 유지·한시적.
+
+책임 경계: **구조적 파싱만** 한다 — 형식, 필수 키 존재, 필드 타입. 참조 무결성(미정의 심볼
+참조, 중복 id, 순환 의존)은 스키마 검증(`core/schema`)의 몫이다. 두 프론트엔드 모두 **같은
+IR**을 낸다 — 백엔드·결정론 경계는 IR이 불변이라 무회귀(D21). 파싱 실패 시 어떤 파일/필드가
+문제인지 명시한 LoaderError를 던진다(CLAUDE.md §7).
 """
 
 from __future__ import annotations
@@ -10,12 +14,28 @@ from __future__ import annotations
 import ast
 import itertools
 import re
+import warnings
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from core.ir import Check, Constraint, Expect, Outcome, RuleSet, Transition, Variable
+
+_warned_yaml = False
+
+
+def _warn_yaml_deprecated_once() -> None:
+    """YAML(.rule) 형식 사용 시 1회 디프리케이션 경고(D21 — 자체 문법 `.lf`로 이전)."""
+    global _warned_yaml
+    if not _warned_yaml:
+        _warned_yaml = True
+        warnings.warn(
+            "YAML(.rule) DSL은 디프리케이트되었습니다 — 자체 문법(.lf)으로 이전하세요(D21).",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+
 
 _VALID_TYPES = ("int", "enum", "bool", "real")
 # 검사(check) kind별 필요 필드(D12·D19). reachable/invariant는 `that`, prob는 `spec`(PCTL),
@@ -37,9 +57,9 @@ def load_rules(path: str | Path) -> RuleSet:
     """
     path = Path(path)
     if path.is_dir():
-        files = sorted(path.glob("*.rule"))
+        files = sorted([*path.glob("*.rule"), *path.glob("*.lf")])
         if not files:
-            raise LoaderError(f"디렉토리에 .rule 파일이 없습니다: {path}")
+            raise LoaderError(f"디렉토리에 .rule/.lf 파일이 없습니다: {path}")
         return _merge([load_rule_file(f) for f in files])
     return load_rule_file(path)
 
@@ -80,13 +100,25 @@ def _merge(rulesets: list[RuleSet]) -> RuleSet:
 
 
 def load_rule_file(path: str | Path) -> RuleSet:
-    """단일 .rule 파일을 읽어 RuleSet으로 변환한다."""
+    """단일 룰 파일을 읽어 RuleSet으로 변환한다. 확장자로 프론트엔드를 디스패치한다(D21).
+
+    `.lf`는 자체 문법(`core/text_loader`), 그 외(`.rule`/`.yaml`)는 YAML(디프리케이트).
+    """
     path = Path(path)
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError as e:
         raise LoaderError(f"룰 파일을 찾을 수 없습니다: {path}") from e
 
+    if path.suffix == ".lf":
+        from core.text_loader import TextLoaderError, parse_rule_text
+
+        try:
+            return parse_rule_text(text, source=path.name)  # 병합 시 범인 파일 추적(원칙4)
+        except TextLoaderError as e:
+            raise LoaderError(str(e)) from e
+
+    _warn_yaml_deprecated_once()  # YAML 경로 — D21로 디프리케이트
     try:
         raw = yaml.safe_load(text)
     except yaml.YAMLError as e:

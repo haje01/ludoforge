@@ -1,0 +1,22 @@
+// 실수 확률로 표현한 드롭 테이블 over-constraint (LRA, D7)
+// 검사: ludoforge check examples/drop_rates_real.lf  (모순 1건, 종료코드 1)
+domain {
+    common_rate: real 0..1
+    rare_rate:   real 0..1
+    epic_rate:   real 0..1
+}
+
+constraint rates_sum_to_one:
+    author "planner_loot"
+    desc "드롭 확률의 합은 1"
+    then common_rate + rare_rate + epic_rate == 1.0
+
+constraint common_dominant:
+    author "planner_loot"
+    desc "common 등급은 최소 0.9"
+    then common_rate >= 0.9
+
+constraint epic_minimum:
+    author "planner_reward"
+    desc "epic 등급도 최소 0.15"
+    then epic_rate >= 0.15

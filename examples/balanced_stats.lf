@@ -1,0 +1,18 @@
+// 정합 예제 (모순 없음): 공식과 상한, 도메인이 서로 맞아떨어진다.
+// 검사: ludoforge check examples/balanced_stats.lf  (모순 없음, 종료코드 0)
+domain {
+    level:  int 1..50
+    attack: int 1..500
+    role:   enum { warrior, mage }
+}
+
+constraint warrior_attack_formula:
+    author "planner_combat"
+    desc "전사 공격력은 레벨당 10"
+    when role == warrior
+    then attack == level * 10
+
+constraint global_attack_cap:
+    author "planner_balance"
+    desc "모든 공격력은 500을 넘지 않는다"
+    then attack <= 500

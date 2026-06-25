@@ -1,0 +1,22 @@
+// 루트 기획 모순 (전역 over-constraint): 드롭 확률이 100%를 넘긴다.
+// 검사: ludoforge check examples/loot_table.lf  (모순 1건, 종료코드 1)
+domain {
+    common_rate: int 0..100
+    rare_rate:   int 0..100
+    epic_rate:   int 0..100
+}
+
+constraint rates_sum_to_100:
+    author "planner_loot"
+    desc "드롭 확률의 합은 100%"
+    then common_rate + rare_rate + epic_rate == 100
+
+constraint common_dominant:
+    author "planner_loot"
+    desc "common 등급은 최소 90% 이상이어야 한다"
+    then common_rate >= 90
+
+constraint epic_minimum:
+    author "planner_reward"
+    desc "epic 등급도 최소 15%는 나와야 한다"
+    then epic_rate >= 15

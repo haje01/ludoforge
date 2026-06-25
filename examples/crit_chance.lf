@@ -1,0 +1,10 @@
+// 실수 확률의 선언 상한이 룰로 봉쇄되는 모순 (LRA, D9 — 끝점 도달성 검사)
+// 검사: ludoforge check examples/crit_chance.lf  (모순 1건, 종료코드 1)
+domain {
+    crit_chance: real 0..1
+}
+
+constraint diminishing_returns:
+    author "planner_combat"
+    desc "크리티컬 확률은 수확체감으로 0.5를 넘지 못한다"
+    then crit_chance <= 0.5

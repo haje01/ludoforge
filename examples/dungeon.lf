@@ -1,0 +1,126 @@
+// 던전!(WotC 2012판) 전이 시스템 예제 — 자체 문법(.lf) 판. 다중 백엔드 시연(BMC + PRISM).
+//
+// examples/dungeon.rule(YAML)의 자체 문법 이관본 — 같은 IR을 낸다(D21, 골든 등가로 고정).
+// 핵심 = "클래스 밸런스": 클래스(role) 4종, 강할수록 목표 보물액↑(rogue/cleric 10·fighter
+// 20·wizard 30). 클래스의존 전투(2d6 격파 목표값을 승률 weight로 환산), 몬스터 2종.
+//
+// 검사:
+//   ludoforge bmc  examples/dungeon.lf --k 12   # 논리: 클래스별 도달성·불변식·데드락
+//   ludoforge prob examples/dungeon.lf          # 확률: 클래스별 최적 승률(PRISM)
+//
+// 주의: loop 변수는 도메인 변수 `monster`와의 충돌을 피해 `mon`으로 쓴다(IR id·값 동일).
+
+domain {
+    gold:     int 0..30
+    win_gold: int 0..30
+    room:     enum { hall, l1, l2, l3 }
+    role:     enum { rogue, cleric, fighter, wizard }
+    monster:  enum { none, goblin, dragon }
+    status:   enum { exploring, won, dead }
+}
+
+// 클래스별 목표 보물액(2012판: rogue·cleric 10 / fighter 20 / wizard 30). 게임 내내 불변.
+constraint rogue_win_target:   when role == rogue   then win_gold == 10
+constraint cleric_win_target:  when role == cleric  then win_gold == 10
+constraint fighter_win_target: when role == fighter then win_gold == 20
+constraint wizard_win_target:  when role == wizard  then win_gold == 30
+
+// 전투 데이터 표(D18) — 클래스×몬스터 격파 프로필. 전투 전이가 색인 참조한다.
+table reward { goblin: 2, dragon: 10 }
+table cap    { goblin: 28, dragon: 20 }   // 보상+gold ≤ 30 보장
+table win {
+    goblin: { fighter: 0.92, cleric: 0.83, rogue: 0.72, wizard: 0.83 }
+    dragon: { fighter: 0.58, cleric: 0.28, rogue: 0.08, wizard: 0.72 }
+}
+table miss {
+    goblin: { fighter: 0.07, cleric: 0.16, rogue: 0.26, wizard: 0.16 }
+    dragon: { fighter: 0.38, cleric: 0.66, rogue: 0.84, wizard: 0.26 }
+}
+table death {
+    goblin: { fighter: 0.01, cleric: 0.01, rogue: 0.02, wizard: 0.01 }
+    dragon: { fighter: 0.04, cleric: 0.06, rogue: 0.08, wizard: 0.02 }
+}
+
+init: gold == 0 and room == hall and monster == none and status == exploring
+
+// ── 이동 ──
+transition enter_l1:
+    desc "Great Hall에서 1층으로 진입"
+    when room == hall and status == exploring and monster == none
+    then room = l1
+transition enter_l2:
+    when room == l1 and status == exploring and monster == none
+    then room = l2
+transition enter_l3:
+    when room == l2 and status == exploring and monster == none
+    then room = l3
+transition return_to_hall:
+    desc "어느 층에서든 중앙으로 귀환(이동 추상화)"
+    when (room == l1 or room == l2 or room == l3) and status == exploring and monster == none
+    then room = hall
+
+// ── 몬스터 조우 ── 층이 깊을수록 dragon 쪽으로.
+transition encounter_l1:
+    desc "1층 조우 — 고블린만 나온다"
+    when room == l1 and status == exploring and monster == none and gold <= 28
+    then monster = goblin
+transition encounter_l2:
+    desc "2층 조우 — 고블린/드래곤 반반"
+    when room == l2 and status == exploring and monster == none and gold <= 20
+    outcomes:
+        0.5 -> monster = goblin
+        0.5 -> monster = dragon
+transition encounter_l3:
+    desc "3층 조우 — 드래곤만 나온다"
+    when room == l3 and status == exploring and monster == none and gold <= 20
+    then monster = dragon
+
+// ── 전투 ── 클래스×몬스터 곱(8개). 가중치는 위 표에서 색인 참조(D18).
+for mon in [goblin, dragon], cls in [fighter, cleric, rogue, wizard]:
+    transition "fight_${mon}_${cls}":
+        when role == cls and monster == mon and status == exploring and gold <= cap[mon]
+        outcomes:
+            win[mon][cls]   -> { gold = gold + reward[mon]; monster = none }
+            miss[mon][cls]  -> monster = none
+            death[mon][cls] -> { gold = 0; room = hall; status = dead; monster = none }
+
+// ── 승리 ──
+transition claim_victory:
+    desc "목표 보물액 달성 + 중앙 귀환 → 승리"
+    when room == hall and gold >= win_gold and status == exploring
+    then status = won
+
+// ── 종료 상태 흡수 루프 ── (데드락 방지)
+transition won_absorb:  when status == won  then status = won
+transition dead_absorb: when status == dead then status = dead
+
+check winnable
+    desc "승리 상태에 도달 가능해야 한다(어떤 클래스로든 이길 길이 존재)"
+    reachable: status == won
+check rogue_winnable
+    desc "전투에 가장 약한 rogue도 승리 가능해야 한다(낮은 목표액으로 보상)"
+    reachable: role == rogue and status == won
+check wizard_winnable
+    desc "목표액이 가장 높은 wizard도 승리 가능해야 한다(주문으로 강한 몬스터 처치)"
+    reachable: role == wizard and status == won
+check dragon_reachable
+    desc "드래곤을 실제로 조우할 수 있어야 한다(강한 몬스터가 사문화되지 않았는지)"
+    reachable: monster == dragon
+check death_possible
+    desc "사망(패배)도 발생 가능함 — 전투에 실제 위험이 있는지 확인"
+    reachable: status == dead
+check gold_nonneg
+    desc "보물은 음수가 되지 않는다"
+    invariant: gold >= 0
+check no_monster_in_hall
+    desc "규칙 건전성 — 중앙(hall)에는 몬스터가 따라오지 않는다"
+    invariant: room != hall or monster == none
+check sound_victory
+    desc "규칙 건전성 — 목표액 미달 상태로는 결코 승리할 수 없어야 한다"
+    invariant: status != won or gold >= win_gold
+check no_stuck
+    desc "막다른(후속 없는) 상태가 없어야 한다"
+    no_deadlock
+check best_win_prob
+    desc "최적 전략의 승리 확률(확률 백엔드 전용; 초기 상태가 클래스별로 달라 범위로 보고)"
+    prob: "Pmax=? [ F (status=won) ]"

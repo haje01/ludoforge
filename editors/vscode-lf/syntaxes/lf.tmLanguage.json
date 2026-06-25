@@ -1,0 +1,63 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Ludoforge DSL",
+  "scopeName": "source.lf",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#operators" },
+    { "include": "#numbers" }
+  ],
+  "repository": {
+    "comments": {
+      "name": "comment.line.double-slash.lf",
+      "match": "//.*$"
+    },
+    "strings": {
+      "name": "string.quoted.double.lf",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "variable.other.interpolation.lf",
+          "match": "\\$\\{[^}]*\\}"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.lf",
+          "match": "\\b(domain|table|for|in|constraint|transition|check|expect|init|when|then|outcomes|pref|desc|author)\\b"
+        },
+        {
+          "name": "support.type.property-name.lf",
+          "match": "\\b(reachable|invariant|no_deadlock|prob|distribution)\\b"
+        },
+        {
+          "name": "keyword.operator.logical.lf",
+          "match": "\\b(and|or|not)\\b"
+        }
+      ]
+    },
+    "types": {
+      "name": "storage.type.lf",
+      "match": "\\b(int|real|bool|enum)\\b"
+    },
+    "operators": {
+      "patterns": [
+        { "name": "keyword.operator.comparison.lf", "match": "==|!=|<=|>=|<|>" },
+        { "name": "keyword.operator.arrow.lf", "match": "->" },
+        { "name": "keyword.operator.range.lf", "match": "\\.\\." },
+        { "name": "keyword.operator.assignment.lf", "match": "=" },
+        { "name": "keyword.operator.arithmetic.lf", "match": "[+\\-*/]" }
+      ]
+    },
+    "numbers": {
+      "name": "constant.numeric.lf",
+      "match": "-?\\b\\d+(\\.\\d+)?\\b"
+    }
+  }
+}

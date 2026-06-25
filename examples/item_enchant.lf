@@ -1,0 +1,18 @@
+// 아이템 기획 모순 (범위 봉쇄): 강화 한도가 파워 예산에 막힌다.
+// 검사: ludoforge check examples/item_enchant.lf  (모순 1건, 종료코드 1)
+domain {
+    enchant_level: int 0..10
+    item_power:    int 0..
+    rarity:        enum { common, rare, epic, legendary }
+}
+
+constraint legendary_power_formula:
+    author "planner_item"
+    desc "전설 아이템 파워는 강화 레벨당 100"
+    when rarity == legendary
+    then item_power == enchant_level * 100
+
+constraint global_power_cap:
+    author "planner_balance"
+    desc "모든 아이템 파워는 500을 넘지 않는다"
+    then item_power <= 500

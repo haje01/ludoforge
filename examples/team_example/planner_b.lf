@@ -1,0 +1,6 @@
+// 기획자 B: 전역 HP 상한 (룰만 담는다).
+// A의 전사 공식과 따로 보면 정상이지만, 함께 검사하면 레벨 51+ 전사가 모순이 된다.
+constraint global_hp_cap:
+    author "planner_B"
+    desc "모든 캐릭터 HP는 5000을 넘지 않는다"
+    then hp <= 5000
