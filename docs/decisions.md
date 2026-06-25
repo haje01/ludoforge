@@ -639,6 +639,62 @@
 
 ---
 
+## D21. 구조 단순화 — PRISM을 테스트 전용 오라클로 격하 + 던전 예제 통합
+
+- **상태:** 초안 (2026-06-24) — D13·D16·D19의 PRISM 위상을 갱신한다(사용자 표면에서 내림).
+- **맥락:** D19가 정량 무게중심을 PRISM→sim으로 옮기며 PRISM을 "소형 모델 교차검증 오라클"
+  한 가지로 이미 격하했다. 그 결과 (1) PRISM의 *사용자 표면*(`ludoforge prob` CLI, DSL
+  `kind: prob`/`spec` PCTL, 외부 prism 바이너리 의존)이 격에 안 맞게 남아 있고, (2) 던전
+  예제가 **백엔드별로 4벌**(`dungeon` bmc+prob MDP / `dungeon_sim` sim+오라클 DTMC /
+  `dungeon_policy` sim+pref MDP / `market_sim` sim real)로 비대해졌다. 특히 `dungeon_sim`은
+  *PRISM 오라클 전용으로 만든 특수 DTMC*라, PRISM을 표면에서 내리면 존재 이유가 사라진다.
+  두 군더더기가 같은 뿌리(PRISM의 어정쩡한 위상)에서 나온다.
+- **결정:**
+  - **(1) PRISM = 테스트 전용 오라클로 격하(제거 아님).** 사용자 표면을 전부 걷어낸다:
+    `ludoforge prob` CLI 서브명령, DSL `kind: prob`·`spec`(PCTL), prob 예제, 문서의 "백엔드"
+    로서의 PRISM. 단 `prob/`(prism_gen·runner)와 `test_sim_oracle.py`, **작은 DTMC 오라클
+    픽스처**(`tests/fixtures/`로 이동)는 **남긴다** — sim 추정을 증명기로 검정하는 D19 신뢰
+    논증("증명기가 추정기를 검정")은 프로젝트 DNA라 회귀로 보존한다.
+  - **(2) 오라클은 reachable로 충분.** prism_gen은 `reachable`→`Pmax=? [F]`로 매핑하므로,
+    오라클(DTMC라 Pmax=Pmin=정확값)은 `kind: prob`/PCTL 없이 `reachable` 검사만으로 돈다.
+    따라서 DSL에서 `kind: prob`/`spec`을 떼도 오라클은 깨지지 않는다. prism_gen의 `prob`
+    분기(spec 통과)는 사문화되므로 제거한다(reachable/invariant→PCTL 매핑만 유지).
+  - **(3) 던전 예제를 하나의 실전형으로 통합.** `dungeon`·`dungeon_sim`·`dungeon_policy`·
+    `market_sim`을 **단일 MDP+pref 던전**(`examples/dungeon.rule`)으로 합친다 — 클래스 밸런스
+    (role sweep·클래스별 win_gold·클래스의존 전투 tables)에 "욕심 vs 안전"의 `pref` 선택을
+    얹고, **bmc로 건전성**(클래스별 winnable·no_deadlock·불변식) + **sim으로 정책 추정**
+    (직업별 승률·gold `distribution`)을 한 모델에서 본다. bmc는 pref를 무시(비결정 탐색),
+    sim은 pref로 표집 — 하나의 모델, 두 질문(dialect 분리 D11·D20)을 그대로 시연한다.
+  - **(4) 정적 모순 예제는 유지.** `item_enchant`·`loot_table` 등 정적 검사 예제는 프로젝트
+    *창립 가치*(Z3 모순 증명, warrior-HP류)라 건드리지 않는다 — 통합 대상은 던전/전이 계열뿐.
+- **기각/대비한 대안:**
+  - *PRISM 완전 제거*: 유지 비용이 낮고(격리된 prob/ 411줄·graceful) 잃는 게 증명기 오라클
+    (프로젝트 영혼)이라, 표면만 걷고 내부 오라클은 보존하는 쪽이 비용 대비 낫다.
+  - *현행 유지*: `ludoforge prob`·`kind: prob`·4벌 예제의 학습/유지 표면이 D19 이후 위상과
+    안 맞는다 — 표면 단순화의 실익이 크다.
+  - *Pmax(최적 정책 확률) 사용자 노출 유지*: 존재·건전성은 BMC가 증명하고 정량은 sim 추정
+    으로 옮긴 D19 방향상, 최적 확률 *증명*은 비목표로 둔다(오라클 내부에서만 사용).
+- **영향:**
+  - CLI: `ludoforge/cli.py`에서 `prob` 서브명령 제거(check·bmc·sim만).
+  - core: `Check.spec` 필드·`kind: prob` 파싱/검증 제거(`ir.py`·`loader.py`·`schema.py`).
+    `kind` ∈ {`reachable`,`invariant`,`no_deadlock`,`distribution`}로 축소.
+  - prob: `prism_gen`의 `prob`(spec) 분기 제거, reachable/invariant→PCTL만 유지. `runner` 유지.
+  - examples: 4벌→`dungeon.rule` 1벌 통합. `dungeon_sim`은 오라클 픽스처로
+    `tests/fixtures/`에 보존(이름 명확화). `market_sim`(real 쇼케이스)은 통합 흡수 여부 검토.
+  - tests: `test_probforge` 축소(오라클 관련 매핑만), `test_sim_oracle` 픽스처 경로 갱신,
+    `test_bmc`·`test_cli`·`test_corpus`(EXAMPLE_EXPECTED)·`test_sim_scale`에서 prob 표면 정리.
+  - 문서: CLAUDE.md §1(PRISM=테스트 오라클)·§3·§4.1(kind 집합·prob 제거)·§6, concepts.md
+    §8.6/§8.8/§9.6(PCTL·오라클 재서술), README, PLAN/PROGRESS. **D13·D16·D19 상태 주석 갱신.**
+- **성공 기준:**
+  - `ludoforge` CLI는 check·bmc·sim 3개만 노출(`prob` 없음). `kind: prob` 쓴 `.rule`은 친절히 거부.
+  - 통합 `dungeon.rule` 한 모델이 bmc(클래스별 winnable·no_deadlock)·sim(직업별 승률·분포)로
+    동작. 예제 수가 던전 계열에서 4→1로 감소.
+  - `test_sim_oracle`가 픽스처 DTMC로 PRISM 정확값 ∈ sim CI 회귀를 유지(PRISM 설치 시)·
+    미설치 시 skip. 정적 모순 예제·테스트는 무변경.
+  - 전체 테스트·ruff·mypy 통과.
+
+---
+
 ## 참고
 - 결정의 도메인 배경: [concepts.md](concepts.md) (특히 §4 — 도달 가능성 검사)
 - 살아있는 계획·진행: [../PLAN.md](../PLAN.md) / [../PROGRESS.md](../PROGRESS.md)
