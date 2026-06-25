@@ -22,22 +22,23 @@ from sim.aggregate import ProportionResult
 from sim.engine import enum_constants, initial_state
 from sim.runner import run_sim
 
-EXAMPLES = Path(__file__).parent.parent / "examples"
+# 오라클 DTMC는 사용자 예제가 아니라 테스트 픽스처다(D23 — PRISM은 테스트 전용 오라클).
+ORACLE = Path(__file__).parent / "fixtures" / "oracle_dungeon.lf"
 _ROLES = ("fighter", "rogue", "wizard")
 
 
 def test_constraint_derivation_sets_win_gold() -> None:
     # role로부터 win_gold가 constraints로 파생돼 초기 상태에 채워진다(PRISM init 인코딩 대응).
-    rs = load_rule_file(EXAMPLES / "dungeon_sim.rule")
+    rs = load_rule_file(ORACLE)
     constants = enum_constants(rs)
     assert initial_state(rs, constants, {"role": "fighter"})["win_gold"] == 6
     assert initial_state(rs, constants, {"role": "rogue"})["win_gold"] == 4
     assert initial_state(rs, constants, {"role": "wizard"})["win_gold"] == 8
 
 
-def test_dungeon_sim_sweeps_roles_and_is_dtmc() -> None:
-    # 던전판은 DTMC라 sim이 끝까지 돈다(DtmcViolation 없음), 직업별로 sweep된다.
-    rs = load_rule_file(EXAMPLES / "dungeon_sim.rule")
+def test_oracle_dtmc_sweeps_roles() -> None:
+    # 오라클 던전판은 DTMC라 sim이 끝까지 돈다(DtmcViolation 없음), 직업별로 sweep된다.
+    rs = load_rule_file(ORACLE)
     report = run_sim(rs, samples=1000, horizon=300, seed=1)
     roles = {cfg.config["role"] for cfg in report.configs}
     assert roles == set(_ROLES)
@@ -47,7 +48,7 @@ def test_dungeon_sim_sweeps_roles_and_is_dtmc() -> None:
 
 @pytest.mark.skipif(find_prism() is None, reason="prism 바이너리 미설치")
 def test_sim_win_rates_match_prism_oracle() -> None:
-    rs = load_rule_file(EXAMPLES / "dungeon_sim.rule")
+    rs = load_rule_file(ORACLE)
     validate(rs)
     report = run_sim(rs, samples=8000, horizon=300, seed=1, workers=2)
     sim_by_role = {

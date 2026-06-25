@@ -21,7 +21,6 @@
 | [`balanced_stats.lf`](balanced_stats.lf) | (정합) | 공격력=레벨×10, 상한 500, 레벨 상한 50이 정확히 맞아떨어져 모순 없음 |
 | [`balanced_build.lf`](balanced_build.lf) | (정합, expect 충족) | stat_budget과 같은 예산이지만 "공40·방40 균형 빌드"(합 80)는 도달 가능 → `expect:` 충족 (D10) |
 | [`dungeon.lf`](dungeon.lf) | (전이 시스템, MDP) | 던전!(WotC 2012판) 모델 — 클래스 4종·클래스별 전투 난이도(2d6 환산)·몬스터 2종(고블린/드래곤)·조우→전투·승패. 보물 모아 중앙 귀환 승리, 전투 실패 시 드물게 사망. `bmc`/`prob`로 검사 (D12·D15·D16) |
-| [`dungeon_sim.lf`](dungeon_sim.lf) | (전이 시스템, DTMC) | 던전판을 **전략 해소(DTMC)**해 `sim`(Monte Carlo)으로 직업별 승률을 추정. win_gold는 클래스별 constraints 파생. PRISM 정확값과 교차검증 (D19) |
 | [`dungeon_policy.lf`](dungeon_policy.lf) | (전이 시스템, MDP+정책) | "욕심 vs 안전"을 가드가 아니라 **`pref`(무작위 정책)**로 가른 던전판. 규칙과 전략을 분리 — `sim`이 정책 하에서 보물 분포·전멸 위험을 추정("Pmax 아님" 라벨) (D20) |
 | [`team_example/`](team_example/) | (협업 패턴) | 공유 `_domain.lf` + 기획자별 constraints 파일을 디렉토리로 병합 검사 |
 
@@ -36,20 +35,16 @@
 - 논리(승리/사망 도달성·불변식·규칙 건전성·데드락): `ludoforge bmc examples/dungeon.lf --k 12` (D15, k 유계)
 - 확률(최적 전략 승리 확률 등 PCTL): `ludoforge prob examples/dungeon.lf` (D16, PRISM 설치 시)
 
-`dungeon_sim.lf`은 같은 던전을 **DTMC(전략 해소)**로 다시 쓴 sim 백엔드 예제다. 던전!(MDP)은
-중앙 귀환 시 "더 탐험 vs 승리 선언"처럼 *선택*이 있어 sim(표집)으로 못 본다 — 이를 가드에
-인코딩("목표 미달이면 싸우고, 달성이면 귀환·승리")해 결정적으로 만든다. `win_gold`는 클래스별
-constraints로 파생한다. Monte Carlo로 직업별 승률을 *추정*하고(증명 아님, 신뢰구간 동반),
-소형이라 PRISM 정확값과 교차검증한다(D19):
-- 추정(직업별 승률·기대 보물 분포): `ludoforge sim examples/dungeon_sim.lf -n 20000 -w 4`
-- 교차검증(role 고정 시 PRISM Pmax=정확값 ↔ sim CI): `tests/test_sim_oracle.py`
+> **참고(D23):** sim↔PRISM 교차검증용 DTMC 던전판은 사용자 예제가 아니라 테스트 오라클
+> 픽스처(`tests/fixtures/oracle_dungeon.lf`)로 옮겼다 — `tests/test_sim_oracle.py`가 PRISM
+> 정확값을 sim 추정의 신뢰구간과 대조한다(PRISM은 D23으로 사용자 표면에서 내림).
 
 8개 전투 전이(클래스×몬스터)는 `tables:`(전투 격파표) + 곱 `for:` 템플릿 한 벌로 펼쳐 쓴다
 — 클래스·몬스터가 늘면 도메인 enum과 표의 행/열만 추가하면 된다(템플릿 확장 Tier 1+2,
 CLAUDE.md §4.2 / D18).
 
 `dungeon_policy.lf`은 던전을 **MDP로 두고 플레이어 전략을 `pref`로 분리한** sim 예제다.
-`dungeon_sim.lf`이 전략을 가드에 박아 선택을 없앤 것과 달리, 던전에서 "한 번 더 싸운다
+전략을 가드에 박아 선택을 없애는 대신, 던전에서 "한 번 더 싸운다
 (fight)" vs "귀환한다(leave)"를 동시에 enabled로 두고 `pref`(욕심 0.6 : 안전 0.4)로 표집한다
 (무작위 정책, D20). 환경 우연(승/사망)은 outcome `weight`로 그대로 둔다 — 매 스텝 **2단
 표집**(정책→우연). 같은 규칙을 `pref`만 바꿔 다른 전략으로 돌릴 수 있다:

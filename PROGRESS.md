@@ -48,7 +48,7 @@ PRISM을 사용자 표면에서 내려 테스트 전용 오라클로 격하(D23)
 | Phase | 내용 | 상태 | 비고 |
 |-------|------|------|------|
 | P1 표면 제거 | DSL `kind: prob`/`spec`·`ludoforge prob` 제거, prism_gen prob 분기 제거 | ✅ | 오라클(reachable→Pmax)·prob/ 보존 |
-| P2 오라클 픽스처화 | `dungeon_sim` → `tests/fixtures/oracle_dungeon.lf` | ⬜ | |
+| P2 오라클 픽스처화 | `dungeon_sim` → `tests/fixtures/oracle_dungeon.lf` | ✅ | 골든 `.rule` 삭제, 오라클 회귀 통과(PRISM 실측) |
 | P3 던전 통합 | 단일 `dungeon.lf`(클래스밸런스+pref), 4→2(+market_sim) | ⬜ | 핵심 |
 | P4 문서 정합 | CLAUDE·concepts·README·D13/16/19 주석 | ⬜ | |
 
@@ -162,3 +162,11 @@ PRISM을 사용자 표면에서 내려 테스트 전용 오라클로 격하(D23)
   reachable/invariant 매핑은 보존**(증명기 오라클 = DNA). 전체 273 통과, ruff/format/mypy(strict)
   clean. e2e: `ludoforge prob` 없음·`.lf`/`YAML`의 prob 거부·dungeon bmc 동작 확인. 다음=P2(오라클
   픽스처화).
+- 2026-06-25: **Phase 2 완료(오라클 DTMC 픽스처화, D23).** `examples/dungeon_sim.lf` →
+  `tests/fixtures/oracle_dungeon.lf`(git mv, 헤더를 "테스트 전용 오라클"로 갱신), 디프리케이트
+  골든 `examples/dungeon_sim.rule` 삭제. `test_sim_oracle`이 픽스처(.lf)를 로드하도록 경로
+  갱신(EXAMPLES→ORACLE), 함수명 `test_oracle_dtmc_sweeps_roles`로 정리. `test_corpus`
+  EXAMPLE_EXPECTED에서 dungeon_sim 제거, `examples/README`의 댕글링 참조(행·문단·상호참조)
+  정리. **오라클 회귀 3건 모두 통과(PRISM 4.10.1 실측 — 직업별 정확값 ∈ sim CI)** — 픽스처
+  이동에도 sim↔PRISM 교차검증 유지. 전체 271 통과(이동으로 하니스·corpus에서 -2),
+  ruff/format/mypy(strict) clean. 다음=P3(던전 통합 — 핵심).
