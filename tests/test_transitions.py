@@ -35,13 +35,11 @@ def test_loads_dungeon_transition_system() -> None:
 
     tids = [t.id for t in rs.transitions]
     assert tids == [
+        "claim_victory",
         "enter_l1",
-        "enter_l2",
-        "enter_l3",
-        "return_to_hall",
-        "encounter_l1",
-        "encounter_l2",
-        "encounter_l3",
+        "descend_l2",
+        "descend_l3",
+        "go_home",
         "fight_goblin_fighter",
         "fight_goblin_cleric",
         "fight_goblin_rogue",
@@ -50,15 +48,19 @@ def test_loads_dungeon_transition_system() -> None:
         "fight_dragon_cleric",
         "fight_dragon_rogue",
         "fight_dragon_wizard",
-        "claim_victory",
         "won_absorb",
         "dead_absorb",
     ]
 
-    # 결정적 전이(bare then) → weight=1.0 단일 Outcome으로 정규화
-    enter = rs.transitions[0]
-    assert enter.when == "room == hall and status == exploring and monster == none"
-    assert enter.outcomes == (Outcome(then="next.room == l1", weight=1.0),)
+    # 결정적 전이(bare then, 다중 대입) → weight=1.0 단일 Outcome으로 정규화
+    enter = next(t for t in rs.transitions if t.id == "enter_l1")
+    assert enter.outcomes == (
+        Outcome(then="next.room == l1 and next.monster == goblin", weight=1.0),
+    )
+
+    # 플레이어 선택(pref, D20) — descend_l2는 욕심 정책 가중치를 단다
+    descend = next(t for t in rs.transitions if t.id == "descend_l2")
+    assert descend.pref == 0.5
 
     # 확률 전이(fight_goblin_fighter) → 3-way 가중치 보존(승리/무소득/사망)
     fight = next(t for t in rs.transitions if t.id == "fight_goblin_fighter")

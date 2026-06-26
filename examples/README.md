@@ -20,36 +20,31 @@
 | [`day_night_cycle.lf`](day_night_cycle.lf) | enum 도달 불가 (중복 값) | sky·lighting이 같은 값 이름(day/night)을 쓰며, 두 시스템이 밤 조명을 상충 강제해 sky=night 봉쇄 (D8) |
 | [`balanced_stats.lf`](balanced_stats.lf) | (정합) | 공격력=레벨×10, 상한 500, 레벨 상한 50이 정확히 맞아떨어져 모순 없음 |
 | [`balanced_build.lf`](balanced_build.lf) | (정합, expect 충족) | stat_budget과 같은 예산이지만 "공40·방40 균형 빌드"(합 80)는 도달 가능 → `expect:` 충족 (D10) |
-| [`dungeon.lf`](dungeon.lf) | (전이 시스템, MDP) | 던전!(WotC 2012판) 모델 — 클래스 4종·클래스별 전투 난이도(2d6 환산)·몬스터 2종(고블린/드래곤)·조우→전투·승패. 보물 모아 중앙 귀환 승리, 전투 실패 시 드물게 사망. `bmc`/`prob`로 검사 (D12·D15·D16) |
-| [`dungeon_policy.lf`](dungeon_policy.lf) | (전이 시스템, MDP+정책) | "욕심 vs 안전"을 가드가 아니라 **`pref`(무작위 정책)**로 가른 던전판. 규칙과 전략을 분리 — `sim`이 정책 하에서 보물 분포·전멸 위험을 추정("Pmax 아님" 라벨) (D20) |
+| [`dungeon.lf`](dungeon.lf) | (전이 시스템, MDP+정책) | 던전!(WotC 2012판) 통합 모델 — 클래스 4종·클래스별 전투(2d6 환산)·몬스터 2종에 "욕심 vs 안전"의 **`pref` 정책**을 얹었다. **한 모델, 두 질문:** `bmc`로 건전성(클래스별 winnable·불변식·데드락), `sim`으로 직업별 승률·보물 분포 추정 (D12·D15·D20·D23) |
+| [`market_sim.lf`](market_sim.lf) | (전이 시스템, real) | 두 자산을 복리로 굴리는 **연속(real)·다변수** 모델 — `sim`이 분포로 추정(PRISM이 못 다루는 영역, D19) |
 | [`team_example/`](team_example/) | (협업 패턴) | 공유 `_domain.lf` + 기획자별 constraints 파일을 디렉토리로 병합 검사 |
 
 `team_example/`만은 여러 파일을 병합해야 하므로 **디렉토리째** 검사한다:
 `ludoforge check examples/team_example/`. 나머지는 자기완결 파일이라 개별로 검사한다.
 
-`dungeon.lf`은 정적 모순이 아니라 **전이 시스템**(init/transitions/checks) 예제다.
-던전!(WotC 2012판)을 모델링해 클래스 4종(rogue·cleric·fighter·wizard, 목표 보물액 10·10·20·30)과
+`dungeon.lf`은 정적 모순이 아니라 **전이 시스템**(init/transitions/checks) 예제다. 던전!(WotC
+2012판)을 모델링해 클래스 4종(rogue·cleric·fighter·wizard, 목표 보물액 10·10·20·30)과
 **클래스의존 전투**(같은 몬스터라도 클래스별 승률이 다름 — 2d6 격파 목표값을 확률로 환산),
-몬스터 2종(고블린/드래곤)·조우→전투·승리/패배를 담았다. 정적 `check`로는 모순이 없고, 동역학은
-두 백엔드로 검사한다:
-- 논리(승리/사망 도달성·불변식·규칙 건전성·데드락): `ludoforge bmc examples/dungeon.lf --k 12` (D15, k 유계)
-- 확률(최적 전략 승리 확률 등 PCTL): `ludoforge prob examples/dungeon.lf` (D16, PRISM 설치 시)
+몬스터 2종(고블린/드래곤)을 담고, 한 층을 클리어하면 **"더 깊이(욕심) vs 귀환(안전)"** 을
+`pref`(무작위 정책, D20)로 가른다. 한 모델을 **두 질문**으로 검사한다(dialect 분리, D11):
 
-> **참고(D23):** sim↔PRISM 교차검증용 DTMC 던전판은 사용자 예제가 아니라 테스트 오라클
-> 픽스처(`tests/fixtures/oracle_dungeon.lf`)로 옮겼다 — `tests/test_sim_oracle.py`가 PRISM
-> 정확값을 sim 추정의 신뢰구간과 대조한다(PRISM은 D23으로 사용자 표면에서 내림).
+- 논리·건전성(`bmc`): "클래스별로 이길 길이 *존재*하는가·불변식·데드락" — `pref`를 무시하고
+  비결정으로 탐색한다. `ludoforge bmc examples/dungeon.lf --k 14`
+- 정량·추정(`sim`): "*이 정책*에서 직업별 승률·보물 분포는?" — role을 sweep하고 `pref`로
+  선택을 표집한다("주어진 정책 하의 추정 · Pmax 아님" 라벨). `ludoforge sim examples/dungeon.lf -H 300 -n 20000`
 
 8개 전투 전이(클래스×몬스터)는 `tables:`(전투 격파표) + 곱 `for:` 템플릿 한 벌로 펼쳐 쓴다
 — 클래스·몬스터가 늘면 도메인 enum과 표의 행/열만 추가하면 된다(템플릿 확장 Tier 1+2,
 CLAUDE.md §4.2 / D18).
 
-`dungeon_policy.lf`은 던전을 **MDP로 두고 플레이어 전략을 `pref`로 분리한** sim 예제다.
-전략을 가드에 박아 선택을 없애는 대신, 던전에서 "한 번 더 싸운다
-(fight)" vs "귀환한다(leave)"를 동시에 enabled로 두고 `pref`(욕심 0.6 : 안전 0.4)로 표집한다
-(무작위 정책, D20). 환경 우연(승/사망)은 outcome `weight`로 그대로 둔다 — 매 스텝 **2단
-표집**(정책→우연). 같은 규칙을 `pref`만 바꿔 다른 전략으로 돌릴 수 있다:
-- 추정(보물 분포·전멸 위험; "주어진 정책 하의 추정 · Pmax 아님" 라벨): `ludoforge sim examples/dungeon_policy.lf -n 5000`
-- BMC·PRISM은 `pref`를 무시하고 fight/leave를 비결정으로 본다(dialect 분리): `ludoforge bmc examples/dungeon_policy.lf --k 8`
+> **참고(D23):** sim↔PRISM 교차검증용 DTMC 던전판은 사용자 예제가 아니라 테스트 오라클
+> 픽스처(`tests/fixtures/oracle_dungeon.lf`)다 — `tests/test_sim_oracle.py`가 PRISM 정확값을
+> sim 추정의 신뢰구간과 대조한다(PRISM은 D23으로 사용자 표면에서 내려 테스트 오라클로만 남음).
 
 ## 실행 예
 

@@ -191,16 +191,17 @@ def test_report_omits_policy_label_without_pref() -> None:
     assert "최적(Pmax) 아님" not in format_sim_report(report)
 
 
-def test_dungeon_policy_example_runs_with_policy() -> None:
-    """examples/dungeon_policy.rule(pref 정책 시연)이 로드·검증·표집되고 정책 라벨을 단다."""
-    rs = load_rule_file(EXAMPLES / "dungeon_policy.rule")
+def test_dungeon_example_uses_policy() -> None:
+    """통합 examples/dungeon.lf(pref 욕심/안전 정책)가 로드·검증·표집되고 정책 라벨을 단다."""
+    rs = load_rule_file(EXAMPLES / "dungeon.lf")
     validate(rs)
-    report = simulate(rs, samples=500, horizon=20, seed=1)
+    report = simulate(rs, samples=500, horizon=300, seed=1)
     assert report.uses_policy is True
-    results = _by_id(report.configs[0])
-    # 욕심 정책: 전멸(died) 위험이 실재하고(>0), 보물 분포가 산출된다.
-    died = results["died"]
-    assert isinstance(died, ProportionResult)
-    assert died.successes > 0
+    # role sweep → 직업별 config. rogue는 욕심내다 전멸(death) 위험이 실재한다(>0).
+    rogue = next(c for c in report.configs if c.config["role"] == "rogue")
+    results = _by_id(rogue)
+    death = results["death_possible"]
+    assert isinstance(death, ProportionResult)
+    assert death.successes > 0
     assert isinstance(results["final_gold"], DistributionResult)
     assert "최적(Pmax) 아님" in format_sim_report(report)

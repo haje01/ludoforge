@@ -1,14 +1,21 @@
-// 던전!(WotC 2012판) 전이 시스템 예제 — 자체 문법(.lf) 판. 다중 백엔드 시연(BMC + PRISM).
+// 던전!(WotC 2012판) — 단일 실전형 통합 예제(D23). 한 모델, 두 질문:
+//   • bmc(논리): 클래스별로 이길 길이 *존재*하는가·불변식·데드락 (pref 무시 = 비결정 탐색)
+//   • sim(추정): 주어진 *정책*에서 직업별 승률·보물 분포는? (pref로 선택 표집)
 //
-// examples/dungeon.rule(YAML)의 자체 문법 이관본 — 같은 IR을 낸다(D21, 골든 등가로 고정).
-// 핵심 = "클래스 밸런스": 클래스(role) 4종, 강할수록 목표 보물액↑(rogue/cleric 10·fighter
-// 20·wizard 30). 클래스의존 전투(2d6 격파 목표값을 승률 weight로 환산), 몬스터 2종.
+// 두 축을 한 모델에 담는다:
+//   ① 클래스 밸런스 — role 4종, 강할수록 목표 보물액↑(rogue·cleric 10 / fighter 20 / wizard 30).
+//      클래스의존 전투(2d6 격파 목표값을 승률 weight로 환산), 몬스터 2종(goblin 약·dragon 강).
+//   ② 욕심 vs 안전(pref, D20) — 한 층을 클리어하면 **더 깊이 내려갈지(descend·고위험 고보상)**
+//      **중앙으로 귀환할지(go_home·안전)**를 정책 확률로 가른다. 그 외 상태는 선택이 없다
+//      (진입·조우·전투·승리 판정은 결정적/우연) → sim이 표집할 수 있는 DTMC로 환원된다.
 //
 // 검사:
-//   ludoforge bmc  examples/dungeon.lf --k 12   # 논리: 클래스별 도달성·불변식·데드락
-//   ludoforge prob examples/dungeon.lf          # 확률: 클래스별 최적 승률(PRISM)
+//   ludoforge bmc examples/dungeon.lf --k 14        # 클래스별 도달성·불변식·데드락
+//   ludoforge sim examples/dungeon.lf -H 300 -n 20000  # 직업별 승률(role sweep)·보물 분포
 //
-// 주의: loop 변수는 도메인 변수 `monster`와의 충돌을 피해 `mon`으로 쓴다(IR id·값 동일).
+// role은 init에서 고정하지 않아 sim이 **직업별로 sweep**한다(win_gold는 constraints로 파생).
+// 깊이/연속(real) 시연은 별도 예제(market_sim.lf). PRISM 교차검증은 tests/의 오라클 픽스처.
+// 주의: loop 변수는 도메인 변수 `monster`와 충돌을 피해 `mon`으로 쓴다(IR id·값 동일).
 
 domain {
     gold:     int 0..30
@@ -19,7 +26,7 @@ domain {
     status:   enum { exploring, won, dead }
 }
 
-// 클래스별 목표 보물액(2012판: rogue·cleric 10 / fighter 20 / wizard 30). 게임 내내 불변.
+// 클래스별 목표 보물액(2012판). 게임 내내 불변 → sim은 role로부터 파생해 초기 상태에 채운다.
 constraint rogue_win_target:   when role == rogue   then win_gold == 10
 constraint cleric_win_target:  when role == cleric  then win_gold == 10
 constraint fighter_win_target: when role == fighter then win_gold == 20
@@ -27,7 +34,7 @@ constraint wizard_win_target:  when role == wizard  then win_gold == 30
 
 // 전투 데이터 표(D18) — 클래스×몬스터 격파 프로필. 전투 전이가 색인 참조한다.
 table reward { goblin: 2, dragon: 10 }
-table cap    { goblin: 28, dragon: 20 }   // 보상+gold ≤ 30 보장
+table cap    { goblin: 28, dragon: 20 }   // 보상+gold ≤ 30 보장(짝수 gold라 stuck 없음)
 table win {
     goblin: { fighter: 0.92, cleric: 0.83, rogue: 0.72, wizard: 0.83 }
     dragon: { fighter: 0.58, cleric: 0.28, rogue: 0.08, wizard: 0.72 }
@@ -43,39 +50,38 @@ table death {
 
 init: gold == 0 and room == hall and monster == none and status == exploring
 
-// ── 이동 ──
+// ── 중앙(hall): 목표 달성이면 승리, 미달이면 1층 진입(상호 배타 가드 — 선택 아님) ──
+transition claim_victory:
+    desc "목표 보물액 달성 + 중앙 → 즉시 승리"
+    when room == hall and status == exploring and monster == none and gold >= win_gold
+    then status = won
 transition enter_l1:
-    desc "Great Hall에서 1층으로 진입"
-    when room == hall and status == exploring and monster == none
-    then room = l1
-transition enter_l2:
-    when room == l1 and status == exploring and monster == none
-    then room = l2
-transition enter_l3:
-    when room == l2 and status == exploring and monster == none
-    then room = l3
-transition return_to_hall:
-    desc "어느 층에서든 중앙으로 귀환(이동 추상화)"
+    desc "Great Hall에서 1층으로 진입(목표 미달) — 고블린 조우"
+    when room == hall and status == exploring and monster == none and gold < win_gold
+    then { room = l1; monster = goblin }
+
+// ── 욕심 vs 안전(pref): 한 층 클리어(monster==none) 후의 유일한 플레이어 선택 ──
+// descend는 보상 상한(gold<=20)에서만 — dragon(+10)이 30을 안 넘게. 상한 초과면 go_home만 남아
+// 단일 enabled(선택 소멸). bmc는 pref를 무시하고 descend/go_home을 비결정으로 함께 탐색한다.
+transition descend_l2:
+    desc "욕심: 2층으로 — 고블린/드래곤 반반(드래곤은 고보상·고위험)"
+    when room == l1 and status == exploring and monster == none and gold <= 20
+    pref 0.5
+    outcomes:
+        0.5 -> { room = l2; monster = goblin }
+        0.5 -> { room = l2; monster = dragon }
+transition descend_l3:
+    desc "욕심: 3층으로 — 드래곤만"
+    when room == l2 and status == exploring and monster == none and gold <= 20
+    pref 0.5
+    then { room = l3; monster = dragon }
+transition go_home:
+    desc "안전: 지금 보물을 들고 중앙으로 귀환(목표 미달이면 hall에서 재진입)"
     when (room == l1 or room == l2 or room == l3) and status == exploring and monster == none
+    pref 0.5
     then room = hall
 
-// ── 몬스터 조우 ── 층이 깊을수록 dragon 쪽으로.
-transition encounter_l1:
-    desc "1층 조우 — 고블린만 나온다"
-    when room == l1 and status == exploring and monster == none and gold <= 28
-    then monster = goblin
-transition encounter_l2:
-    desc "2층 조우 — 고블린/드래곤 반반"
-    when room == l2 and status == exploring and monster == none and gold <= 20
-    outcomes:
-        0.5 -> monster = goblin
-        0.5 -> monster = dragon
-transition encounter_l3:
-    desc "3층 조우 — 드래곤만 나온다"
-    when room == l3 and status == exploring and monster == none and gold <= 20
-    then monster = dragon
-
-// ── 전투 ── 클래스×몬스터 곱(8개). 가중치는 위 표에서 색인 참조(D18).
+// ── 전투 ── 클래스×몬스터 곱(8개). 승=보물+몬스터 소멸, 무소득=재시도, 사망=종료.
 for mon in [goblin, dragon], cls in [fighter, cleric, rogue, wizard]:
     transition "fight_${mon}_${cls}":
         when role == cls and monster == mon and status == exploring and gold <= cap[mon]
@@ -84,18 +90,13 @@ for mon in [goblin, dragon], cls in [fighter, cleric, rogue, wizard]:
             miss[mon][cls]  -> monster = none
             death[mon][cls] -> { gold = 0; room = hall; status = dead; monster = none }
 
-// ── 승리 ──
-transition claim_victory:
-    desc "목표 보물액 달성 + 중앙 귀환 → 승리"
-    when room == hall and gold >= win_gold and status == exploring
-    then status = won
-
 // ── 종료 상태 흡수 루프 ── (데드락 방지)
 transition won_absorb:  when status == won  then status = won
 transition dead_absorb: when status == dead then status = dead
 
+// ── 검사 ── bmc: 존재·건전성 / sim: 직업별 승률·분포(role sweep로 직업별 보고)
 check winnable
-    desc "승리 상태에 도달 가능해야 한다(어떤 클래스로든 이길 길이 존재)"
+    desc "승리에 도달 가능(어떤 클래스로든 이길 길이 존재) — sim에선 직업별 승률"
     reachable: status == won
 check rogue_winnable
     desc "전투에 가장 약한 rogue도 승리 가능해야 한다(낮은 목표액으로 보상)"
@@ -104,10 +105,10 @@ check wizard_winnable
     desc "목표액이 가장 높은 wizard도 승리 가능해야 한다(주문으로 강한 몬스터 처치)"
     reachable: role == wizard and status == won
 check dragon_reachable
-    desc "드래곤을 실제로 조우할 수 있어야 한다(강한 몬스터가 사문화되지 않았는지)"
+    desc "드래곤을 실제로 조우할 수 있어야 한다(욕심 정책으로 깊이 내려가면)"
     reachable: monster == dragon
 check death_possible
-    desc "사망(패배)도 발생 가능함 — 전투에 실제 위험이 있는지 확인"
+    desc "사망(패배)도 발생 가능 — 전투에 실제 위험이 있는지"
     reachable: status == dead
 check gold_nonneg
     desc "보물은 음수가 되지 않는다"
@@ -121,3 +122,6 @@ check sound_victory
 check no_stuck
     desc "막다른(후속 없는) 상태가 없어야 한다"
     no_deadlock
+check final_gold
+    desc "종료 시 확보한 보물 분포(sim 전용) — 정책의 욕심도에 따라 달라진다"
+    distribution: gold

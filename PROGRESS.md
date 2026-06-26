@@ -49,7 +49,7 @@ PRISM을 사용자 표면에서 내려 테스트 전용 오라클로 격하(D23)
 |-------|------|------|------|
 | P1 표면 제거 | DSL `kind: prob`/`spec`·`ludoforge prob` 제거, prism_gen prob 분기 제거 | ✅ | 오라클(reachable→Pmax)·prob/ 보존 |
 | P2 오라클 픽스처화 | `dungeon_sim` → `tests/fixtures/oracle_dungeon.lf` | ✅ | 골든 `.rule` 삭제, 오라클 회귀 통과(PRISM 실측) |
-| P3 던전 통합 | 단일 `dungeon.lf`(클래스밸런스+pref), 4→2(+market_sim) | ⬜ | 핵심 |
+| P3 던전 통합 | 단일 `dungeon.lf`(클래스밸런스+pref), 4→2(+market_sim) | ✅ | bmc 9검사✅·sim 4직업 sweep·골든 등가 유지 |
 | P4 문서 정합 | CLAUDE·concepts·README·D13/16/19 주석 | ⬜ | |
 
 ## 작업 로그
@@ -170,3 +170,16 @@ PRISM을 사용자 표면에서 내려 테스트 전용 오라클로 격하(D23)
   정리. **오라클 회귀 3건 모두 통과(PRISM 4.10.1 실측 — 직업별 정확값 ∈ sim CI)** — 픽스처
   이동에도 sim↔PRISM 교차검증 유지. 전체 271 통과(이동으로 하니스·corpus에서 -2),
   ruff/format/mypy(strict) clean. 다음=P3(던전 통합 — 핵심).
+- 2026-06-25: **Phase 3 완료(던전 예제 통합, D23 핵심).** 던전 4벌→2벌(통합 dungeon +
+  market_sim 최소 보존). 단일 실전형 `examples/dungeon.lf` 작성 — 클래스 밸런스(role sweep·
+  win_gold 파생·8-way 전투 tables)에 "욕심(descend) vs 안전(go_home)"의 `pref` 정책(D20)을
+  얹어 **한 모델로 bmc(건전성)·sim(직업별 추정)을 모두 시연**(dialect 분리). 선택점을 "층
+  클리어 후 descend vs go_home" 2지선다로만 두어(진입+조우 결합·hall 가드 상호배타) 그 외
+  상태는 단일 enabled → sim DTMC 환원·bmc는 pref 무시. `dungeon_policy.{lf,rule}` 제거(dungeon에
+  흡수), `dungeon.rule`은 새 모델의 YAML 골든 트윈으로 재작성(골든 등가로 동기 검증). 테스트:
+  test_transitions 전이 목록·enter_l1(다중대입)·pref 단언 갱신, test_sim_aggregate 정책 테스트를
+  dungeon.lf로 재지정(rogue death>0), test_corpus에서 dungeon_policy 제거, README 던전 섹션
+  통합(prob/D16 문구 제거). **검증:** bmc 9검사 전부 ✅(클래스별 winnable·dragon·death·불변식·
+  데드락), sim 4직업 sweep(rogue 0.72<cleric 0.84<fighter 0.86<wizard 0.88, 절단 0%, 정책 라벨),
+  dungeon.lf↔dungeon.rule 골든 등가 통과. 전체 269 통과, ruff/format/mypy(strict) clean.
+  다음=P4(문서 정합 — CLAUDE·concepts·README 잔여·D13/16/19 주석).
