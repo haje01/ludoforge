@@ -24,6 +24,7 @@ from logic.solver.checks import check as run_checks
 from logic.solver.report import format_report
 from logic.solver.translator import TranslationError, translate
 from sim.engine import SimError
+from sim.html_report import render_sim_html
 from sim.report import format_sim_report
 from sim.runner import run_sim
 
@@ -107,6 +108,9 @@ def sim(
     horizon: int = typer.Option(100, "--horizon", "-H", help="run당 최대 스텝(지평)"),
     seed: int = typer.Option(0, "--seed", "-s", help="난수 시드(재현성)"),
     workers: int = typer.Option(1, "--workers", "-w", help="병렬 워커 수(결과는 워커 수 무관)"),
+    html_out: str | None = typer.Option(
+        None, "--html", help="결과를 시각화한 HTML 파일로 저장할 경로(예: report.html)"
+    ),
 ) -> None:
     """전이 시스템을 Monte Carlo로 표집해 정량 속성을 *추정*한다(sim 백엔드, D19).
 
@@ -131,6 +135,10 @@ def sim(
         raise typer.Exit(_EXIT_ERROR) from e
 
     typer.echo(format_sim_report(report))
+    if html_out is not None:
+        out_path = Path(html_out)
+        out_path.write_text(render_sim_html(report), encoding="utf-8")
+        typer.echo(f"HTML 리포트를 저장했습니다: {out_path}")
     raise typer.Exit(_EXIT_OK)
 
 

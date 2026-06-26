@@ -309,6 +309,7 @@ sim/             # 확률 추정 백엔드 (Monte Carlo, 주 정량 경로 — D
   aggregate.py       # 결합가능 집계(Welford·히스토그램·rule-of-three)
   runner.py          # multiprocessing 분배·SeedSequence.spawn(분산 구조는 후속)
   report.py          # 추정+CI·절단 비율 한국어 리포트("증명 아님" 라벨)
+  html_report.py     # SimReport → 자체 완결형 HTML(인라인 CSS·SVG, 의존성 없음) — sim --html
 prob/           # 확률 증명 오라클 (PRISM — 소형 모델 교차검증, D19)
   prism_gen.py       # IR → PRISM 모델·속성
   runner.py          # prism 실행·결과 파싱(미설치 시 graceful)

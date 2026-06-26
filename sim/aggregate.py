@@ -195,6 +195,7 @@ class DistributionResult:
     vmin: float
     vmax: float
     percentiles: dict[int, float] | None
+    histogram: dict[float, int] | None = None  # 값→빈도(히스토그램 시각화용). 초과 시 None
 
 
 CheckResult = ProportionResult | DistributionResult
@@ -395,6 +396,7 @@ def _check_result(
             vmin=agg.vmin,
             vmax=agg.vmax,
             percentiles=agg.percentiles(_PERCENTILES),
+            histogram=(dict(agg.counts) if not agg.histogram_overflow and agg.counts else None),
         )
     agg_p = props[c.id]
     return ProportionResult(
