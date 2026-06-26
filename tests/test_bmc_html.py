@@ -1,7 +1,8 @@
 """BMC HTML 리포트(D15): 자체 완결형 HTML 시각화 + CLI --html 옵션 검증.
 
 텍스트 리포트와 동일 내용을 시각화하되, 외부 의존성·JS 없이 결정론적으로 렌더되는지,
-반례·도달 경로(trace)와 상태 배지가 들어가는지 본다.
+반례·도달 경로(trace)와 상태 배지가 들어가는지 본다. 상태 카드가 모든 변수값을 인라인으로
+보여주므로 호버 툴팁은 두지 않는다(sim HTML과 달리 중복일 뿐).
 """
 
 from __future__ import annotations
@@ -32,14 +33,17 @@ def test_html_has_self_contained_structure() -> None:
     assert "<script src" not in html
     assert "http://" not in html and "https://" not in html
     assert "<style>" in html
-    # 인터랙티브 호버 툴팁(자체 JS).
-    assert "<script>" in html and "data-tip" in html
+    # 호버 툴팁·JS는 두지 않는다 — 상태 카드가 값을 인라인으로 다 펼친다(중복 제거).
+    assert "<script>" not in html
+    assert "data-tip" not in html
 
 
-def test_trace_steps_have_hover_tooltips() -> None:
-    # 커서로 상태 확인(인터랙티브): 경로의 각 상태 카드에 전체 상태 data-tip이 달린다.
+def test_trace_steps_show_inline_values_without_tooltip() -> None:
+    # 경로의 각 상태 카드는 모든 변수값을 칩으로 인라인 노출하며 호버 툴팁은 없다.
     html = render_bmc_html(run_bmc(load_rule_file(EXAMPLES / "dungeon.lf"), k=14))
-    assert 'class="step" data-tip="s0 · ' in html
+    assert 'class="step">' in html  # data-tip 없는 평범한 상태 카드
+    assert "data-tip" not in html
+    assert '<span class="svar">room=hall</span>' in html  # 변수값이 카드에 직접 보인다
 
 
 def test_html_renders_reachable_trace() -> None:

@@ -2,9 +2,9 @@
 
 텍스트 리포트(`format_bmc_report`)와 같은 내용을 더 보기 쉽게 보여주는 용도다 — 속성마다
 상태 배지(도달/위반/데드락/미확인)를 색으로, 반례·도달 **경로(trace)**를 상태 카드 + 전이
-화살표로 그린다(스텝 간 바뀐 변수는 강조). 외부 의존성·CDN 없이 인라인 CSS와 작은 인라인
-JS(상태 카드 호버 시 전체 상태 툴팁, core.htmlviz)만 쓴다(오프라인에서 그대로 열림).
-결정론을 위해 타임스탬프 등 비결정 요소는 넣지 않는다.
+화살표로 그린다(스텝 간 바뀐 변수는 강조). 외부 의존성·CDN·JS 없이 인라인 CSS만 쓴다
+(오프라인에서 그대로 열림). 상태 카드가 모든 변수값을 인라인으로 펼쳐 보여주므로 호버 툴팁은
+두지 않는다(같은 값의 중복일 뿐). 결정론을 위해 타임스탬프 등 비결정 요소는 넣지 않는다.
 
 "k까지 유지/미도달"은 증명이 아니라 **유계 결과**라는 k-bound 정직성을 머리에 라벨로 박는다.
 """
@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import html
 
-from core.htmlviz import TOOLTIP_CSS, TOOLTIP_JS
 from logic.solver.bmc import _LABEL, BmcReport, PropertyResult, Trace
 
 # 상태 → 의미 분류(배지 색). 나머지(미도달·unknown)는 경고.
@@ -99,12 +98,12 @@ def render_bmc_html(report: BmcReport) -> str:
         '<html lang="ko"><head><meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         "<title>Ludoforge BMC 검사 리포트</title>\n"
-        f"<style>{_CSS}{TOOLTIP_CSS}</style></head>\n"
+        f"<style>{_CSS}</style></head>\n"
         '<body><div class="wrap">\n'
         "<h1>BMC 검사 결과</h1>\n"
         f"{body}\n"
         '<div class="foot">Ludoforge · 논리 백엔드 (Z3 · BMC)</div>\n'
-        f"</div>{TOOLTIP_JS}</body></html>\n"
+        "</div></body></html>\n"
     )
 
 
@@ -140,9 +139,7 @@ def _render_trace(trace: Trace) -> str:
         for name, value in step.values.items():
             changed = " changed" if i > 0 and prev.get(name) != value else ""
             chips.append(f'<span class="svar{changed}">{_esc(name)}={_esc(value)}</span>')
-        state = " · ".join(f"{n}={v}" for n, v in step.values.items())
-        tip = _esc(f"s{i} · {state}")
-        rows.append(f'<div class="step" data-tip="{tip}">' + "".join(chips) + "</div>")
+        rows.append('<div class="step">' + "".join(chips) + "</div>")
         if i < len(trace.actions):
             rows.append(
                 f'<div class="action"><span class="arrow">▼</span> {_esc(trace.actions[i])}</div>'
