@@ -313,7 +313,8 @@ prob/           # 확률 증명 오라클 (PRISM — 소형 모델 교차검증,
   prism_gen.py       # IR → PRISM 모델·속성
   runner.py          # prism 실행·결과 파싱(미설치 시 graceful)
 rules/               # 실제 기획 룰 (.rule), git SSOT
-examples/            # 모순/정합/전이 시스템 예제 (.rule)
+examples/            # 모순/정합/전이 시스템 예제 (.lf)
+old_examples/        # 디프리케이트된 YAML(.rule) 골든 참조 — 이관 등가 하니스 전용
 tests/               # 단위 + 모순/정합 코퍼스 + BMC/sim/PRISM
 docs/                # concepts.md / decisions.md / 슬라이드
 CLAUDE.md  PLAN.md  PROGRESS.md  pyproject.toml

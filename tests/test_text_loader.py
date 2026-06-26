@@ -19,6 +19,8 @@ from core.schema import validate
 from core.text_loader import TextLoaderError, parse_rule_text
 
 _EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
+# 디프리케이트된 YAML(.rule) 골든 참조는 old_examples/로 분리(이관 회귀 하니스 전용).
+_OLD_EXAMPLES = Path(__file__).resolve().parent.parent / "old_examples"
 
 
 def _expr_eq(a: str | None, b: str | None) -> bool:
@@ -641,7 +643,7 @@ def test_example_lf_matches_yaml(lf_path: Path) -> None:
     """이관된 examples/*.lf는 같은 이름의 *.rule(YAML)과 IR 등가여야 한다(이관 회귀 하니스).
 
     새 .lf를 추가하면 자동으로 등가가 검증된다. 대응 YAML이 없으면 건너뛴다."""
-    yaml_path = lf_path.with_suffix(".rule")
+    yaml_path = _OLD_EXAMPLES / (lf_path.stem + ".rule")
     if not yaml_path.exists():
         pytest.skip(f"대응 YAML 없음: {yaml_path.name}")
     _assert_ir_equiv(load_rule_file(lf_path), load_rule_file(yaml_path))
@@ -666,7 +668,7 @@ def test_full_dungeon_golden_equivalence() -> None:
     for-template)/흡수 전이·5종 check kind·괄호-or 가드·다중 대입·표 색인 가중치·desc 메타데이터.
     .lf는 로더 디스패치(확장자)로 읽는다.
     """
-    yaml_rs = load_rule_file(_EXAMPLES / "dungeon.rule")
+    yaml_rs = load_rule_file(_OLD_EXAMPLES / "dungeon.rule")
     native_rs = load_rule_file(_EXAMPLES / "dungeon.lf")
     _assert_ir_equiv(native_rs, yaml_rs)
     # 자체 IR이 백엔드가 거치는 스키마 게이트(참조 무결성·next.* 규칙·중복 id)를 통과하는가

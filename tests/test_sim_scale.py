@@ -23,7 +23,7 @@ EXAMPLES = Path(__file__).parent.parent / "examples"
 
 
 def _market() -> RuleSet:
-    return load_rule_file(EXAMPLES / "market_sim.rule")
+    return load_rule_file(EXAMPLES / "market_sim.lf")
 
 
 def test_prism_rejects_real_model() -> None:

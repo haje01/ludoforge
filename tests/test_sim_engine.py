@@ -89,7 +89,7 @@ def test_initial_state_from_pinned_init() -> None:
 
 def test_initial_state_rejects_free_var_without_overrides() -> None:
     # 던전!은 role(enum)·win_gold(int)를 init에서 고정하지 않는다 → overrides 없이는 거부.
-    rs = load_rule_file(EXAMPLES / "dungeon.rule")
+    rs = load_rule_file(EXAMPLES / "dungeon.lf")
     with pytest.raises(SimError, match="고정하지 않습니다"):
         initial_state(rs, enum_constants(rs))
 

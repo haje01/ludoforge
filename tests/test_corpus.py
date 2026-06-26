@@ -89,14 +89,14 @@ def test_unreachable_role_pins_culprits() -> None:
 
 @pytest.mark.parametrize("stem,expect_contradiction", sorted(EXAMPLE_EXPECTED.items()))
 def test_examples_match_documented_outcome(stem: str, expect_contradiction: bool) -> None:
-    report = _run(EXAMPLES / f"{stem}.rule")
+    report = _run(EXAMPLES / f"{stem}.lf")
     assert report.has_contradiction is expect_contradiction, format_report(report)
     assert report.unknowns == ()
 
 
 def test_examples_directory_matches_expected_set() -> None:
     # 예제 파일이 추가/삭제되면 기대표(EXAMPLE_EXPECTED)도 함께 갱신하도록 강제.
-    actual = {p.stem for p in EXAMPLES.glob("*.rule")}
+    actual = {p.stem for p in EXAMPLES.glob("*.lf")}
     assert actual == set(EXAMPLE_EXPECTED), f"examples/ 변경됨: {actual}"
 
 

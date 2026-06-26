@@ -29,7 +29,7 @@ def _write(tmp_path: Path, body: str) -> Path:
 
 
 def test_loads_dungeon_transition_system() -> None:
-    rs = load_rule_file(EXAMPLES / "dungeon.rule")
+    rs = load_rule_file(EXAMPLES / "dungeon.lf")
 
     assert rs.init == "gold == 0 and room == hall and monster == none and status == exploring"
 
@@ -73,7 +73,7 @@ def test_loads_dungeon_transition_system() -> None:
 
 
 def test_loads_dungeon_properties() -> None:
-    rs = load_rule_file(EXAMPLES / "dungeon.rule")
+    rs = load_rule_file(EXAMPLES / "dungeon.lf")
     by_id = {p.id: p for p in rs.checks}
 
     assert by_id["winnable"].kind == "reachable"
@@ -82,8 +82,8 @@ def test_loads_dungeon_properties() -> None:
 
 
 def test_transition_source_is_filename() -> None:
-    rs = load_rule_file(EXAMPLES / "dungeon.rule")
-    assert all(t.source == "dungeon.rule" for t in rs.transitions)
+    rs = load_rule_file(EXAMPLES / "dungeon.lf")
+    assert all(t.source == "dungeon.lf" for t in rs.transitions)
 
 
 # ---------- 로더: 구조 오류 ----------
@@ -207,7 +207,7 @@ def test_prob_kind_rejected(tmp_path: Path) -> None:
 
 
 def test_dungeon_fixture_validates() -> None:
-    validate(load_rule_file(EXAMPLES / "dungeon.rule"))  # 예외 없으면 통과
+    validate(load_rule_file(EXAMPLES / "dungeon.lf"))  # 예외 없으면 통과
 
 
 def test_next_in_rule_then_rejected() -> None:
@@ -290,7 +290,7 @@ def test_existing_static_fixture_still_validates() -> None:
 
 
 def test_check_finite_state_passes_for_dungeon() -> None:
-    check_finite_state(load_rule_file(EXAMPLES / "dungeon.rule"))  # 모두 유한 → 통과
+    check_finite_state(load_rule_file(EXAMPLES / "dungeon.lf"))  # 모두 유한 → 통과
 
 
 def test_check_finite_state_rejects_unbounded_int() -> None:

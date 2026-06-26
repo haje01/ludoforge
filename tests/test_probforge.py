@@ -20,7 +20,7 @@ EXAMPLES = Path(__file__).parent.parent / "examples"
 
 
 def _dungeon() -> RuleSet:
-    return load_rule_file(EXAMPLES / "dungeon.rule")
+    return load_rule_file(EXAMPLES / "dungeon.lf")
 
 
 # ---------- 모델 생성 ----------

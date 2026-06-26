@@ -78,7 +78,7 @@ def test_deadlock_detected() -> None:
 
 
 def test_dungeon_winnable_reachable() -> None:
-    rs = load_rule_file(EXAMPLES / "dungeon.rule")
+    rs = load_rule_file(EXAMPLES / "dungeon.lf")
     report = run_bmc(rs, k=10)
     by = _by_id(report)
     # 전사(목표 10)는 몇 스텝 안에 보물을 모아 승리(status=won) 도달 가능
@@ -88,7 +88,7 @@ def test_dungeon_winnable_reachable() -> None:
 
 
 def test_dungeon_winning_trace_ends_at_hall_with_target_gold() -> None:
-    rs = load_rule_file(EXAMPLES / "dungeon.rule")
+    rs = load_rule_file(EXAMPLES / "dungeon.lf")
     report = run_bmc(rs, k=10)
     trace = _by_id(report)["winnable"].trace  # type: ignore[attr-defined]
     last = trace.steps[-1].values
