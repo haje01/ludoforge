@@ -21,6 +21,7 @@ from core.loader import LoaderError, load_rules
 from core.schema import SchemaError, validate
 from logic.solver.bmc import format_bmc_report, run_bmc
 from logic.solver.checks import check as run_checks
+from logic.solver.html_report import render_bmc_html
 from logic.solver.report import format_report
 from logic.solver.translator import TranslationError, translate
 from sim.engine import SimError
@@ -67,6 +68,9 @@ def check(path: str = typer.Argument(..., help="검사할 .rule 파일 또는 �
 def bmc(
     path: str = typer.Argument(..., help="검사할 .rule 파일 또는 디렉토리"),
     k: int = typer.Option(10, "--k", help="BMC 언롤링 깊이 상한"),
+    html_out: str | None = typer.Option(
+        None, "--html", help="결과(경로·반례 포함)를 시각화한 HTML 파일로 저장할 경로"
+    ),
 ) -> None:
     """전이 시스템(init/transitions/checks)을 깊이 k까지 BMC로 검사한다(D15).
 
@@ -93,6 +97,10 @@ def bmc(
         raise typer.Exit(_EXIT_ERROR) from e
 
     typer.echo(format_bmc_report(report))
+    if html_out is not None:
+        out_path = Path(html_out)
+        out_path.write_text(render_bmc_html(report), encoding="utf-8")
+        typer.echo(f"HTML 리포트를 저장했습니다: {out_path}")
 
     if report.has_violation:
         raise typer.Exit(_EXIT_CONTRADICTION)

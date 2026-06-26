@@ -296,6 +296,7 @@ core/          # 공유 DSL 프론트엔드(SSOT) — 세 백엔드가 같은 IR
   ir.py              # 중간표현 데이터클래스 (전이 시스템 포함)
   loader.py          # .rule 파일 → 내부 IR
   schema.py          # 스키마·참조 검증 + check_finite_state(PRISM 게이트) + check_dtmc(sim 게이트)
+  htmlviz.py         # HTML 리포트 공용 인터랙션(의존성 없는 호버 툴팁 CSS·JS) — sim·bmc --html 공유
 ludoforge/           # 우산: 통합 CLI 진입점·프로젝트 버전
   cli.py             # ludoforge check / bmc / sim  (PRISM은 테스트 오라클, CLI 미노출/D23)
 logic/           # 논리 증명 백엔드 (Z3/BMC)
@@ -304,6 +305,7 @@ logic/           # 논리 증명 백엔드 (Z3/BMC)
     checks.py        # 정적 모순/도달성 검사
     bmc.py           # 전이 시스템 BMC (k 언롤링·도달성·불변식·데드락)
     report.py        # unsat core·반례 → 사람용 리포트
+    html_report.py   # BmcReport → 자체 완결형 HTML(경로·반례 시각화, 의존성 없음) — bmc --html
 sim/             # 확률 추정 백엔드 (Monte Carlo, 주 정량 경로 — D19)
   engine.py          # IR 전이 시스템 인터프리터·DTMC 게이트·1 run 표집
   aggregate.py       # 결합가능 집계(Welford·히스토그램·rule-of-three)

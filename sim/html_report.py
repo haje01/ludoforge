@@ -2,8 +2,9 @@
 
 텍스트 리포트(`sim.report`)와 같은 내용을 더 보기 쉽게 보여주는 용도다 — 비율은 95% CI를
 얹은 0..1 막대로, 분포는 히스토그램(가능할 때)·평균/CI/백분위 마커로 그린다. 외부 의존성·
-CDN·JS 없이 인라인 CSS + 인라인 SVG만 쓴다(오프라인에서 그대로 열림). 결정론을 위해
-타임스탬프 등 비결정 요소는 넣지 않는다 — 같은 SimReport는 같은 HTML을 낸다.
+CDN 없이 인라인 CSS·SVG와 작은 인라인 JS(커서 위치 값 호버 툴팁, core.htmlviz)만 쓴다
+(오프라인에서 그대로 열림). 결정론을 위해 타임스탬프 등 비결정 요소는 넣지 않는다 — 같은
+SimReport는 같은 HTML을 낸다.
 
 증명이 아니라 추정이라는 라벨(D19 정직성)은 텍스트 리포트와 동일하게 머리에 박는다.
 """
@@ -12,6 +13,7 @@ from __future__ import annotations
 
 import html
 
+from core.htmlviz import TOOLTIP_CSS, TOOLTIP_JS
 from sim.aggregate import (
     ConfigResult,
     DistributionResult,
@@ -90,12 +92,12 @@ def render_sim_html(report: SimReport) -> str:
         '<html lang="ko"><head><meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         "<title>Ludoforge sim 추정 리포트</title>\n"
-        f"<style>{_CSS}</style></head>\n"
+        f"<style>{_CSS}{TOOLTIP_CSS}</style></head>\n"
         '<body><div class="wrap">\n'
         "<h1>Monte Carlo 추정 결과 (sim)</h1>\n"
         f"{body}\n"
         '<div class="foot">Ludoforge · sim 백엔드 (Monte Carlo 추정)</div>\n'
-        "</div></body></html>\n"
+        f"</div>{TOOLTIP_JS}</body></html>\n"
     )
 
 
@@ -128,7 +130,8 @@ def _render_proportion(index: int, r: ProportionResult) -> str:
     if r.desc:
         head += f'<div class="desc">{_esc(r.desc)}</div>'
     if r.rule_of_three is not None:
-        bar = _bar_svg([(0.0, r.rule_of_three, "var(--warn)")], marks=[])
+        tip = f"{r.event_label} 미관측 0/{r.n} · 상한 P ≲ {r.rule_of_three:.2g}"
+        bar = _bar_svg([(0.0, r.rule_of_three, "var(--warn)")], marks=[], tip=tip)
         body = (
             f'<div class="stat">{_esc(r.event_label)} 미관측 (0/{r.n}) — '
             f'상한 P ≲ <span class="hi">{r.rule_of_three:.2g}</span> (rule of three)</div>'
@@ -137,7 +140,8 @@ def _render_proportion(index: int, r: ProportionResult) -> str:
         )
         return head + body + "</div>"
     lo, hi = r.ci
-    bar = _bar_svg([(lo, hi, "var(--bar)")], marks=[(r.p_hat, "var(--accent)")])
+    tip = f"{r.event_label} P̂={r.p_hat:.4f} · 95% CI [{lo:.4f}, {hi:.4f}] · {r.successes}/{r.n}"
+    bar = _bar_svg([(lo, hi, "var(--bar)")], marks=[(r.p_hat, "var(--accent)")], tip=tip)
     body = (
         f'<div class="stat">{_esc(r.event_label)} P̂ = <span class="hi">{r.p_hat:.4f}</span>'
         f"  95% CI [{lo:.4f}, {hi:.4f}]  ({r.successes}/{r.n})</div>"
@@ -173,20 +177,25 @@ def _render_distribution(index: int, r: DistributionResult) -> str:
 # ---------- SVG 헬퍼 (인라인, JS·외부 의존성 없음) ----------
 
 
-def _bar_svg(bands: list[tuple[float, float, str]], marks: list[tuple[float, str]]) -> str:
-    """0..1 스케일 가로 막대. bands=(lo,hi,색) CI 띠, marks=(x,색) 세로 점선(점추정)."""
-    w, h = 100.0, 14.0
+def _bar_svg(
+    bands: list[tuple[float, float, str]], marks: list[tuple[float, str]], tip: str = ""
+) -> str:
+    """0..1 스케일 가로 막대. bands=(lo,hi,색) CI 띠, marks=(x,색) 세로 점선(점추정).
+
+    tip을 주면 svg 전체에 호버 툴팁(data-tip)을 단다(커서로 값 확인, core.htmlviz)."""
+    w, h = 100.0, 7.0
+    attr = f' data-tip="{_esc(tip)}"' if tip else ""
     svg = [
-        f'<svg viewBox="0 0 {w:g} {h:g}" preserveAspectRatio="none" role="img">',
-        f'<rect x="0" y="3" width="{w:g}" height="8" rx="2" fill="var(--track)"/>',
+        f'<svg viewBox="0 0 {w:g} {h:g}" preserveAspectRatio="none" role="img"{attr}>',
+        f'<rect x="0" y="1.5" width="{w:g}" height="4" rx="1" fill="var(--track)"/>',
     ]
     for lo, hi, color in bands:
         x = max(0.0, lo) * w
         bw = max(0.6, (min(1.0, hi) - max(0.0, lo)) * w)
-        svg.append(f'<rect x="{x:.2f}" y="3" width="{bw:.2f}" height="8" rx="2" fill="{color}"/>')
+        svg.append(f'<rect x="{x:.2f}" y="1.5" width="{bw:.2f}" height="4" rx="1" fill="{color}"/>')
     for x, color in marks:
         px = min(1.0, max(0.0, x)) * w
-        svg.append(f'<rect x="{px - 0.4:.2f}" y="1" width="0.8" height="12" fill="{color}"/>')
+        svg.append(f'<rect x="{px - 0.4:.2f}" y="0.5" width="0.8" height="6" fill="{color}"/>')
     svg.append("</svg>")
     return "".join(svg)
 
@@ -202,17 +211,23 @@ def _hist_svg(r: DistributionResult) -> str:
     n = len(bins)
     bw = w / n
     svg = [f'<svg viewBox="0 0 {w:g} {h:g}" preserveAspectRatio="none" role="img">']
-    for i, (_, c) in enumerate(bins):
+    for i, (v, c) in enumerate(bins):
         bh = (c / cmax) * (h - 2)
         x = i * bw
+        pct = f" ({100 * c / r.n:.1f}%)" if r.n else ""
+        tip = _esc(f"값 {_num(v)} · 빈도 {c}{pct}")
         svg.append(
             f'<rect x="{x + bw * 0.1:.2f}" y="{h - bh:.2f}" width="{bw * 0.8:.2f}" '
-            f'height="{bh:.2f}" fill="var(--bar)"/>'
+            f'height="{bh:.2f}" fill="var(--bar)" data-tip="{tip}"/>'
         )
     span = r.vmax - r.vmin
     if span > 0:
         mx = (r.mean - r.vmin) / span * w
-        svg.append(f'<rect x="{mx - 0.3:.2f}" y="0" width="0.6" height="{h:g}" fill="var(--ok)"/>')
+        mtip = _esc(f"평균 {r.mean:.4f}")
+        svg.append(
+            f'<rect x="{mx - 0.3:.2f}" y="0" width="0.6" height="{h:g}" '
+            f'fill="var(--ok)" data-tip="{mtip}"/>'
+        )
     svg.append("</svg>")
     return "".join(svg)
 
@@ -232,7 +247,8 @@ def _meanci_svg(r: DistributionResult) -> str:
     if r.percentiles is not None:
         for v in r.percentiles.values():
             marks.append((pos(v) / 100.0, "var(--muted)"))
-    return _bar_svg(bands, marks)
+    tip = f"평균 {r.mean:.4f} · 95% CI [{lo:.4f}, {hi:.4f}] · 범위 [{_num(r.vmin)}, {_num(r.vmax)}]"
+    return _bar_svg(bands, marks, tip=tip)
 
 
 def _bin_histogram(hist: dict[float, int], vmin: float, vmax: float) -> list[tuple[float, int]]:

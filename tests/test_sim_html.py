@@ -35,13 +35,22 @@ def test_html_has_self_contained_structure() -> None:
     assert "Monte Carlo 추정 결과 (sim)" in html
     # 정직성 라벨(증명 아님)이 머리에 박혀야 한다(D19).
     assert "증명 아님" in html
-    # 외부 의존성·CDN·JS 없음(오프라인 자체 완결).
-    assert "<script" not in html
+    # 외부 의존성·CDN 없음(오프라인 자체 완결) — 인라인 JS는 허용하되 원격 스크립트는 금지.
+    assert "<script src" not in html
     assert "http://" not in html and "https://" not in html
     assert "cdn" not in html.lower()
-    # 스타일·시각요소(SVG)가 인라인으로 들어 있다.
+    # 스타일·시각요소(SVG)·인터랙티브 호버 툴팁(자체 JS)이 인라인으로 들어 있다.
     assert "<style>" in html
     assert "<svg" in html
+    assert "<script>" in html and "data-tip" in html
+
+
+def test_charts_have_hover_tooltips() -> None:
+    # 커서로 값 확인(인터랙티브): 비율 막대·히스토그램 칸에 data-tip이 달린다.
+    html = render_sim_html(_dungeon_report())
+    assert "data-tip=" in html
+    assert 'data-tip="값 ' in html  # 히스토그램 칸: "값 X · 빈도 N"
+    assert "빈도" in html
 
 
 def test_html_renders_all_check_kinds() -> None:
