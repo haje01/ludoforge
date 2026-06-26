@@ -245,6 +245,17 @@ def _color_code_line(p, line: str, lang: str):
         r1.text = rest
         r1.font.name, r1.font.size, r1.font.color.rgb = FONT_MONO, Pt(15), TEXT
         return
+    if lang == "lf" and "//" in line:  # 자체 문법(.lf) 주석은 `//`
+        i = line.index("//")
+        code, comment = line[:i], line[i:]
+        if code:
+            r0 = p.add_run()
+            r0.text = code
+            r0.font.name, r0.font.size, r0.font.color.rgb = FONT_MONO, Pt(15), TEXT
+        r1 = p.add_run()
+        r1.text = comment
+        r1.font.name, r1.font.size, r1.font.color.rgb = FONT_MONO, Pt(15), GREEN_LT
+        return
     if "#" in line:
         i = line.index("#")
         code, comment = line[:i], line[i:]
@@ -434,10 +445,10 @@ SLIDES = [
                 "bullets",
                 [
                     (
-                        "**DSL** — 게임 룰을 산문 대신 **기계가 검증할 수 있는 구조**(YAML)로 작성.",
+                        "**DSL** — 게임 룰을 산문 대신 **기계가 검증할 수 있는 자체 문법(`.lf`)**으로 작성.",
                         0,
                     ),
-                    ("형식화하는 행위 자체가 숨은 가정을 드러낸다.", 2),
+                    ("형식화하는 행위 자체가 숨은 가정을 드러낸다. `=`(대입)·`==`(비교)를 구분. (D21)", 2),
                     (
                         "**SMT solver / Z3** — `x + y <= 10 ∧ x > 3` 같은 산술 논리식을 푸는 도구.",
                         0,
@@ -501,21 +512,20 @@ SLIDES = [
         "blocks": [
             (
                 "code",
-                "yaml",
+                "lf",
                 None,
                 [
-                    "domain:                       # ① 변수와 그 범위 선언",
-                    "  variables:",
-                    "    level: { type: int,  min: 1, max: 100 }",
-                    "    hp:    { type: int,  min: 0 }",
-                    "    role:  { type: enum, values: [warrior, mage, archer] }",
+                    "domain {                          // ① 변수와 그 범위 선언",
+                    "    level: int 1..100",
+                    "    hp:    int 0..",
+                    "    role:  enum { warrior, mage, archer }",
+                    "}",
                     "",
-                    "constraints:                  # ② 지켜야 할 제약",
-                    "  - id: warrior_hp_formula",
-                    '    when: "role == warrior"   # 조건 → Implies(when, then)',
-                    '    then: "hp == level * 100"',
-                    "  - id: global_hp_cap",
-                    '    then: "hp <= 5000"',
+                    "constraint warrior_hp_formula:    // ② 지켜야 할 제약",
+                    "    when role == warrior          // 조건 → Implies(when, then)",
+                    "    then hp == level * 100",
+                    "constraint global_hp_cap:",
+                    "    then hp <= 5000",
                 ],
             ),
             ("note", "각 룰은 `id`로 추적되어, 모순 시 어떤 룰이 범인인지 짚을 수 있다", BLUE),
@@ -529,7 +539,7 @@ SLIDES = [
                 "bash",
                 None,
                 [
-                    "$ ludoforge check warrior.rule",
+                    "$ ludoforge check warrior.lf",
                 ],
             ),
             (
@@ -567,9 +577,9 @@ SLIDES = [
                 None,
                 [
                     "rules/",
-                    "  _domain.rule     # 공유: 변수 정의만",
-                    "  planner_a.rule   # 기획자 A: 전사 HP 공식 (constraints만)",
-                    "  planner_b.rule   # 기획자 B: HP 상한 (constraints만)",
+                    "  _domain.lf     // 공유: 변수 정의만",
+                    "  planner_a.lf   // 기획자 A: 전사 HP 공식 (constraints만)",
+                    "  planner_b.lf   // 기획자 B: HP 상한 (constraints만)",
                 ],
             ),
             (
@@ -627,20 +637,18 @@ SLIDES = [
         "blocks": [
             (
                 "code",
-                "yaml",
+                "lf",
                 None,
                 [
-                    "domain:",
-                    "  variables:",
-                    "    role:      { type: enum, values: [rogue, mage] }   # enum",
-                    "    stealthed: { type: bool }                          # 불리언 상태",
-                    "    attacking: { type: bool }",
-                    "constraints:",
-                    "  - id: stealth_mutex",
-                    '    then: "not (stealthed and attacking)"     # 상호 배제',
-                    "expects:                                       # 도달성 단언",
-                    "  - id: rogue_ambush",
-                    '    that: "role == rogue and stealthed and attacking"',
+                    "domain {",
+                    "    role:      enum { rogue, mage }   // enum",
+                    "    stealthed: bool                   // 불리언 상태",
+                    "    attacking: bool",
+                    "}",
+                    "constraint stealth_mutex:",
+                    "    then not (stealthed and attacking)     // 상호 배제",
+                    "expect rogue_ambush:                       // 도달성 단언",
+                    "    role == rogue and stealthed and attacking",
                 ],
             ),
             (
@@ -663,7 +671,7 @@ SLIDES = [
                 "bullets",
                 [
                     ("정적 스냅샷을 넘어 **턴·이동·누적이 있는 동역학**을 검사한다.", 0),
-                    ("`init` / `transitions`(가드·확률 분기·`next.X`) / `checks`를 DSL에 추가.", 2),
+                    ("`init` / `transitions`(가드·확률 분기·`x = expr` 대입) / `checks`를 DSL에 추가.", 2),
                     (
                         "**모델은 하나, 백엔드는 둘** — 시간과 확률은 다른 수학이라 "
                         "엔진을 나눈다. (D11)",
@@ -683,8 +691,8 @@ SLIDES = [
             ),
             (
                 "note",
-                "보드게임 *던전!*(WotC)을 논리·확률 양쪽으로 검증한 게 동기 — "
-                "같은 `.rule` 한 벌에서.",
+                "보드게임 *던전!*(WotC)을 논리·정량 양쪽으로 검증한 게 동기 — "
+                "같은 `.lf` 한 벌에서.",
                 BLUE,
             ),
         ],
@@ -707,6 +715,38 @@ SLIDES = [
                 "note",
                 "존재·건전성은 *증명*(Z3/BMC), 정량 크기는 *추정*(sim) — "
                 "한 DSL에서 각자의 수학으로.",
+                GREEN,
+            ),
+        ],
+    },
+    {
+        "title": "최근 진화 — 자체 DSL · 정책 · 단순화",
+        "kicker": "5~7차",
+        "blocks": [
+            (
+                "bullets",
+                [
+                    (
+                        "**sim 정책(`pref`)** — 플레이어 *선택*에 확률을 줘 표집한다. 규칙과 전략을 "
+                        '분리해 "이 정책에선 승률이?"를 추정("Pmax 아님" 라벨). (D20)',
+                        0,
+                    ),
+                    (
+                        "**자체 문법 `.lf`** — YAML을 벗고 전용 DSL로 승격. `=`(대입)·`==`(비교)를 "
+                        "문법이 구분, 프라임 표기 제거. IR은 불변이라 백엔드 무회귀. (D21·D22)",
+                        0,
+                    ),
+                    (
+                        "**구조 단순화** — PRISM을 *테스트 전용 교차검증 오라클*로 내리고, 사용자 "
+                        "백엔드를 `check`·`bmc`·`sim` 셋으로. 던전 예제도 하나로 통합. (D23)",
+                        0,
+                    ),
+                ],
+            ),
+            (
+                "note",
+                '한 모델, 두 질문 — `bmc`는 "이길 길이 존재하는가"(증명), `sim`은 '
+                '"이 정책에선 실제 얼마인가"(추정). `pref`는 sim만 본다.',
                 GREEN,
             ),
         ],
