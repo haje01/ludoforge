@@ -8,7 +8,7 @@ BMC(D15)와 같은 골격을 공유하되 해석만 다르다:
 - **비결정 해소(D19→D20):** 도달 상태에 enabled 전이가 2개 이상이면, 모든 전이가 `pref`
   (플레이어 선호도)를 **명시한 경우에만** enabled끼리 정규화해 무작위 정책으로 표집한다
   (D20). 하나라도 미선언(None)이 섞이면 의도치 않은 가드 중첩으로 보고 `DtmcViolation`으로
-  **명시적 거부**한다(그 비결정은 BMC `ludoforge bmc`·PRISM-mdp `ludoforge prob` 몫). enabled가
+  **명시적 거부**한다(그 비결정의 최선/최악은 BMC `ludoforge bmc` 몫). enabled가
   1개면 선택이 없어 rng를 소비하지 않는다(기존 DTMC 모델의 재현성·비트 동일 보존).
 - **2단 표집:** ① enabled 전이를 `pref`로 골라(정책) → ② 그 전이의 outcome을 weight로
   표집한다(환경 우연, 합이 1이 아니면 정규화). weight는 D12 의미, `pref`는 D20 의미로 구분.
@@ -447,7 +447,8 @@ def _dtmc_violation(state: State, enabled: list[Transition]) -> DtmcViolation:
     state_str = ", ".join(f"{k}={v}" for k, v in state.items())
     ids = ", ".join(t.id for t in enabled)
     return DtmcViolation(
-        f"DTMC 위배(D19): 상태 {{{state_str}}}에서 가드가 동시에 참인 전이가 "
-        f"{len(enabled)}개입니다: {ids}. sim은 결정적 분기(가드 상호배타)만 표집할 수 "
-        f"있습니다 — 비결정 선택은 BMC(ludoforge bmc)나 PRISM-mdp(ludoforge prob)로 검사하세요."
+        f"비결정(D19·D20): 상태 {{{state_str}}}에서 가드가 동시에 참인 전이가 "
+        f"{len(enabled)}개입니다: {ids}. 가드를 상호배타로 만들거나, 의도된 플레이어 선택이면 "
+        f"co-enabled 전이 *모두*에 pref를 선언하세요(무작위 정책, D20). 그 비결정의 최선/최악은 "
+        f"BMC(ludoforge bmc)로 검사합니다."
     )

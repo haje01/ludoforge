@@ -143,9 +143,11 @@ def test_dtmc_violation_rejected_with_friendly_message() -> None:
     with pytest.raises(DtmcViolation) as exc:
         run_once(rs, random.Random(0), horizon=10)
     msg = str(exc.value)
-    assert "DTMC 위배" in msg
+    assert "비결정" in msg
     assert "a" in msg and "b" in msg  # 동시 enabled 전이 id를 짚는다
+    assert "pref" in msg  # 의도된 선택이면 pref 선언 안내(D20)
     assert "ludoforge bmc" in msg  # 대안 백엔드 안내
+    assert "ludoforge prob" not in msg  # 제거된 명령 안내 없음(D23)
 
 
 # ---------- 무작위 정책: 선택 표집 (D20) ----------

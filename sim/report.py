@@ -37,7 +37,7 @@ def format_sim_report(report: SimReport) -> str:
         lines.append(
             "ℹ️ sim이 다루지 않는 체크(건너뜀): "
             + ", ".join(report.skipped)
-            + " — prob는 PRISM(ludoforge prob), no_deadlock은 BMC(ludoforge bmc) 몫."
+            + " — no_deadlock은 BMC(ludoforge bmc) 몫."
         )
     return "\n".join(lines).rstrip() + "\n"
 

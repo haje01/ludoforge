@@ -68,5 +68,5 @@ def test_cli_sim_rejects_nondeterministic_model() -> None:
     from ludoforge.cli import app
 
     result = CliRunner().invoke(app, ["sim", str(FIXTURES / "nondet.rule"), "--samples", "10"])
-    assert result.exit_code == 2  # DTMC 위배 → 친절한 거부
-    assert "DTMC 위배" in result.stderr
+    assert result.exit_code == 2  # 미선언 비결정 → 친절한 거부
+    assert "비결정" in result.stderr

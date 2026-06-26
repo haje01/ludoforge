@@ -294,7 +294,9 @@
   백엔드에서 **소형 모델 교차검증 오라클**로 내려가고, 정량 추정의 무게중심은 Monte Carlo
   시뮬레이터(`sim/`)로 옮겼다. "MC는 증명 아니라 기각"이라던 본 결정의 입장은 D19가
   뒤집는다(정확값이 곧 상태폭발로 불가능한 영역이라 추정으로 재배치). 유한 상태 강제는
-  여전히 PRISM 경로(`ludoforge prob`)에만 적용되고, sim은 무한·real을 허용한다. 다중 백엔드 Phase 0
+  여전히 PRISM 경로에만 적용되고, sim은 무한·real을 허용한다. 다중 백엔드 Phase 0
+  → **D23으로 갱신 (2026-06-25):** PRISM은 사용자 CLI 표면에서 완전히 내려가 `ludoforge prob`·
+  DSL `kind: prob`이 제거됐다 — 이제 *테스트 전용* 교차검증 오라클이다(reachable→Pmax로 충분).
 - **맥락:** "Machinations 같은 확률 기능"은 두 갈래다 — 망라적 확률 모델검사(PRISM, 증명)와
   표집 시뮬레이션(몬테카를로, 추정). ProbForge의 정체성을 정해야 한다.
 - **결정:** **ProbForge = PRISM 기반 *증명기*** — RuleForge(논리 증명)와 대칭. 유한 상태
@@ -380,7 +382,9 @@
 ## D16. ProbForge — IR→PRISM 매핑 (스켈레톤)
 
 - **상태:** 확정 (2026-06-17) — 다중 백엔드 Phase 4 (ProbForge). PRISM 4.8.1로 e2e
-  **검증 완료**(아래 검증 후기).
+  **검증 완료**(아래 검증 후기). → **D23으로 갱신 (2026-06-25):** IR→PRISM 매핑은 유지하되
+  `prob`(PCTL spec) 분기는 제거됐다(reachable→Pmax·invariant→Pmin만). `ludoforge prob` CLI도
+  제거 — 본 매핑은 이제 테스트 오라클(`tests/test_sim_oracle.py`)에서만 호출된다.
 - **맥락:** 공유 IR(가중치 보존)을 PRISM guarded-command 모델로 번역해야 한다. PRISM은
   유한 상태·정수/불리언만 다루고, enum·정적 constraints·확률 가중치를 어떻게 매핑할지 정해야 한다.
 - **결정:**
@@ -488,6 +492,8 @@
 ## D19. 정량 백엔드 무게중심 이동 — Monte Carlo 시뮬레이터(`sim/`), PRISM은 오라클
 
 - **상태:** 확정 (2026-06-23) — 4차 마일스톤(정량 추정) Phase 0. D13·D14를 갱신한다.
+  → **D23으로 보강 (2026-06-25):** PRISM을 "오라클로 유지"한 본 결정을 한 걸음 더 — 사용자
+  CLI/DSL 표면(`ludoforge prob`·`kind: prob`)까지 제거해 PRISM을 *테스트 전용* 오라클로 확정.
 - **맥락:** ProbForge=PRISM(D13, D16)은 *망라적 증명*이라 정확하지만 **상태 폭발이 너무
   쉽게 천장에 닿는다** — D16 후기에서 gold·win_gold `[0..30000]`만으로 ~70억 상태가 되어
   빌드가 멈췄고, 던전!을 `[0..20]`로 축약해야 했다. 그런데 **정확한 확률값이 필요한 영역이
