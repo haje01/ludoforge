@@ -17,7 +17,7 @@
 ## 주요 기능
 
 - **DSL 기반 룰 작성**: 룰을 산문이 아닌 기계 검증 가능한 DSL(자체 문법 `.lf`)로 기술
-  (`=` 대입 / `==` 비교 구분; YAML `.rule`은 디프리케이트·하위 호환, D21).
+  (`=` 대입 / `==` 비교 구분, D21).
 - **스키마·참조 무결성 검증**: 미정의 심볼 참조, 중복 rule id, 표현식 구문 오류,
   변수 범위(min>max) 등 형식 오류를 Z3 검사 이전에 탐지.
 - **논리 모순 검증**: Z3로 번역해 도달 가능성 검사 — 기획자가 합법이라 여기는
@@ -87,7 +87,7 @@ logic/        # 논리 증명 백엔드(Z3)
 sim/          # 확률 추정 백엔드(Monte Carlo): engine.py(인터프리터) aggregate.py(집계) runner.py(병렬) report.py
 prob/         # 확률 증명 오라클(PRISM): prism_gen.py(IR→PRISM) runner.py(실행·파싱)
 rules/        # 실제 기획 룰 (.lf), git SSOT
-examples/     # 게임 기획 모순/정합 예제 (.lf; .rule=YAML 디프리케이트 골든 참조)
+examples/     # 게임 기획 모순/정합 예제 (.lf)
 tests/        # 모순/정합 코퍼스 포함
 docs/         # 문서
 ```
@@ -147,7 +147,7 @@ uv tool install git+https://github.com/haje01/ludoforge.git
 검사할 `.lf` 파일들이 들어 있는 폴더(또는 파일 하나)를 지정한다:
 
 ```bash
-ludoforge check 내룰폴더           # 폴더 안 모든 .lf/.rule을 병합해 함께 검사
+ludoforge check 내룰폴더           # 폴더 안 모든 .lf을 병합해 함께 검사
 ludoforge check 내룰폴더\some.lf   # 파일 하나만 검사
 ```
 
@@ -251,12 +251,10 @@ fighter  PRISM 0.922  ↔  sim P̂ 0.922   rogue 0.834 ↔ 0.834   wizard 0.945 
 ### 여러 기획자가 함께 쓸 때
 
 > **DSL 포맷 (D21):** 룰은 자체 문법 **`.lf`**(외부 DSL)로 작성한다 — 참조 예제
-> [`examples/dungeon.lf`](examples/dungeon.lf). 기존 YAML **`.rule`은 디프리케이트**되었으나
-> 하위 호환으로 계속 로드된다(로드 시 1회 경고). 로더가 확장자로 자동 디스패치하며 둘 다
-> **같은 IR**을 낸다. 아래 예시는 협업 구조 설명이라 `.lf` 기준이다.
+> [`examples/dungeon.lf`](examples/dungeon.lf).
 
-`.lf`/`.rule` 파일은 `domain`(변수 선언)과 `constraints`(제약) 섹션으로 나뉘는데, **둘 중
-하나만 담은 파일도 된다.** 디렉토리를 검사하면 그 안의 모든 `.lf`/`.rule`을 하나로
+`.lf` 파일은 `domain`(변수 선언)과 `constraints`(제약) 섹션으로 나뉘는데, **둘 중
+하나만 담은 파일도 된다.** 디렉토리를 검사하면 그 안의 모든 `.lf`을 하나로
 병합해 함께 검사하기 때문이다. 그래서 협업은 다음처럼 나눠 쓰면 깔끔하다:
 
 ```
@@ -277,32 +275,18 @@ rules/
 
 ### 에디터 구문 강조
 
-**자체 문법 `.lf`** — VS Code/Cursor용 TextMate 문법 확장이 저장소에 포함돼 있다:
-[`editors/vscode-lf/`](editors/vscode-lf/). 설치는 `Ctrl+Shift+P` →
-**`Developer: Install Extension from Location...`** 로 그 폴더를 고른 뒤 창을 reload 하면 된다
-(WSL/Remote 포함 어디서나 동작 — 수동 복사는 Remote-WSL에서 무시되니 이 방법을 쓴다).
-키워드·타입·연산자(`=`/`==`/`->`)·`//` 주석·`${...}` 보간을 강조한다. 표준 TextMate
-문법이라 Sublime·Notepad++ 등에도 이식 가능하다(자세한 설치·대안은 폴더의 README 참고).
+**자체 문법 `.lf`** — 두 에디터용 구문 강조가 저장소에 포함돼 있다(키워드 집합은 서로 맞춤):
 
-아래는 **디프리케이트된 YAML `.rule`** 파일용 legacy 안내다. `.rule`은 YAML 형식이지만
-확장자가 `.yaml`이 아니라 에디터가 기본으로 구문 강조를 적용하지 않는다. `.rule`을
-YAML로 인식하도록 연결하면 해결된다.
+- **VS Code · Cursor** — TextMate 문법 확장 [`editors/vscode-lf/`](editors/vscode-lf/).
+  설치는 `Ctrl+Shift+P` → **`Developer: Install Extension from Location...`** 로 그 폴더를
+  고른 뒤 창을 reload 하면 된다(WSL/Remote 포함 어디서나 동작 — 수동 복사는 Remote-WSL에서
+  무시되니 이 방법을 쓴다). 표준 TextMate 문법이라 Sublime·Notepad++ 등에도 이식 가능하다.
+- **Vim · Neovim** — 구문 강조 플러그인 [`editors/vim-lf/`](editors/vim-lf/). 이 폴더를
+  패키지 경로(`~/.vim/pack/.../start/` 또는 nvim `site/pack/.../start/`)에 링크하면 `.lf`
+  파일이 자동 인식·강조된다.
 
-- **VS Code · Cursor:** 저장소에 포함된 [`.vscode/settings.json`](.vscode/settings.json)이
-  자동 적용된다 (별도 설정 불필요). 전역으로 켜려면 사용자 `settings.json`에:
-  ```json
-  { "files.associations": { "*.rule": "yaml" } }
-  ```
-- **Notepad++** (Windows): **설정(Settings) → 스타일 설정기(Style Configurator)** 에서
-  왼쪽 언어 목록의 **YAML**을 고르고, 오른쪽 **사용자 정의 확장자(User ext.)** 칸에
-  `rule`을 추가한다 → 이후 `.rule` 파일이 자동으로 YAML로 강조된다. (한 파일만 잠깐
-  보려면 메뉴 **언어(Language) → YAML**.)
-- **Vim / Neovim:** `~/.vimrc`(또는 `init.vim`)에:
-  ```vim
-  autocmd BufRead,BufNewFile *.rule setfiletype yaml
-  ```
-
-> 자체 문법으로 승격하기 전까지(CLAUDE.md §4)의 임시 설정이다.
+둘 다 키워드·타입·연산자(`=`/`==`/`->`)·`//` 주석·`${...}` 보간을 강조한다(자세한 설치·대안은
+각 폴더의 README 참고).
 
 ### 개발자용 — 소스에서 실행
 
