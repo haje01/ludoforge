@@ -326,6 +326,34 @@ def test_transition_outcomes_weights() -> None:
     assert _expr_eq(t.outcomes[1].then, "next.gold == gold")
 
 
+def test_min_call_in_effect_lowers_to_python_expr() -> None:
+    # 효과 RHS의 min(...)이 파이썬-식 문자열로 lowering된다(다운스트림 ast가 소비).
+    src = """
+    domain { g: int 0..30 room: enum { a, b } }
+    transition t:
+        when room == a
+        then { g = min(g + 10, 30); room = b }
+    """
+    rs = parse_rule_text(src)
+    then = rs.transitions[0].outcomes[0].then
+    assert _expr_eq(then, "next.g == min(g + 10, 30) and next.room == b")
+
+
+def test_min_call_with_table_index_arg_desugars() -> None:
+    # min 인자 안의 표 색인(reward[mon])도 desugar가 리터럴로 해소한다.
+    src = """
+    domain { g: int 0..30 monster: enum { goblin, dragon } }
+    table reward { goblin: 2, dragon: 10 }
+    for mon in [goblin, dragon]:
+        transition "hit_${mon}":
+            when monster == mon
+            then g = min(g + reward[mon], 30)
+    """
+    rs = parse_rule_text(src)
+    by_id = {t.id: t for t in rs.transitions}
+    assert _expr_eq(by_id["hit_dragon"].outcomes[0].then, "next.g == min(g + 10, 30)")
+
+
 def test_transition_multi_assignment() -> None:
     # `{ a = ..; b = .. }` 병렬 대입 → `and` 결합.
     src = """

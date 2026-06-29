@@ -194,6 +194,8 @@ def _render(node: ast.AST) -> str:
         return f"({_render(node.left)} {op} {_render(node.right)})"
     if isinstance(node, ast.Compare):
         return _render_compare(node)
+    if isinstance(node, ast.Call):
+        return _render_call(node)
     if isinstance(node, ast.Name):
         return node.id  # 변수명 또는 enum 값 const(둘 다 그대로)
     if isinstance(node, ast.Constant):
@@ -216,6 +218,18 @@ def _render_compare(node: ast.Compare) -> str:
             raise ProbError(f"지원하지 않는 비교 연산자: {type(op).__name__}")
         parts.append(f"({_render(operands[i])} {sym} {_render(operands[i + 1])})")
     return parts[0] if len(parts) == 1 else "(" + " & ".join(parts) + ")"
+
+
+def _render_call(node: ast.Call) -> str:
+    """min/max 함수 호출을 PRISM 식으로(둘 다 PRISM 내장 함수, 가변 인자 지원)."""
+    func = node.func
+    if not (isinstance(func, ast.Name) and func.id in ("min", "max")):
+        raise ProbError(
+            f"PRISM 백엔드가 지원하지 않는 함수 호출: '{ast.unparse(node)}' (허용: min, max)"
+        )
+    if node.keywords or len(node.args) < 2:
+        raise ProbError(f"'{func.id}'은(는) 2개 이상의 위치 인자가 필요합니다")
+    return f"{func.id}({', '.join(_render(a) for a in node.args)})"
 
 
 def _updates(then_expr: str) -> str:

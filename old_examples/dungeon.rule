@@ -22,7 +22,6 @@ constraints:
 # 전투 데이터 표(D18) — 클래스×몬스터 격파 프로필.
 tables:
   reward: { goblin: 2, dragon: 10 }
-  cap:    { goblin: 28, dragon: 20 }
   win:
     goblin: { fighter: 0.92, cleric: 0.83, rogue: 0.72, wizard: 0.83 }
     dragon: { fighter: 0.58, cleric: 0.28, rogue: 0.08, wizard: 0.72 }
@@ -49,14 +48,14 @@ transitions:
   # ── 욕심 vs 안전(pref): 한 층 클리어 후의 유일한 플레이어 선택 ──
   - id: descend_l2
     desc: "욕심: 2층으로 — 고블린/드래곤 반반(드래곤은 고보상·고위험)"
-    when: "room == l1 and status == exploring and monster == none and gold <= 20"
+    when: "room == l1 and status == exploring and monster == none"
     pref: 0.5
     outcomes:
       - { weight: 0.5, then: "next.room == l2 and next.monster == goblin" }
       - { weight: 0.5, then: "next.room == l2 and next.monster == dragon" }
   - id: descend_l3
     desc: "욕심: 3층으로 — 드래곤만"
-    when: "room == l2 and status == exploring and monster == none and gold <= 20"
+    when: "room == l2 and status == exploring and monster == none"
     pref: 0.5
     then: "next.room == l3 and next.monster == dragon"
   - id: go_home
@@ -68,9 +67,9 @@ transitions:
   # ── 전투 ── 클래스×몬스터 곱(8개). 가중치는 표에서 색인 참조(D18).
   - id: "fight_${mon}_${cls}"
     for: { mon: [goblin, dragon], cls: [fighter, cleric, rogue, wizard] }
-    when: "role == ${cls} and monster == ${mon} and status == exploring and gold <= ${cap[mon]}"
+    when: "role == ${cls} and monster == ${mon} and status == exploring"
     outcomes:
-      - { weight: "${win[mon][cls]}",   then: "next.gold == gold + ${reward[mon]} and next.monster == none" }
+      - { weight: "${win[mon][cls]}",   then: "next.gold == min(gold + ${reward[mon]}, 30) and next.monster == none" }
       - { weight: "${miss[mon][cls]}",  then: "next.monster == none" }
       - { weight: "${death[mon][cls]}", then: "next.gold == 0 and next.room == hall and next.status == dead and next.monster == none" }
 

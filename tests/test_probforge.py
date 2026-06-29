@@ -50,7 +50,8 @@ def test_deterministic_and_probabilistic_commands() -> None:
     assert "[enter_l1]" in model
     assert "(room'=l1)" in model
     # 확률 전이 — 가중치 보존(합=1). fight_goblin_fighter: 승0.92 / 무소득0.07 / 사망0.01.
-    assert "0.92:(gold'=(gold + 2))" in model
+    # 보상은 상한(30)에서 포화(min) — PRISM 내장 min으로 그대로 번역.
+    assert "0.92:(gold'=min((gold + 2), 30))" in model
     assert "0.07:(monster'=none)" in model
     # 사망 분기는 다중 갱신
     assert "0.01:(gold'=0) & (room'=hall) & (status'=dead) & (monster'=none)" in model

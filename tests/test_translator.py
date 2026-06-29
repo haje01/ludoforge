@@ -205,3 +205,53 @@ def test_chained_comparison_supported() -> None:
     t = translate(rs)
     s = _solver_with(t, t.z3_vars["level"] == 5)
     assert s.check() == z3.unsat
+
+
+# ── min/max 포화/클램프(번역기는 generic — 효과 전용 제한은 schema 몫) ──
+
+
+def test_min_saturates_at_upper_bound() -> None:
+    # min(g + 10, 30): g=25면 30으로 포화(35 아님). 포화 덧셈(클램프) 표현.
+    rs = RuleSet(
+        variables=(Variable(name="g", type="int", min=0, max=30),),
+        constraints=(Constraint(id="sat", when="g == 25", then="min(g + 10, 30) == 30"),),
+    )
+    t = translate(rs)
+    assert _solver_with(t, t.z3_vars["g"] == 25).check() == z3.sat
+    # 포화 안 됐다고 가정(==35)하면 모순
+    rs_bad = RuleSet(
+        variables=(Variable(name="g", type="int", min=0, max=30),),
+        constraints=(Constraint(id="sat", when="g == 25", then="min(g + 10, 30) == 35"),),
+    )
+    tb = translate(rs_bad)
+    assert _solver_with(tb, tb.z3_vars["g"] == 25).check() == z3.unsat
+
+
+def test_max_picks_larger_operand() -> None:
+    # max(g, 5): g=3이면 5(작은 쪽 버림). g=10이면 5와 같을 수 없어 unsat.
+    rs = RuleSet(
+        variables=(Variable(name="g", type="int", min=0, max=30),),
+        constraints=(Constraint(id="m", then="max(g, 5) == 5"),),
+    )
+    t = translate(rs)
+    assert _solver_with(t, t.z3_vars["g"] == 3).check() == z3.sat
+    assert _solver_with(t, t.z3_vars["g"] == 10).check() == z3.unsat
+
+
+def test_min_three_args_folds() -> None:
+    # min(a, b, c)는 좌측 fold — 셋 중 최소(g=10 → min(10,7,3)=3).
+    rs = RuleSet(
+        variables=(Variable(name="g", type="int", min=0, max=30),),
+        constraints=(Constraint(id="m3", then="min(g, 7, 3) == 3"),),
+    )
+    t = translate(rs)
+    assert _solver_with(t, t.z3_vars["g"] == 10).check() == z3.sat
+
+
+def test_min_requires_two_args() -> None:
+    rs = RuleSet(
+        variables=(Variable(name="g", type="int", min=0, max=30),),
+        constraints=(Constraint(id="one_arg", then="min(g) == g"),),
+    )
+    with pytest.raises(TranslationError, match="2개 이상"):
+        translate(rs)

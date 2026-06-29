@@ -24,6 +24,10 @@ import ast
 
 from core.ir import RuleSet
 
+# 표현식에서 허용하는 함수 호출(번역기·sim·PRISM과 동일). 포화/클램프용이며 **효과
+# (then/outcomes)에서만** 허용한다 — 술어(when·init·constraint·check·expect)에서 쓰면 거부.
+_ALLOWED_FUNCS = frozenset({"min", "max"})
+
 
 class SchemaError(Exception):
     """스키마·참조 검증 실패. 메시지에 발견된 모든 문제를 담는다."""
@@ -167,7 +171,13 @@ def _check_references(ruleset: RuleSet) -> list[str]:
             label = "then" if len(t.outcomes) == 1 else f"outcomes[{i}].then"
             errors.extend(
                 _check_expr_references(
-                    f"전이 '{t.id}'", label, oc.then, known, known_vars, allow_next=True
+                    f"전이 '{t.id}'",
+                    label,
+                    oc.then,
+                    known,
+                    known_vars,
+                    allow_next=True,
+                    allow_funcs=True,  # 효과 RHS에서만 min/max(포화) 허용
                 )
             )
     for c in ruleset.checks:
@@ -190,6 +200,7 @@ def _check_expr_references(
     known: set[str],
     known_vars: set[str],
     allow_next: bool = False,
+    allow_funcs: bool = False,
 ) -> list[str]:
     try:
         tree = ast.parse(expr, mode="eval")
@@ -217,8 +228,35 @@ def _check_expr_references(
         else:
             errors.append(f"{subject}의 {clause}에 허용되지 않는 속성 접근: '{ast.unparse(node)}'")
 
+    # 함수 호출: min/max만, 효과(allow_funcs)에서만, 위치 인자 2개 이상. 그 외는 거부한다.
+    # 허용 함수의 func Name 노드는 심볼 검사에서 제외한다(변수가 아니라 함수명이므로).
+    func_markers: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if isinstance(func, ast.Name):
+            func_markers.add(id(func))  # 함수명은 변수 아님 — 심볼 검사에서 제외(중복 보고 방지)
+        if isinstance(func, ast.Name) and func.id in _ALLOWED_FUNCS:
+            if not allow_funcs:
+                errors.append(
+                    f"{subject}의 {clause}에서 {func.id}()는 효과(then/outcomes)에서만 "
+                    f"쓸 수 있습니다(포화/클램프 전용)"
+                )
+            elif node.keywords or len(node.args) < 2:
+                errors.append(
+                    f"{subject}의 {clause}의 '{func.id}'은(는) 위치 인자 2개 이상이어야 합니다: "
+                    f"'{ast.unparse(node)}'"
+                )
+        else:
+            errors.append(
+                f"{subject}의 {clause}에 허용되지 않는 함수 호출: '{ast.unparse(node)}' "
+                f"(허용: {', '.join(sorted(_ALLOWED_FUNCS))})"
+            )
+
+    skip = next_markers | func_markers
     for name in sorted(
-        {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and id(n) not in next_markers}
+        {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and id(n) not in skip}
     ):
         if name not in known:
             errors.append(f"{subject}의 {clause}가 미정의 심볼을 참조: '{name}'")

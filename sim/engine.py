@@ -89,6 +89,9 @@ _BIN_OPS: dict[type[ast.operator], Callable[[Any, Any], Any]] = {
     ast.Div: operator.truediv,
 }
 
+# 허용 함수 호출 → 파이썬 내장(가변 인자). 효과 전용 제한은 schema가 강제한다(generic + gate).
+_FUNCS: dict[str, Callable[..., Any]] = {"min": min, "max": max}
+
 
 def evaluate(node: ast.AST, env: dict[str, Any]) -> Any:
     """화이트리스트 ast 노드를 파이썬 값으로 평가한다. 그 외는 EvalError.
@@ -128,6 +131,14 @@ def evaluate(node: ast.AST, env: dict[str, Any]) -> Any:
                 return False
             left = right  # 연쇄 비교(1 <= x <= 3)
         return True
+
+    if isinstance(node, ast.Call):
+        func = node.func
+        if not isinstance(func, ast.Name) or func.id not in _FUNCS:
+            raise EvalError(f"지원하지 않는 함수 호출: '{ast.unparse(node)}' (허용: min, max)")
+        if node.keywords or len(node.args) < 2:
+            raise EvalError(f"'{func.id}'은(는) 2개 이상의 위치 인자가 필요합니다")
+        return _FUNCS[func.id](*(evaluate(a, env) for a in node.args))
 
     if isinstance(node, ast.Name):
         if node.id not in env:

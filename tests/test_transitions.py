@@ -65,9 +65,10 @@ def test_loads_dungeon_transition_system() -> None:
     # 확률 전이(fight_goblin_fighter) → 3-way 가중치 보존(승리/무소득/사망)
     fight = next(t for t in rs.transitions if t.id == "fight_goblin_fighter")
     assert len(fight.outcomes) == 3
+    # 보상은 상한(30)에서 포화(min) — 가드 없이 오버플로 회피.
     assert (fight.outcomes[0].weight, fight.outcomes[0].then) == (
         0.92,
-        "next.gold == gold + 2 and next.monster == none",
+        "next.gold == min(gold + 2, 30) and next.monster == none",
     )
     assert fight.outcomes[2].weight == 0.01
 

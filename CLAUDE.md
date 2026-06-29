@@ -163,6 +163,13 @@ expect warrior_can_max_level:
 - `expects:`의 각 `that`는 "도달 가능해야 하는 조건"이다(D10). `domain ∧ constraints ∧ that`가
   unsat이면 단언 미충족으로 보고하고 범인 룰을 짚는다. 자동 도달성 추론의 역방향이며,
   변수별 경계로는 안 보이는 **조합 도달성**(예: 두 스탯 동시 최대)을 검증한다.
+- `min(a, b, …)` · `max(a, b, …)` 함수(위치 인자 ≥2, 좌측 fold)는 **포화/클램프**용으로
+  허용하되 **효과(전이 `then`/`outcomes`)에서만** 쓴다 — 가드·constraint·init·expect·check 같은
+  술어에서 쓰면 schema가 거부한다(효과 전용). 누적 변수의 오버플로를 가드 없이 상한에서
+  포화시키는 데 쓴다(예: `next.gold == min(gold + reward, 30)` — 보상·몬스터·상태를 가드로
+  엮지 않음, 오버플로 회피는 갱신식의 책임). 번역: Z3는 `If`로 fold(`min(a,b)=If(a<=b,a,b)`),
+  sim은 파이썬 내장, PRISM은 내장 `min`/`max`로 그대로. 그 외 함수(`abs` 등)는 비지원이라 거부.
+  문법(`.lf`)은 호출을 어디서나 파싱하고 효과 전용 제한은 schema가 강제한다(generic + gate).
 
 표현 가능해야 할 룰 패턴:
 - 수치 공식(LIA): 스탯/데미지/비용.

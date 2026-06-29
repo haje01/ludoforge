@@ -78,6 +78,32 @@ def test_eval_rejects_non_whitelisted_node() -> None:
         _eval("gold ** 2", {"gold": 3})  # 거듭제곱은 화이트리스트 밖
 
 
+def test_eval_min_max_saturate() -> None:
+    # 포화/클램프: min(gold + 10, 30)은 상한 30에서 포화, max는 하한 선택.
+    assert _eval("min(gold + 10, 30)", {"gold": 25}) == 30
+    assert _eval("min(gold + 10, 30)", {"gold": 5}) == 15
+    assert _eval("max(gold, 5)", {"gold": 3}) == 5
+    assert _eval("min(a, b, c)", {"a": 9, "b": 4, "c": 7}) == 4  # 가변 인자
+
+
+def test_eval_disallowed_function_raises() -> None:
+    with pytest.raises(EvalError, match="지원하지 않는 함수 호출"):
+        _eval("abs(gold)", {"gold": -3})
+
+
+def test_eval_min_requires_two_args() -> None:
+    with pytest.raises(EvalError, match="2개 이상"):
+        _eval("min(gold)", {"gold": 3})
+
+
+def test_apply_outcome_saturates_gold() -> None:
+    # 효과 RHS의 min(…, 30)이 다음 상태에서 포화되는지(누적 오버플로 가드 대체).
+    new = apply_outcome("next.gold == min(gold + 10, 30)", {"gold": 25}, {})
+    assert new["gold"] == 30
+    new2 = apply_outcome("next.gold == min(gold + 10, 30)", {"gold": 5}, {})
+    assert new2["gold"] == 15
+
+
 # ---------- 초기 상태 ----------
 
 

@@ -34,7 +34,6 @@ constraint wizard_win_target:  when role == wizard  then win_gold == 30
 
 // 전투 데이터 표(D18) — 클래스×몬스터 격파 프로필. 전투 전이가 색인 참조한다.
 table reward { goblin: 2, dragon: 10 }
-table cap    { goblin: 28, dragon: 20 }   // 보상+gold ≤ 30 보장(짝수 gold라 stuck 없음)
 table win {
     goblin: { fighter: 0.92, cleric: 0.83, rogue: 0.72, wizard: 0.83 }
     dragon: { fighter: 0.58, cleric: 0.28, rogue: 0.08, wizard: 0.72 }
@@ -61,18 +60,18 @@ transition enter_l1:
     then { room = l1; monster = goblin }
 
 // ── 욕심 vs 안전(pref): 한 층 클리어(monster==none) 후의 유일한 플레이어 선택 ──
-// descend는 보상 상한(gold<=20)에서만 — dragon(+10)이 30을 안 넘게. 상한 초과면 go_home만 남아
-// 단일 enabled(선택 소멸). bmc는 pref를 무시하고 descend/go_home을 비결정으로 함께 탐색한다.
+// gold 상한은 전투 보상의 포화(min, 아래)가 책임지므로 descend에 gold 가드가 없다 — 돈이
+// 많아도 더 깊이 내려갈 수 있다(욕심). bmc는 pref를 무시하고 descend/go_home을 비결정으로 함께 탐색.
 transition descend_l2:
     desc "욕심: 2층으로 — 고블린/드래곤 반반(드래곤은 고보상·고위험)"
-    when room == l1 and status == exploring and monster == none and gold <= 20
+    when room == l1 and status == exploring and monster == none
     pref 0.5
     outcomes:
         0.5 -> { room = l2; monster = goblin }
         0.5 -> { room = l2; monster = dragon }
 transition descend_l3:
     desc "욕심: 3층으로 — 드래곤만"
-    when room == l2 and status == exploring and monster == none and gold <= 20
+    when room == l2 and status == exploring and monster == none
     pref 0.5
     then { room = l3; monster = dragon }
 transition go_home:
@@ -82,11 +81,13 @@ transition go_home:
     then room = hall
 
 // ── 전투 ── 클래스×몬스터 곱(8개). 승=보물+몬스터 소멸, 무소득=재시도, 사망=종료.
+// 보상은 min(…, 30)으로 gold 상한에서 포화 — 가드 없이 오버플로를 막는다(누적식의 책임).
+// 최대 목표(wizard 30)=상한이라 클램프로 승패 손실 없음. 가드로 몬스터·상태를 엮지 않는다.
 for mon in [goblin, dragon], cls in [fighter, cleric, rogue, wizard]:
     transition "fight_${mon}_${cls}":
-        when role == cls and monster == mon and status == exploring and gold <= cap[mon]
+        when role == cls and monster == mon and status == exploring
         outcomes:
-            win[mon][cls]   -> { gold = gold + reward[mon]; monster = none }
+            win[mon][cls]   -> { gold = min(gold + reward[mon], 30); monster = none }
             miss[mon][cls]  -> monster = none
             death[mon][cls] -> { gold = 0; room = hall; status = dead; monster = none }
 

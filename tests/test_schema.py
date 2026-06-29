@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from core.ir import Constraint, Expect, RuleSet, Variable
+from core.ir import Constraint, Expect, Outcome, RuleSet, Transition, Variable
 from core.loader import load_rule_file
 from core.schema import SchemaError, validate
 
@@ -119,3 +119,46 @@ def test_all_errors_collected_together() -> None:
         validate(rs)
     msg = str(exc.value)
     assert "mana" in msg and "wariror" in msg
+
+
+# ── min/max는 효과(then/outcomes)에서만 — 술어에서 쓰면 거부(효과 전용) ──
+
+
+def _effect(then: str, *, when: str | None = None) -> RuleSet:
+    return RuleSet(
+        variables=_domain(),
+        transitions=(
+            Transition(id="t", when=when, outcomes=(Outcome(then=then, weight=1.0),)),
+        ),
+    )
+
+
+def test_min_in_effect_passes() -> None:
+    # 효과 RHS의 포화(min)는 허용 — 함수명이 미정의 심볼로 오인되지 않는다.
+    validate(_effect("next.hp == min(hp + 5, 50)"))  # 예외 없이 통과
+
+
+def test_min_in_guard_is_rejected() -> None:
+    # 가드(when)는 술어 — min() 금지(효과 전용).
+    with pytest.raises(SchemaError, match="효과"):
+        validate(_effect("next.hp == hp", when="min(level, 5) == 0"))
+
+
+def test_min_in_constraint_then_is_rejected() -> None:
+    # constraint의 then은 술어(같은 상태) — min() 금지.
+    rs = RuleSet(
+        variables=_domain(),
+        constraints=(Constraint(id="c", then="hp == min(level, 50)"),),
+    )
+    with pytest.raises(SchemaError, match="효과"):
+        validate(rs)
+
+
+def test_disallowed_function_in_effect_is_reported() -> None:
+    with pytest.raises(SchemaError, match="허용되지 않는 함수 호출"):
+        validate(_effect("next.hp == abs(hp)"))
+
+
+def test_min_one_arg_in_effect_is_reported() -> None:
+    with pytest.raises(SchemaError, match="2개 이상"):
+        validate(_effect("next.hp == min(hp)"))

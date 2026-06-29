@@ -63,6 +63,13 @@ _BIN_OPS: dict[type[ast.operator], Any] = {
     ast.Mult: lambda a, b: a * b,
 }
 
+# 허용 함수 호출 → 두 피연산자 fold 함수(min/max). z3엔 내장 min/max가 없어 If로 만든다.
+# 효과 전용 제한은 schema가 강제하므로 여기선 일반 번역만 한다(generic + gate).
+_FUNCS: dict[str, Any] = {
+    "min": lambda a, b: z3.If(a <= b, a, b),
+    "max": lambda a, b: z3.If(a >= b, a, b),
+}
+
 
 def translate(ruleset: RuleSet) -> Translation:
     """검증된 RuleSet을 Z3 제약식으로 번역한다."""
@@ -208,6 +215,9 @@ def _translate_expr(
     if isinstance(node, ast.Compare):
         return _translate_compare(node, symbols, enums)
 
+    if isinstance(node, ast.Call):
+        return _translate_call(node, symbols, enums)
+
     if isinstance(node, ast.Name):
         if node.id not in symbols:
             raise TranslationError(f"미정의 심볼: '{node.id}'")
@@ -270,6 +280,27 @@ def _resolve_operand(
         if any(node.id in vals for vals in enums.values()):
             raise TranslationError(f"'{node.id}'은(는) enum '{hint}'의 값이 아닙니다")
     return _translate_expr(node, symbols, enums)
+
+
+def _translate_call(
+    node: ast.Call, symbols: dict[str, Any], enums: dict[str, dict[str, Any]]
+) -> Any:
+    """min/max 함수 호출을 Z3 식으로 fold한다(포화/클램프용). z3는 If로 만든다.
+
+    그 외 함수(abs 등)는 비선형/비지원이라 거부한다. 인자는 2개 이상의 위치 인자만.
+    (효과 전용 제한은 schema가 강제하므로 여기선 함수·인자 형태만 검증한다.)
+    """
+    func = node.func
+    if not isinstance(func, ast.Name) or func.id not in _FUNCS:
+        raise TranslationError(f"지원하지 않는 함수 호출: '{ast.unparse(node)}' (허용: min, max)")
+    if node.keywords or len(node.args) < 2:
+        raise TranslationError(f"'{func.id}'은(는) 2개 이상의 위치 인자가 필요합니다")
+    fold = _FUNCS[func.id]
+    args = [_translate_expr(a, symbols, enums) for a in node.args]
+    result = args[0]
+    for a in args[1:]:
+        result = fold(result, a)
+    return result
 
 
 def _translate_div(
