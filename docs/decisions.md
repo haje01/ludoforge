@@ -801,6 +801,43 @@
   - 전체 테스트·ruff·mypy 통과.
 ---
 
+## D24. 파생 상수(constraint 등식 핀)는 transition 효과로 갱신 금지
+
+- **상태:** 확정 (2026-06-29, 사용자 비준) — `core/schema.py`에 정적 게이트 구현·테스트 완료.
+- **맥락:** 던전!의 `win_gold`는 `constraint rogue_win_target: when role == rogue then win_gold == 10`
+  처럼 **role의 함수로 파생되는 상수**다(게임 내내 불변, transition 효과엔 등장하지 않음).
+  그런데 두 백엔드가 `constraint`를 **다르게** 해석한다: bmc는 매 스텝 **상태 불변식**으로
+  강제하고(D15·`bmc._state_constraints`), sim은 **초기 상태 파생에만** 쓴다(`engine._propagate_
+  constraints` — 이후 스텝엔 불변식 미적용, D11 dialect 분리). 이 차이 자체는 의도된 설계지만,
+  만약 누군가 `win_gold`를 transition `then`에서 갱신하면(`then win_gold = win_gold + 5`) 두
+  해석이 **충돌**한다 — role은 전이로 안 바뀌므로(프레임 유지) bmc는 갱신 후 스텝에서
+  `role==rogue → win_gold==10` 불변식을 위반해 **후속 상태를 UNSAT으로 가지치기**(전이 발화
+  불가·`no_deadlock` 오탐·도달성 무음 실패)하는 반면, sim은 불변식을 안 걸어 **멀쩡히 갱신**
+  (승리 판별 기준선이 게임 중 이동)한다. 같은 모델이 백엔드별로 다르게 동작하는, 프로젝트가
+  가장 경계하는 **조용한 불일치**(원칙 3·"실패는 크게")다.
+- **결정:** 근원은 *한 변수가 양립 불가능한 두 역할(파생 상수 ∧ 가변 상태)을 겸하는 것*이다.
+  `schema.validate()`에 정적 게이트 `_check_constraint_pinned_not_mutated`를 추가해, **constraint
+  등식으로 핀되는 변수**(`then var == 값`의 변수 = sim `_constraint_targets`와 동형) ∩
+  **transition 효과 LHS**(`next.X`) ≠ ∅ 이면 백엔드 도달 전에 `SchemaError`로 거부한다.
+  메시지는 어느 변수·어느 전이인지 사람이 읽게 짚는다(원칙 4).
+- **좁은 차단(핵심 트레이드오프):** constraint 전부를 막지 않는다. `then var == 값` **등식 핀**만
+  변수를 특정값으로 고정해 갱신과 충돌하고, `then hp <= 5000` 같은 **관계형 불변식**은 hp가
+  transition으로 변해도 정상이다(불변식 + 가변 상태는 합법). `_constraint_targets`가 등식 핀만
+  잡으므로 `<=`/`>=`류는 자연히 통과 — 과잉 차단 없음.
+- **기각한 대안:**
+  - *sim도 constraint를 매 스텝 불변식으로 강제*: sim 의미를 광범위하게 바꾸고(D19가 init-파생만
+    하기로 한 결정 번복), 근원을 막는 게 아니라 **두 백엔드가 똑같이 런타임에 실패**하게 만들
+    뿐 — 설계 실수를 정적으로 못 잡는다. 기각.
+  - *1급 파생 바인딩(`derived win_gold := f(role)`)*: 상태 변수가 아니므로 transition `then`에
+    쓰는 것 자체가 구문 불가 — 개념적으로 가장 깨끗하나 IR·로더·세 백엔드를 다 건드리는 큰
+    변경이라 보류. 필요해지면 후속. 현 단계는 좁은 스키마 검사가 비용 대비 낫다.
+- **영향:** `core/schema.py`(`validate`에 검사 1개 + 헬퍼 `_constraint_pinned_targets`·
+  `_effect_targets`·`_conjuncts`·`_eq_pair`·`_eq_var_target` — core가 sim에 의존하지 않게 재구현),
+  `tests/test_schema.py`(거부 2 + 통과 2 케이스), CLAUDE.md §4.1, README "DSL 작성 팁".
+- **성공 기준:** `examples/dungeon.lf`는 그대로 통과, `win_gold`를 transition에서 갱신하도록
+  변형하면 정확히 거부. 관계형 불변식 + 갱신은 통과. 전체 테스트·ruff·mypy 통과.
+---
+
 ## 참고
 - 결정의 도메인 배경: [concepts.md](concepts.md) (특히 §4 — 도달 가능성 검사)
 - 살아있는 계획·진행: [../PLAN.md](../PLAN.md) / [../PROGRESS.md](../PROGRESS.md)

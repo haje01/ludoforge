@@ -6,6 +6,8 @@
 - 미정의 심볼 참조(선언 안 된 변수명 / enum 값 오타)
 - `next.<var>` 참조 무결성(D12): 전이 then에서만 허용, 그 외 위치는 오류
 - int 변수의 min > max
+- constraint 등식으로 핀되는 파생 상수를 transition 효과가 갱신하지 않을 것
+  (bmc는 매 스텝 불변식·sim은 init 파생만 → 갱신 시 두 백엔드 의미가 갈라짐)
 
 여기서 실패하면 Z3 단계로 넘어가지 않는다. 모든 문제를 모아 SchemaError로 보고한다.
 유한 상태(확률 백엔드(PRISM) 전제, D13) 검사는 backend-agnostic `validate()`와 분리된
@@ -51,6 +53,7 @@ def validate(ruleset: RuleSet) -> None:
     errors.extend(_check_duplicate_ids("transition", [t.id for t in ruleset.transitions]))
     errors.extend(_check_duplicate_ids("check", [c.id for c in ruleset.checks]))
     errors.extend(_check_transition_prefs(ruleset))
+    errors.extend(_check_constraint_pinned_not_mutated(ruleset))
     errors.extend(_check_references(ruleset))
 
     if errors:
@@ -95,6 +98,103 @@ def _check_transition_prefs(ruleset: RuleSet) -> list[str]:
         for t in ruleset.transitions
         if t.pref is not None and t.pref < 0
     ]
+
+
+def _check_constraint_pinned_not_mutated(ruleset: RuleSet) -> list[str]:
+    """constraint 등식(`then var == 값`)으로 핀되는 변수는 transition 효과로 갱신할 수 없다.
+
+    그런 변수는 '모든 상태에서 그 값'인 파생 상수다(예: 던전!의 win_gold = role의 함수).
+    bmc는 이 constraint를 **매 스텝 불변식**으로 강제하지만 sim은 **init 파생에만** 쓴다(D11
+    dialect 분리). 따라서 transition이 핀 변수를 갱신하면 두 백엔드 의미가 갈라진다 — bmc는
+    갱신된 후속 상태를 불변식 위반으로 UNSAT 가지치기(전이 발화 불가·데드락 오탐), sim은
+    멀쩡히 변경(판별 기준선이 게임 중 이동). 이 조용한 불일치를 정적으로 크게 거부한다.
+
+    좁게만 막는다: `<=`/`>=` 류 관계형 불변식은 변수를 특정 값으로 핀하지 않으므로
+    (=핀 대상이 아님) 갱신과 공존해도 무방하다. 등식 핀만 충돌한다.
+    """
+    var_names = {v.name for v in ruleset.variables}
+    pinned = _constraint_pinned_targets(ruleset, var_names)
+    if not pinned:
+        return []
+    errors: list[str] = []
+    for t in ruleset.transitions:
+        for oc in t.outcomes:
+            for var in sorted(_effect_targets(oc.then) & pinned):
+                errors.append(
+                    f"변수 '{var}'은(는) constraint 등식으로 파생되는 상수인데 전이 '{t.id}'의 "
+                    f"효과가 이를 갱신합니다 — 파생 상수는 transition에서 바꿀 수 없습니다"
+                    f"(bmc는 불변식 위반으로 가지치기, sim은 갱신 → 의미 불일치)."
+                )
+    return errors
+
+
+def _constraint_pinned_targets(ruleset: RuleSet, var_names: set[str]) -> set[str]:
+    """constraints의 then 등식 `var == 값`에서 값이 핀되는 변수명 집합.
+
+    sim.engine._constraint_targets와 동형(같은 좁은 정의) — core가 sim에 의존하지 않도록
+    여기서 재구현한다. `var == 값`(또는 그 and 결합)의 변수만 잡고 관계형 비교는 제외한다.
+    """
+    targets: set[str] = set()
+    for con in ruleset.constraints:
+        if con.then is None:
+            continue
+        try:
+            tree = ast.parse(con.then, mode="eval").body
+        except SyntaxError:
+            continue  # 구문 오류는 _check_references가 보고
+        for conj in _conjuncts(tree):
+            target = _eq_var_target(conj, var_names)
+            if target is not None:
+                targets.add(target)
+    return targets
+
+
+def _effect_targets(then: str) -> set[str]:
+    """전이 효과 then(`next.X == 식`의 and 결합)에서 갱신되는 변수명 X 집합."""
+    try:
+        tree = ast.parse(then, mode="eval").body
+    except SyntaxError:
+        return set()  # 구문 오류는 _check_references가 보고
+    targets: set[str] = set()
+    for conj in _conjuncts(tree):
+        pair = _eq_pair(conj)
+        if pair is None:
+            continue
+        for side in pair:
+            if (
+                isinstance(side, ast.Attribute)
+                and isinstance(side.value, ast.Name)
+                and side.value.id == "next"
+            ):
+                targets.add(side.attr)
+    return targets
+
+
+def _conjuncts(node: ast.expr) -> list[ast.expr]:
+    """and 결합을 펼쳐 conjunct 목록으로. and가 아니면 단일 원소."""
+    if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And):
+        return list(node.values)
+    return [node]
+
+
+def _eq_pair(node: ast.expr) -> tuple[ast.expr, ast.expr] | None:
+    """단일 `a == b` 비교면 (a, b)를, 아니면 None."""
+    if isinstance(node, ast.Compare) and len(node.ops) == 1 and isinstance(node.ops[0], ast.Eq):
+        return node.left, node.comparators[0]
+    return None
+
+
+def _eq_var_target(node: ast.expr, var_names: set[str]) -> str | None:
+    """`var == 값` 등식에서 한 변이 선언된 변수명이면 그 이름, 아니면 None."""
+    pair = _eq_pair(node)
+    if pair is None:
+        return None
+    left, right = pair
+    if isinstance(left, ast.Name) and left.id in var_names:
+        return left.id
+    if isinstance(right, ast.Name) and right.id in var_names:
+        return right.id
+    return None
 
 
 def _check_variable_bounds(ruleset: RuleSet) -> list[str]:

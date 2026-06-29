@@ -127,9 +127,7 @@ def test_all_errors_collected_together() -> None:
 def _effect(then: str, *, when: str | None = None) -> RuleSet:
     return RuleSet(
         variables=_domain(),
-        transitions=(
-            Transition(id="t", when=when, outcomes=(Outcome(then=then, weight=1.0),)),
-        ),
+        transitions=(Transition(id="t", when=when, outcomes=(Outcome(then=then, weight=1.0),)),),
     )
 
 
@@ -162,3 +160,82 @@ def test_disallowed_function_in_effect_is_reported() -> None:
 def test_min_one_arg_in_effect_is_reported() -> None:
     with pytest.raises(SchemaError, match="2개 이상"):
         validate(_effect("next.hp == min(hp)"))
+
+
+# ── constraint 등식으로 핀되는 변수는 transition에서 갱신 금지(bmc·sim 의미 불일치 차단) ──
+
+
+def test_constraint_pinned_var_updated_in_transition_is_rejected() -> None:
+    # win_gold는 constraint 등식으로 파생되는 상수(모든 상태 불변)다. 이를 transition 효과로
+    # 갱신하면 bmc(매 스텝 불변식 강제)와 sim(init 파생만)의 의미가 갈라진다 — 정적 거부.
+    rs = RuleSet(
+        variables=(
+            Variable(name="gold", type="int", min=0, max=30),
+            Variable(name="win_gold", type="int", min=0, max=30),
+            Variable(name="role", type="enum", values=("rogue", "wizard")),
+        ),
+        constraints=(Constraint(id="rogue_win", when="role == rogue", then="win_gold == 10"),),
+        transitions=(
+            Transition(
+                id="bump",
+                outcomes=(Outcome(then="next.win_gold == win_gold + 5", weight=1.0),),
+            ),
+        ),
+    )
+    with pytest.raises(SchemaError, match="win_gold"):
+        validate(rs)
+
+
+def test_constraint_pinned_var_in_multi_effect_is_rejected() -> None:
+    # 병렬 대입(and 결합) 중 하나만 핀 변수를 건드려도 거부해야 한다.
+    rs = RuleSet(
+        variables=(
+            Variable(name="gold", type="int", min=0, max=30),
+            Variable(name="win_gold", type="int", min=0, max=30),
+            Variable(name="role", type="enum", values=("rogue", "wizard")),
+        ),
+        constraints=(Constraint(id="rogue_win", when="role == rogue", then="win_gold == 10"),),
+        transitions=(
+            Transition(
+                id="bump",
+                outcomes=(
+                    Outcome(then="next.gold == gold + 1 and next.win_gold == 20", weight=1.0),
+                ),
+            ),
+        ),
+    )
+    with pytest.raises(SchemaError, match="win_gold"):
+        validate(rs)
+
+
+def test_relational_constraint_var_updated_in_transition_passes() -> None:
+    # `<=` 류 관계형 불변식은 변수를 특정 값으로 핀하지 않는다 — 갱신과 공존 합법(좁게만 막는다).
+    rs = RuleSet(
+        variables=(Variable(name="hp", type="int", min=0, max=5000),),
+        constraints=(Constraint(id="cap", then="hp <= 5000"),),
+        transitions=(
+            Transition(id="heal", outcomes=(Outcome(then="next.hp == hp + 10", weight=1.0),)),
+        ),
+    )
+    validate(rs)  # 예외 없이 통과
+
+
+def test_constraint_pinned_var_not_mutated_passes() -> None:
+    # 핀 변수를 갱신하지 않으면(읽기만) 정상 — 던전! win_gold의 정상 용법.
+    rs = RuleSet(
+        variables=(
+            Variable(name="gold", type="int", min=0, max=30),
+            Variable(name="win_gold", type="int", min=0, max=30),
+            Variable(name="role", type="enum", values=("rogue", "wizard")),
+            Variable(name="status", type="enum", values=("exploring", "won")),
+        ),
+        constraints=(Constraint(id="rogue_win", when="role == rogue", then="win_gold == 10"),),
+        transitions=(
+            Transition(
+                id="claim",
+                when="gold >= win_gold",
+                outcomes=(Outcome(then="next.status == won", weight=1.0),),
+            ),
+        ),
+    )
+    validate(rs)  # 예외 없이 통과

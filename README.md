@@ -390,6 +390,30 @@ then gold = min(gold + reward, 30)
 `min`/`max`(위치 인자 ≥2)는 **효과(`then`/`outcomes`)에서만** 쓴다 — 가드·constraint 같은
 술어에서 쓰면 거부된다(포화 전용). Z3·sim·PRISM 세 백엔드가 모두 같은 의미로 처리한다.
 
+### 파생 상수(constraint로 핀한 값)는 transition에서 갱신하지 마라
+
+[`examples/dungeon.lf`](examples/dungeon.lf)의 `win_gold`처럼 **constraint 등식으로 다른 값에서
+파생되는 상수**는 게임 내내 불변이어야 한다 — transition 효과(`then`)에서 갱신하면 안 된다.
+
+```text
+// win_gold는 role의 함수로 파생되는 상수 — 게임 내내 불변
+constraint rogue_win_target: when role == rogue then win_gold == 10
+transition claim_victory:
+    when ... and gold >= win_gold        // ✅ 읽기만 — 정상
+    then status = won
+// ❌ then win_gold = win_gold + 5       // 파생 상수를 갱신 → 거부됨
+```
+
+이유는 두 백엔드가 `constraint`를 **다르게** 보기 때문이다 — **bmc는 매 스텝 불변식**으로
+강제하지만 **sim은 초기 상태 파생에만** 쓴다. 그래서 핀 변수를 갱신하면 같은 모델이
+백엔드별로 갈라진다: bmc는 갱신된 상태를 불변식 위반으로 가지치기(전이 발화 불가·데드락
+오탐)하고, sim은 멀쩡히 바꿔(승리 기준선이 게임 중 이동) **조용한 버그**가 된다. `ludoforge
+check`가 이를 백엔드 도달 전에 정적으로 거부한다.
+
+단, 막는 건 **등식 핀**(`then var == 값`)뿐이다 — `then hp <= 5000` 같은 **관계형 불변식**은
+변수를 특정값으로 고정하지 않으므로 transition 갱신과 공존해도 정상이다. 게임 중 변해야 할
+목표값이라면 constraint로 파생하지 말고 init에서 고정한 **순수 상태 변수**로 둬라.
+
 ## 테스트 하기
 
 ```bash
