@@ -880,6 +880,50 @@
   status + 사유 유지. 전체 테스트·ruff·mypy 통과.
 ---
 
+## D26. 상태 의존 `pref`/`weight` — 런타임 식 허용
+
+- **상태:** 확정 (2026-07-02, 사용자 비준) — 9차 마일스톤.
+- **맥락:** D20의 `pref`(플레이어 정책)와 D12의 outcome `weight`(환경 우연)는 상수라,
+  적응적 정책("목표 근접이면 귀환 선호")과 **비복원 추출**(남은 덱 구성에 의존하는 조우
+  확률 — 카드 게임 일반·실물 Dungeon!의 관문)을 표현할 수 없다. 구현 지형은 유리하다:
+  sim 평가기는 변수 나눗셈을 이미 지원하고(`sim/engine.py` `_BIN_OPS`의 `Div`), sim은
+  outcome weight를 이미 정규화 표집하며, PRISM 생성기도 이미 비율형(`_prob`의
+  `weight/total`)으로 렌더한다 — 게이트는 문법·IR·로더의 "상수만" 강제뿐이다.
+- **결정:**
+  - **IR 타입 확장(하위 호환):** `Outcome.weight: float | str` · `Transition.pref:
+    float | str | None`. 수치 리터럴·표 색인(desugar 후 수치)은 지금처럼 float —
+    골든 IR 등가 무회귀. 상태 식일 때만 표현식 문자열(str)로 보존.
+  - **평가 의미론:** 식은 **전이 직전 상태**에서 평가(`next.*` 금지). `weight`는 음수/합0
+    이하이면 런타임 SimError(실패는 크게), 합이 양수면 정규화 표집(기존 의미의 자연 확장).
+    `pref`는 D20 의미 전부 불변(co-enabled 정규화·opt-in 안전망·enabled 1개 rng 미소비).
+  - **enabledness는 가드 단독(백엔드 공통 규율):** weight/pref는 어떤 백엔드에서도 enabled
+    여부를 바꾸지 않는다. "덱 소진" 같은 상태는 **가드로 배제**하는 것이 모델러 책임 —
+    sim이 합 0 상태를 만나면 가드 누락으로 보고 에러.
+  - **dialect 분리 유지(D11):** BMC는 weight-erasure(D15)·pref 무시(D20) 그대로(식이어도
+    지움). PRISM 오라클은 weight 식을 비율형 `(w_i)/(Σw)`로 렌더(합=1 구성적 보장).
+    pref는 PRISM에서도 계속 무시.
+  - **BMC 과근사 정직성:** weight-erasure는 상태 의존 weight에서 더 거친 추상이 된다 —
+    weight 식이 0인 분기도 BMC는 "가능"으로 탐색(reachable 증인이 확률 0 분기를 밟을 수
+    있음). 불변식/데드락엔 건전(과근사). 문서에 명시하고, weight>0의 Z3 가드 결합 정련은
+    비선형(변수 나눗셈) 위험이 있어 후속.
+  - **`.lf` 전용:** 디프리케이트된 YAML(`.rule`)엔 미도입 — 식이 오면 명확히 거부(조용한
+    float 강제 변환 금지).
+  - **스키마 검증:** 식의 참조 무결성(정의된 변수만·`next.*` 금지), 음수 상수 로드 거부
+    유지. 실행 시 수치 타입은 런타임 검사.
+- **기각한 대안:**
+  - *weight 0을 enabledness에 반영*: 백엔드마다 enabled 의미가 갈라진다(BMC는 식을 못
+    보므로) — 가장 경계하는 조용한 불일치. 기각.
+  - *합=1 엄격 검증(정규화 금지)*: 비복원 추출의 자연형(`count/total`)은 구성적으로 합=1
+    이나, 상대 가중치(2:1) 표기를 막아 사용성만 잃음. 기존 정규화 의미 유지.
+  - *YAML에도 도입*: 디프리케이트 표면에 신규 표현력 투자는 낭비. 기각.
+- **영향:** `core/text_loader.py`(t_pref expr·outcome weight 식 보존), `core/ir.py`,
+  `core/loader.py`(YAML 거부), `core/schema.py`(식 검증), `sim/engine.py`(런타임 평가),
+  `prob/prism_gen.py`(식 렌더), `examples/dungeon.lf`(덱 카운터+적응 pref, 북극성 1단계),
+  픽스처 `urn.lf`(비복원 골든·오라클), CLAUDE.md §4.1, concepts.md, README.
+- **성공 기준:** urn(2색 비복원) sim 분포가 닫힌형·PRISM 정확값과 일치, 상수 모델
+  SimReport 비트 동일(하위 호환), 던전 확장이 bmc·sim 양쪽 동작. 테스트·ruff·mypy 통과.
+---
+
 ## 참고
 - 결정의 도메인 배경: [concepts.md](concepts.md) (특히 §4 — 도달 가능성 검사)
 - 살아있는 계획·진행: [../PLAN.md](../PLAN.md) / [../PROGRESS.md](../PROGRESS.md)
