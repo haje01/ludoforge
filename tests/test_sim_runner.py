@@ -10,6 +10,7 @@ from pathlib import Path
 
 from core.loader import load_rule_file
 from sim.aggregate import ProportionResult
+from sim.report import format_sim_report
 from sim.runner import _chunk_counts, run_sim
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -70,3 +71,12 @@ def test_cli_sim_rejects_nondeterministic_model() -> None:
     result = CliRunner().invoke(app, ["sim", str(FIXTURES / "nondet.rule"), "--samples", "10"])
     assert result.exit_code == 2  # 미선언 비결정 → 친절한 거부
     assert "비결정" in result.stderr
+
+
+def test_policy_label_names_players() -> None:
+    """player 태그(D27)가 있으면 정책 라벨에 플레이어를 명시한다."""
+    rs = load_rule_file(Path(__file__).parent.parent / "examples" / "dungeon_race.lf")
+    report = run_sim(rs, samples=50, horizon=300, seed=1)
+    assert report.policy_players == ("p1", "p2")
+    text = format_sim_report(report)
+    assert "플레이어 p1, p2의 정책" in text

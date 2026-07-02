@@ -335,3 +335,18 @@ def test_single_owner_choice_set_samples_as_before() -> None:
     rs = _race_ruleset("p1", "p1")
     r = run_once(rs, random.Random(0), horizon=5)
     assert r.states[-1]["x"] in (1, 2)  # 정상 표집·거부 없음
+
+
+def test_race_dungeon_greedy_beats_safe() -> None:
+    """레이스 매치업(D27): 욕심(p1, 잠수 8:2)이 안전(p2, 2:8)을 이긴다 — 추정 답."""
+    rs = load_rule_file(EXAMPLES / "dungeon_race.lf")
+    n = 1500
+    wins = {"p1": 0, "p2": 0}
+    for s in range(n):
+        r = run_once(rs, random.Random(s), horizon=300)
+        w = r.states[-1]["winner"]
+        if w in wins:
+            wins[w] += 1
+    assert wins["p1"] + wins["p2"] == n  # 항상 승자가 난다(흡수 종료)
+    assert wins["p1"] / n > 0.55  # 기대 ~0.67 — 여유 있는 문턱(비플레이키)
+    assert wins["p2"] / n > 0.20  # 기대 ~0.33 — 안전도 무시 못 할 승률

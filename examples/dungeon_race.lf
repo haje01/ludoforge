@@ -1,0 +1,145 @@
+// 던전! 2인 레이스판 — 북극성 2단계(D27). 먼저 목표 보물액(10)을 들고 중앙(hall)으로
+// 귀환하는 플레이어가 승리한다. "욕심 플레이어(p1)와 안전 플레이어(p2)가 맞붙으면
+// 누가 이기나?"에 sim이 추정으로 답한다.
+//
+// 다인 게임의 세 요소를 담는다:
+//   ① 턴 교대 — `turn` enum + 가드/효과가 스케줄(태그는 스케줄러가 아니다, D27). 모든
+//      플레이어 행동은 `turn = 상대`로 턴을 넘긴다(승리 선언만 예외 — 즉시 종료).
+//   ② 전이 소유(player 태그, D27) — 각 선택이 누구 것인지 선언. sim은 co-enabled 선택
+//      집합의 소유 혼성(가드 실수로 두 플레이어 턴이 겹침)을 명시 거부한다.
+//   ③ 공유 몬스터 덱(D26 비복원) — 2층 덱(고블린 2·드래곤 2)을 둘이 나눠 쓴다: 먼저
+//      내려간 쪽이 카드를 소모하므로 플레이어 간 자원 경쟁이 레이스를 커플링한다.
+//
+// 비대칭 정책: p1은 욕심(잠수 8 : 귀환 2), p2는 안전(잠수 2 : 귀환 8). role은 고정
+// (둘 다 fighter 전투 프로필)해 정책 차이만 비교한다 — sweep 없음.
+//
+// 주의: 플레이어별 상태(gold_p1/gold_p2 등)는 스칼라 **수동 복제**다 — 변수 *이름*은
+// 템플릿할 수 없어(D18의 `${}`는 id 전용) 전이를 플레이어별로 다 쓴다. 이 부피가
+// 11차(배열/인덱스 변수)의 동기다: `gold[p]`가 되면 이 복제가 한 벌로 접힌다.
+//
+// 검사:
+//   ludoforge bmc examples/dungeon_race.lf --k 14   # 양쪽 winnable·불변식·데드락(증명)
+//   ludoforge sim examples/dungeon_race.lf -H 300 -n 20000   # 매치업 승률·보물 격차
+
+domain {
+    turn:       enum { p1, p2 }
+    winner:     enum { none, p1, p2 }
+    gold_p1:    int 0..30       gold_p2:    int 0..30
+    room_p1:    enum { hall, l1, l2 }   room_p2:    enum { hall, l1, l2 }
+    monster_p1: enum { none, goblin, dragon }   monster_p2: enum { none, goblin, dragon }
+    l2_goblins: int 0..2        l2_dragons: int 0..2      // 공유 덱(D26 비복원)
+}
+
+init: turn == p1 and winner == none
+    and gold_p1 == 0 and gold_p2 == 0
+    and room_p1 == hall and room_p2 == hall
+    and monster_p1 == none and monster_p2 == none
+    and l2_goblins == 2 and l2_dragons == 2
+
+// ── p1 (욕심: 잠수 8 / 귀환 2) ──────────────────────────────────────────────
+transition claim_p1:
+    desc "p1 승리 선언 — 목표(10) 달성 + 중앙"
+    when turn == p1 and winner == none and room_p1 == hall and monster_p1 == none and gold_p1 >= 10
+    player p1
+    then winner = p1
+transition enter_p1:
+    desc "p1 1층 진입(목표 미달) — 고블린 조우"
+    when turn == p1 and winner == none and room_p1 == hall and monster_p1 == none and gold_p1 < 10
+    player p1
+    then { room_p1 = l1; monster_p1 = goblin; turn = p2 }
+transition dive_p1:
+    desc "p1 욕심: 2층으로 — 공유 덱에서 비복원 추출(D26)"
+    when turn == p1 and winner == none and room_p1 == l1 and monster_p1 == none and l2_goblins + l2_dragons > 0
+    player p1
+    pref 8
+    outcomes:
+        l2_goblins / (l2_goblins + l2_dragons) -> { room_p1 = l2; monster_p1 = goblin; l2_goblins = l2_goblins - 1; turn = p2 }
+        l2_dragons / (l2_goblins + l2_dragons) -> { room_p1 = l2; monster_p1 = dragon; l2_dragons = l2_dragons - 1; turn = p2 }
+transition go_home_p1:
+    desc "p1 귀환(욕심이라 덜 선호)"
+    when turn == p1 and winner == none and (room_p1 == l1 or room_p1 == l2) and monster_p1 == none
+    player p1
+    pref 2
+    then { room_p1 = hall; turn = p2 }
+transition fight_goblin_p1:
+    when turn == p1 and winner == none and monster_p1 == goblin
+    player p1
+    outcomes:
+        0.92 -> { gold_p1 = min(gold_p1 + 2, 30); monster_p1 = none; turn = p2 }
+        0.07 -> { monster_p1 = none; turn = p2 }
+        0.01 -> { gold_p1 = 0; room_p1 = hall; monster_p1 = none; turn = p2 }
+transition fight_dragon_p1:
+    when turn == p1 and winner == none and monster_p1 == dragon
+    player p1
+    outcomes:
+        0.58 -> { gold_p1 = min(gold_p1 + 10, 30); monster_p1 = none; turn = p2 }
+        0.38 -> { monster_p1 = none; turn = p2 }
+        0.04 -> { gold_p1 = 0; room_p1 = hall; monster_p1 = none; turn = p2 }
+
+// ── p2 (안전: 잠수 2 / 귀환 8) — p1과 대칭 ─────────────────────────────────
+transition claim_p2:
+    desc "p2 승리 선언 — 목표(10) 달성 + 중앙"
+    when turn == p2 and winner == none and room_p2 == hall and monster_p2 == none and gold_p2 >= 10
+    player p2
+    then winner = p2
+transition enter_p2:
+    desc "p2 1층 진입(목표 미달) — 고블린 조우"
+    when turn == p2 and winner == none and room_p2 == hall and monster_p2 == none and gold_p2 < 10
+    player p2
+    then { room_p2 = l1; monster_p2 = goblin; turn = p1 }
+transition dive_p2:
+    desc "p2 잠수(안전이라 덜 선호) — 공유 덱에서 비복원 추출(D26)"
+    when turn == p2 and winner == none and room_p2 == l1 and monster_p2 == none and l2_goblins + l2_dragons > 0
+    player p2
+    pref 2
+    outcomes:
+        l2_goblins / (l2_goblins + l2_dragons) -> { room_p2 = l2; monster_p2 = goblin; l2_goblins = l2_goblins - 1; turn = p1 }
+        l2_dragons / (l2_goblins + l2_dragons) -> { room_p2 = l2; monster_p2 = dragon; l2_dragons = l2_dragons - 1; turn = p1 }
+transition go_home_p2:
+    desc "p2 안전: 귀환 선호"
+    when turn == p2 and winner == none and (room_p2 == l1 or room_p2 == l2) and monster_p2 == none
+    player p2
+    pref 8
+    then { room_p2 = hall; turn = p1 }
+transition fight_goblin_p2:
+    when turn == p2 and winner == none and monster_p2 == goblin
+    player p2
+    outcomes:
+        0.92 -> { gold_p2 = min(gold_p2 + 2, 30); monster_p2 = none; turn = p1 }
+        0.07 -> { monster_p2 = none; turn = p1 }
+        0.01 -> { gold_p2 = 0; room_p2 = hall; monster_p2 = none; turn = p1 }
+transition fight_dragon_p2:
+    when turn == p2 and winner == none and monster_p2 == dragon
+    player p2
+    outcomes:
+        0.58 -> { gold_p2 = min(gold_p2 + 10, 30); monster_p2 = none; turn = p1 }
+        0.38 -> { monster_p2 = none; turn = p1 }
+        0.04 -> { gold_p2 = 0; room_p2 = hall; monster_p2 = none; turn = p1 }
+
+// ── 종료(무소속 환경 전이 — 승자 확정 후 흡수) ─────────────────────────────
+transition race_over:
+    when winner != none
+    then winner = winner
+
+// ── 검사 ── bmc: 존재·건전성(k-귀납 증명 포함) / sim: 매치업 승률·보물 격차
+check p1_wins
+    desc "욕심(p1) — bmc: 이길 길 존재 / sim: 매치업 승률"
+    reachable: winner == p1
+check p2_wins
+    desc "안전(p2) — bmc: 이길 길 존재 / sim: 매치업 승률"
+    reachable: winner == p2
+check win_needs_target_p1
+    desc "규칙 건전성 — p1은 목표 미달로는 승자가 될 수 없다"
+    invariant: winner != p1 or gold_p1 >= 10
+check win_needs_target_p2
+    desc "규칙 건전성 — p2는 목표 미달로는 승자가 될 수 없다"
+    invariant: winner != p2 or gold_p2 >= 10
+check gold_nonneg
+    desc "보물은 음수가 되지 않는다(둘 다)"
+    invariant: gold_p1 >= 0 and gold_p2 >= 0
+check no_stuck
+    desc "막다른 상태가 없어야 한다(레이스는 항상 진행되거나 종료 흡수)"
+    no_deadlock
+check final_margin
+    desc "종료 시 보물 격차(gold_p1 - gold_p2) 분포 — 정책 차이의 크기"
+    distribution: gold_p1 - gold_p2

@@ -197,3 +197,21 @@ def test_bmc_erases_state_dependent_weights() -> None:
     r = _by_id(report)["ends_red"]
     assert r.status == "reachable"  # type: ignore[attr-defined]
     assert r.depth == 3  # type: ignore[attr-defined]  # 공 3개를 다 뽑는 최단 경로
+
+
+# ---------- 2인 레이스 던전(D27) — player 태그는 BMC에 주석 ----------
+
+
+def test_race_dungeon_soundness() -> None:
+    """레이스판: 양쪽 모두 이길 길이 존재하고(비결정 탐색 — 태그·pref 무시),
+    건전성 불변식·데드락 없음은 k-귀납으로 무한 지평 증명된다."""
+    rs = load_rule_file(EXAMPLES / "dungeon_race.lf")
+    report = run_bmc(rs, k=12)
+    by = _by_id(report)
+    assert by["p1_wins"].status == "reachable"  # type: ignore[attr-defined]
+    assert by["p1_wins"].depth == 11  # type: ignore[attr-defined]  # 선공 이점: p1 최단 승리
+    assert by["p2_wins"].status == "reachable"  # type: ignore[attr-defined]
+    assert by["p2_wins"].depth == 12  # type: ignore[attr-defined]  # 후공은 한 스텝 늦다
+    assert by["win_needs_target_p1"].status == "holds"  # type: ignore[attr-defined]
+    assert by["win_needs_target_p2"].status == "holds"  # type: ignore[attr-defined]
+    assert by["no_stuck"].status == "no_deadlock"  # type: ignore[attr-defined]
