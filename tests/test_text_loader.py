@@ -868,3 +868,74 @@ def test_player_key_in_yaml_rejected(tmp_path: Path) -> None:
     f.write_text(body, encoding="utf-8")
     with pytest.raises(LoaderError, match="player.*자체 문법"):
         load_rule_file(f)
+
+
+# ---------- 배열/인덱스 변수 (D28) ----------
+
+
+def test_array_declaration_expands_to_scalar_family() -> None:
+    rs = parse_rule_text("domain { gold[p1, p2]: int 0..30  turn: enum { p1, p2 } }")
+    assert [v.name for v in rs.variables] == ["gold_p1", "gold_p2", "turn"]
+    assert rs.variables[0] == Variable(name="gold_p1", type="int", min=0, max=30)
+
+
+def test_array_static_index_resolves_everywhere() -> None:
+    """리터럴 색인이 init·가드·효과 LHS/RHS·check에서 스칼라 이름으로 해소된다(D28)."""
+    rs = parse_rule_text(
+        """
+        domain { gold[p1, p2]: int 0..30  turn: enum { p1, p2 } }
+        init: gold[p1] == 0 and gold[p2] == 0 and turn == p1
+        transition give: when turn == p1 and gold[p1] > 0
+            then { gold[p1] = gold[p1] - 1; gold[p2] = gold[p2] + 1; turn = p2 }
+        check rich reachable: gold[p2] >= 10
+        """
+    )
+    assert _expr_eq(rs.init, "gold_p1 == 0 and gold_p2 == 0 and turn == p1")
+    (t,) = rs.transitions
+    assert _expr_eq(t.when, "turn == p1 and gold_p1 > 0")
+    assert _expr_eq(
+        t.outcomes[0].then,
+        "next.gold_p1 == gold_p1 - 1 and next.gold_p2 == gold_p2 + 1 and next.turn == p2",
+    )
+    assert _expr_eq(rs.checks[0].that, "gold_p2 >= 10")
+
+
+def test_array_index_with_for_loop_var() -> None:
+    """for loop 변수 색인 — 배열과 템플릿의 결합이 수동 복제와 같은 IR을 낸다(D28 핵심)."""
+    src_array = """
+    domain { gold[p1, p2]: int 0..9  turn: enum { p1, p2 } }
+    table other { p1: p2, p2: p1 }
+    for p in [p1, p2]:
+        transition "pass_${p}": when turn == p then { gold[p] = gold[p] + 1; turn = other[p] }
+    """
+    src_manual = """
+    domain { gold_p1: int 0..9  gold_p2: int 0..9  turn: enum { p1, p2 } }
+    transition pass_p1: when turn == p1 then { gold_p1 = gold_p1 + 1; turn = p2 }
+    transition pass_p2: when turn == p2 then { gold_p2 = gold_p2 + 1; turn = p1 }
+    """
+    _assert_ir_equiv(parse_rule_text(src_array), parse_rule_text(src_manual))
+
+
+def test_array_undeclared_index_value_rejected() -> None:
+    with pytest.raises(TextLoaderError, match="배열 'gold'에 색인 값 'p3'가 없습니다"):
+        parse_rule_text("domain { gold[p1, p2]: int 0..9 } init: gold[p3] == 0")
+
+
+def test_array_expanded_name_collision_rejected() -> None:
+    with pytest.raises(TextLoaderError, match="변수 이름 충돌: 'gold_p1'"):
+        parse_rule_text("domain { gold_p1: int 0..9  gold[p1, p2]: int 0..9 }")
+
+
+def test_array_bare_use_rejected() -> None:
+    with pytest.raises(TextLoaderError, match="배열 변수 'gold'는 색인해서만"):
+        parse_rule_text("domain { gold[p1, p2]: int 0..9 } init: gold == 0")
+
+
+def test_array_table_name_overlap_rejected() -> None:
+    with pytest.raises(TextLoaderError, match="표.*배열.*이름이 겹칩니다"):
+        parse_rule_text("domain { gold[p1, p2]: int 0..9 } table gold { p1: 1, p2: 2 }")
+
+
+def test_array_two_indices_rejected() -> None:
+    with pytest.raises(TextLoaderError, match="색인을 1개만"):
+        parse_rule_text("domain { gold[p1, p2]: int 0..9 } init: gold[p1][p2] == 0")
