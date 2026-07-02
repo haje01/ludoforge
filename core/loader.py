@@ -425,6 +425,13 @@ def _parse_transition(item: Any, index: int, path: Path) -> Transition:
     if not isinstance(tid, str) or not tid:
         raise LoaderError(f"{path}: transitions[{index}]에 문자열 'id'가 필요합니다.")
 
+    if "player" in item:
+        # 조용한 무시 금지 — player 태그(D27)는 .lf 전용이다(디프리케이트 YAML 미도입).
+        raise LoaderError(
+            f"{path}: 전이 '{tid}'의 'player' 태그는 자체 문법(.lf) 전용입니다(D27) — "
+            f".lf로 이전하세요."
+        )
+
     has_then = "then" in item
     has_outcomes = "outcomes" in item
     if has_then and has_outcomes:

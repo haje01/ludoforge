@@ -165,6 +165,14 @@ def uses_policy(ruleset: RuleSet) -> bool:
     return any(t.pref is not None for t in ruleset.transitions)
 
 
+def policy_players(ruleset: RuleSet) -> tuple[str, ...]:
+    """pref를 선언한 전이들의 소유 플레이어(D27) — 정렬·중복 제거, 정책 라벨용.
+
+    무소속(None) 전이의 pref는 포함하지 않는다(플레이어 개념이 없는 모델은 빈 튜플)."""
+    tagged = {t.player for t in ruleset.transitions if t.pref is not None}
+    return tuple(sorted(p for p in tagged if p is not None))
+
+
 def enum_constants(ruleset: RuleSet) -> dict[str, Any]:
     """enum 값 이름 → 자기 문자열 상수표. bare 값(`role == rogue`의 `rogue`) 해석용."""
     out: dict[str, Any] = {}
@@ -438,9 +446,13 @@ def _select_transition(
       하나라도 미선언(None)이 섞이면 의도치 않은 가드 중첩으로 보고 `DtmcViolation` 거부
       (명시적 opt-in 안전망). `pref` 합이 0이면 정규화 불가로 SimError.
     - 상태 식 pref(D26)는 현재 상태에서 평가한다(음수면 SimError).
+    - 선택 집합의 소유(player, D27)는 모두 동일해야 한다(None 포함) — 혼성이면 가드
+      실수로 두 플레이어의 턴이 겹친 것이므로 명시 거부(동시 수는 비지원).
     """
     if len(enabled) == 1:
         return enabled[0]
+    if len({t.player for t in enabled}) > 1:
+        raise _ownership_violation(state, enabled)
     if any(t.pref is None for t in enabled):
         raise _dtmc_violation(state, enabled)
     env = {**constants, **state}
@@ -489,6 +501,16 @@ def _sample_outcome(
         if threshold < acc:
             return oc.then
     return t.outcomes[-1].then  # 부동소수 오차 안전망
+
+
+def _ownership_violation(state: State, enabled: list[Transition]) -> DtmcViolation:
+    state_str = ", ".join(f"{k}={v}" for k, v in state.items())
+    owners = ", ".join(f"{t.id}(player={t.player or '무소속'})" for t in enabled)
+    return DtmcViolation(
+        f"소유 혼성(D27): 상태 {{{state_str}}}에서 서로 다른 소유의 전이가 동시에 "
+        f"enabled입니다: {owners}. 한 선택 집합은 한 플레이어(또는 무소속)여야 합니다 — "
+        f"턴제라면 가드(turn 변수)가 겹치지 않게 고치세요(동시 수는 비지원)."
+    )
 
 
 def _dtmc_violation(state: State, enabled: list[Transition]) -> DtmcViolation:

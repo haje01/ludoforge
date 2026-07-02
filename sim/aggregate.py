@@ -27,6 +27,7 @@ from sim.engine import (
     enum_constants,
     evaluate,
     initial_state,
+    policy_players,
     run_once,
     sweep_configs,
     uses_policy,
@@ -220,6 +221,7 @@ class SimReport:
     configs: tuple[ConfigResult, ...]
     skipped: tuple[str, ...]  # sim이 다루지 않는 체크(prob/no_deadlock)
     uses_policy: bool = False  # pref(무작위 정책, D20)로 선택을 해소했는가 → 정책 라벨
+    policy_players: tuple[str, ...] = ()  # pref 전이의 소유 플레이어(D27) — 라벨에 명시
 
 
 _PERCENTILES = (5, 50, 95)
@@ -356,6 +358,7 @@ def simulate(ruleset: RuleSet, *, samples: int, horizon: int, seed: int) -> SimR
         configs=tuple(results),
         skipped=skipped,
         uses_policy=uses_policy(ruleset),
+        policy_players=policy_players(ruleset),
     )
 
 

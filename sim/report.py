@@ -25,7 +25,10 @@ _POLICY_LABEL = (
 def format_sim_report(report: SimReport) -> str:
     lines: list[str] = ["Monte Carlo 추정 결과 (sim)", _LABEL]
     if report.uses_policy:
-        lines.append(_POLICY_LABEL)
+        label = _POLICY_LABEL
+        if report.policy_players:
+            label += f" (플레이어 {', '.join(report.policy_players)}의 정책, D27)"
+        lines.append(label)
     lines += [
         f"표본 N={report.samples} · 지평 H={report.horizon} · seed={report.seed}",
         "",

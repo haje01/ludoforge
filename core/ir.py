@@ -97,6 +97,13 @@ class Transition:
     D26: 상수(float) 대신 **현재 상태의 식(str)**을 둘 수 있다(적응적 정책 — 예: 욕심도가
     남은 목표액에 비례). co-enabled 정규화·opt-in 안전망·enabled 1개 rng 미소비 등 D20
     의미는 전부 불변이며, 상수 자리에 식이 들어갈 뿐이다.
+
+    `player`는 **전이 소유 선언**이다(D27, 다인 게임). None=무소속(환경/자연 전이 —
+    흡수·스폰 등). 태그는 스케줄러가 아니다 — 누구 턴인지는 여전히 모델(`turn` enum +
+    가드)의 몫이며, 전이 시스템 의미(D12·D15)를 바꾸지 않는다. sim은 co-enabled 선택
+    집합의 소유가 혼성이면(가드 실수로 두 플레이어 턴이 겹침) 명시 거부하고,
+    BMC/PRISM은 태그를 무시한다(weight-erasure·pref 무시와 같은 계보의 주석).
+    이름은 선언된 enum의 값이어야 한다(schema 게이트, 관례상 turn enum).
     """
 
     id: str
@@ -105,6 +112,7 @@ class Transition:
     desc: str | None = None
     source: str | None = None
     pref: float | str | None = None
+    player: str | None = None
 
 
 @dataclass(frozen=True)

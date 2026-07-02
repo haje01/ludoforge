@@ -285,3 +285,53 @@ def test_negative_weight_evaluation_fails_loudly() -> None:
     rs = _zero_sum_ruleset(("red - 5", "blue + 1"))
     with pytest.raises(SimError, match="음수"):
         run_once(rs, random.Random(0), horizon=5)
+
+
+# ---------- player 태그 소유 게이트 (D27) ----------
+
+_TURN = Variable(name="turn", type="enum", values=("p1", "p2"))
+_X = Variable(name="x", type="int", min=0, max=3)
+
+
+def _race_ruleset(player_a: str | None, player_b: str | None) -> RuleSet:
+    return RuleSet(
+        variables=(_TURN, _X),
+        init="turn == p1 and x == 0",
+        transitions=(
+            Transition(
+                id="a",
+                outcomes=(Outcome(then="next.x == 1"),),
+                when="x == 0",
+                pref=1.0,
+                player=player_a,
+            ),
+            Transition(
+                id="b",
+                outcomes=(Outcome(then="next.x == 2"),),
+                when="x == 0",
+                pref=1.0,
+                player=player_b,
+            ),
+        ),
+    )
+
+
+def test_mixed_ownership_choice_set_rejected() -> None:
+    """서로 다른 플레이어의 전이가 co-enabled — 가드 실수이므로 명시 거부(D27)."""
+    rs = _race_ruleset("p1", "p2")
+    with pytest.raises(DtmcViolation, match="소유 혼성.*a\\(player=p1\\).*b\\(player=p2\\)"):
+        run_once(rs, random.Random(0), horizon=5)
+
+
+def test_tagged_and_untagged_mix_rejected() -> None:
+    """태그 전이와 무소속 전이의 혼성도 모호하므로 거부(D27)."""
+    rs = _race_ruleset("p1", None)
+    with pytest.raises(DtmcViolation, match="소유 혼성.*무소속"):
+        run_once(rs, random.Random(0), horizon=5)
+
+
+def test_single_owner_choice_set_samples_as_before() -> None:
+    """단일 소유 선택 집합은 기존 pref 표집과 동일하게 동작한다(D27 — 의미 불변)."""
+    rs = _race_ruleset("p1", "p1")
+    r = run_once(rs, random.Random(0), horizon=5)
+    assert r.states[-1]["x"] in (1, 2)  # 정상 표집·거부 없음

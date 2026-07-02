@@ -53,6 +53,7 @@ def validate(ruleset: RuleSet) -> None:
     errors.extend(_check_duplicate_ids("transition", [t.id for t in ruleset.transitions]))
     errors.extend(_check_duplicate_ids("check", [c.id for c in ruleset.checks]))
     errors.extend(_check_transition_prefs(ruleset))
+    errors.extend(_check_transition_players(ruleset))
     errors.extend(_check_constraint_pinned_not_mutated(ruleset))
     errors.extend(_check_references(ruleset))
 
@@ -105,6 +106,21 @@ def _check_transition_prefs(ruleset: RuleSet) -> list[str]:
                     f"전이 '{t.id}' outcomes[{i}]: weight는 음수일 수 없습니다 (현재 {oc.weight})"
                 )
     return errors
+
+
+def _check_transition_players(ruleset: RuleSet) -> list[str]:
+    """player 태그(D27)의 이름은 선언된 enum의 값이어야 한다 — 오타 게이트.
+
+    관례상 턴 enum(`turn: enum { p1, p2 }`)의 값을 쓴다. 별도 players 선언 형식은 없다."""
+    enum_values: set[str] = set()
+    for v in ruleset.variables:
+        enum_values.update(v.values)
+    return [
+        f"전이 '{t.id}': player '{t.player}'는 선언된 enum 값이 아닙니다 — "
+        f"턴 enum의 값을 쓰세요(D27)"
+        for t in ruleset.transitions
+        if t.player is not None and t.player not in enum_values
+    ]
 
 
 def _check_constraint_pinned_not_mutated(ruleset: RuleSet) -> list[str]:

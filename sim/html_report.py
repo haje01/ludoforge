@@ -72,7 +72,10 @@ def render_sim_html(report: SimReport) -> str:
     parts: list[str] = []
     parts.append('<div class="label">' + _esc(_LABEL) + "</div>")
     if report.uses_policy:
-        parts.append('<div class="label policy">' + _esc(_POLICY_LABEL) + "</div>")
+        label = _POLICY_LABEL
+        if report.policy_players:
+            label += f" (플레이어 {', '.join(report.policy_players)}의 정책, D27)"
+        parts.append('<div class="label policy">' + _esc(label) + "</div>")
     parts.append(
         f'<div class="meta">표본 N={report.samples} · 지평 H={report.horizon} · '
         f"seed={report.seed}</div>"

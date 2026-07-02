@@ -31,7 +31,7 @@ from sim.aggregate import (
     run_batch,
     select_sim_checks,
 )
-from sim.engine import enum_constants, initial_state, sweep_configs, uses_policy
+from sim.engine import enum_constants, initial_state, policy_players, sweep_configs, uses_policy
 
 # 설정당 청크 수 상한 — 워커 수와 무관(재현성). 병렬도는 이 값까지(코어가 더 많아도).
 _MAX_CHUNKS = 64
@@ -81,6 +81,7 @@ def run_sim(
         configs=tuple(results),
         skipped=skipped,
         uses_policy=uses_policy(ruleset),
+        policy_players=policy_players(ruleset),
     )
 
 

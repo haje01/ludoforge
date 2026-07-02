@@ -14,8 +14,8 @@ from pathlib import Path
 import pytest
 
 from core.ir import RuleSet, Variable
-from core.loader import load_rule_file, load_rules
-from core.schema import validate
+from core.loader import LoaderError, load_rule_file, load_rules
+from core.schema import SchemaError, validate
 from core.text_loader import TextLoaderError, parse_rule_text
 
 _EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
@@ -806,3 +806,65 @@ def test_numeric_pref_and_weight_stay_float() -> None:
     # 상태 식 pref/weight(D26)는 문자열 — 던전의 적응 정책·비복원 덱
     assert by["descend_l2"].pref == "max(win_gold - gold, 0)"
     assert by["descend_l2"].outcomes[0].weight == "l2_goblins / (l2_goblins + l2_dragons)"
+
+
+# ---------- player 태그 (D27) ----------
+
+
+def test_player_tag_parsed_to_ir() -> None:
+    rs = parse_rule_text(
+        """
+        domain { turn: enum { p1, p2 }  x: int 0..3 }
+        init: turn == p1 and x == 0
+        transition move: when turn == p1 player p1 pref 1 then { x = 1; turn = p2 }
+        transition rest: when turn == p1 player p1 pref 1 then turn = p2
+        transition env_tick: when turn == p2 then turn = p1
+        """
+    )
+    by = {t.id: t for t in rs.transitions}
+    assert by["move"].player == "p1"
+    assert by["env_tick"].player is None  # 무소속(환경 전이) 기본값
+
+
+def test_player_tag_substituted_in_for_template() -> None:
+    rs = parse_rule_text(
+        """
+        domain { turn: enum { p1, p2 }  x: int 0..3 }
+        init: turn == p1 and x == 0
+        table other { p1: p2, p2: p1 }
+        for p in [p1, p2]:
+            transition "move_${p}": when turn == p player p then turn = other[p]
+        """
+    )
+    by = {t.id: t for t in rs.transitions}
+    assert by["move_p1"].player == "p1"
+    assert by["move_p2"].player == "p2"
+    assert by["move_p1"].when == "turn == p1"
+    assert by["move_p1"].outcomes[0].then == "next.turn == p2"  # other[p] 표 치환
+
+
+def test_player_tag_undeclared_enum_value_rejected() -> None:
+    rs = parse_rule_text(
+        """
+        domain { turn: enum { p1, p2 }  x: int 0..3 }
+        init: turn == p1 and x == 0
+        transition move: player p3 then x = 1
+        """
+    )
+    with pytest.raises(SchemaError, match="player 'p3'.*enum 값이 아닙니다"):
+        validate(rs)
+
+
+def test_player_key_in_yaml_rejected(tmp_path: Path) -> None:
+    # player는 .lf 전용(D27) — 디프리케이트 YAML에선 조용한 무시 대신 명확히 거부.
+    body = (
+        "domain: {variables: {x: {type: int, min: 0, max: 3}}}\n"
+        "transitions:\n"
+        "  - id: t\n"
+        "    player: p1\n"
+        "    then: 'next.x == 1'\n"
+    )
+    f = tmp_path / "t.rule"
+    f.write_text(body, encoding="utf-8")
+    with pytest.raises(LoaderError, match="player.*자체 문법"):
+        load_rule_file(f)

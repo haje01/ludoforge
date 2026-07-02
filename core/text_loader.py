@@ -83,8 +83,9 @@ meta: "desc" STRING -> meta_desc
 c_meta: "desc" STRING -> meta_desc | "author" STRING -> meta_author
 
 // ── 전이(S3) — 효과는 대입(`var' = expr`), 술어 가드는 `==` ──
-transition_decl: "transition" id ":" meta* t_guard? t_pref? t_body
+transition_decl: "transition" id ":" meta* t_guard? t_player? t_pref? t_body
 t_guard: "when" pred
+t_player: "player" NAME                  // 전이 소유 선언(D27) — 선언된 enum 값이어야(schema)
 t_pref: "pref" sum                       // 상수 또는 현재 상태 식(D26 — 적응적 정책)
 t_body: "then" update            -> then_body
       | "outcomes" ":" outcome+  -> outcomes_body
@@ -334,15 +335,21 @@ class _ToIR(lark.Transformer[lark.Token, RuleSet]):
         # sum 규칙이 이미 파이썬-식 문자열로 lowering — 수치면 float, 아니면 상태 식(D26).
         return ("pref", _rate(str(items[0])))
 
+    def t_player(self, items: list[lark.Token]) -> tuple[str, str]:
+        return ("player", str(items[0]))
+
     def transition_decl(self, items: list[Any]) -> tuple[str, Any]:
         tid = items[0]
         when: str | None = None
         pref: float | str | None = None
+        player: str | None = None
         desc: str | None = None
         outcomes: tuple[Outcome, ...] = ()
         for tag, val in items[1:]:
             if tag == "when":
                 when = val
+            elif tag == "player":
+                player = val
             elif tag == "pref":
                 pref = val
             elif tag == "desc":
@@ -351,7 +358,7 @@ class _ToIR(lark.Transformer[lark.Token, RuleSet]):
                 outcomes = val
         return (
             "transition",
-            Transition(id=tid, outcomes=outcomes, when=when, pref=pref, desc=desc),
+            Transition(id=tid, outcomes=outcomes, when=when, pref=pref, desc=desc, player=player),
         )
 
     # --- checks(S4) ---
@@ -531,6 +538,12 @@ def _subst_tree(node: Any, env: dict[str, Any]) -> Any:
         nm = str(node.children[0])
         if nm in env and not isinstance(env[nm], dict):  # 표(dict)는 bare로 치환 안 함
             return _literal_tree(env[nm])
+        return node
+    if node.data == "t_player":
+        # player 태그(D27)의 NAME도 loop 변수면 치환 — `for p in [p1, p2]: ... player p`.
+        nm = str(node.children[0])
+        if nm in env and isinstance(env[nm], str):
+            return lark.Tree(node.data, [lark.Token("NAME", env[nm])])
         return node
     return lark.Tree(node.data, [_subst_tree(c, env) for c in node.children])
 
