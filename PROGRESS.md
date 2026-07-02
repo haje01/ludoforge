@@ -52,6 +52,22 @@ PRISM을 사용자 표면에서 내려 테스트 전용 오라클로 격하(D23)
 | P3 던전 통합 | 단일 `dungeon.lf`(클래스밸런스+pref), 4→2(+market_sim) | ✅ | bmc 9검사✅·sim 4직업 sweep·골든 등가 유지 |
 | P4 문서 정합 | CLAUDE·concepts·README·D13/16/19 주석 | ✅ | 라이브 문서·코드 메시지 prob 표면 제거 |
 
+## 8차 마일스톤 — BMC k-귀납(무한 지평 증명 승격) — ✅ 완료 (2026-07-02)
+
+표현력 확장 아크(8차 k-귀납 → 9차 상태 의존 pref/weight → 10차 플레이어 태그 → 11차
+배열/컬렉션, 북극성 = Dungeon! 2~4인 레이스판)의 첫 마일스톤. 계획은 [PLAN.md 8차](PLAN.md),
+근거는 [decisions.md D25](docs/decisions.md).
+
+| Phase | 내용 | 상태 | 비고 |
+|-------|------|------|------|
+| P0 D25 기록·비준 | 설계 + `unreachable`→종료코드 1 승격 비준 | ✅ | 2026-07-02 사용자 비준 |
+| P1 솔버 매개화 | `_solver_to_depth`→`_solver_span(anchored)` | ✅ | 순수 리팩터, 행위 불변 |
+| P2 invariant 귀납 | base 통과 후 스텝 검사 → `holds`(최소 j 보고) | ✅ | 던전 불변식 3종 증명 승격, 픽스처 `bmc_induction.lf` |
+| P3 no_deadlock·reachable | `no_deadlock` 증명·`unreachable` 확정(종료코드 1) | ✅ | 던전 no_stuck 증명(j=0), 건전성 회귀(도달 가능이면 귀납 실패) |
+| P4 리포트·문서 | 텍스트/HTML 라벨, CLAUDE §4.1·concepts·README | ✅ | 증명/유계 구분 명시, README 낡은 prob 서술 정정 |
+
+P5(distinct-state 강화)는 보류 — 트리거: 실전에서 "참인데 비귀납" 반복 관측 시.
+
 ## 작업 로그
 - 2026-06-25: **6차 마일스톤 착수.** PLAN.md 6차·decisions.md D21·CLAUDE.md §4/§5 동기화
   완료(외부 DSL·`=`/`==` 분리). PROGRESS를 리셋(이전 상세 로그는 git 이력으로, 기반

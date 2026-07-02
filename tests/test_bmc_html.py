@@ -64,6 +64,15 @@ def test_html_marks_violation_and_deadlock() -> None:
     assert 'class="trace"' in dead
 
 
+def test_html_marks_induction_proof_and_definite_unreachable() -> None:
+    # k-귀납 증명(D25)은 ok 배지 + '무한 지평' 라벨, 도달 불가 확정은 bad 배지.
+    html = render_bmc_html(run_bmc(load_rule_file(FIXTURES / "bmc_induction.lf"), k=5))
+    assert "무한 지평" in html  # odd3 → holds 라벨
+    assert "도달 불가 확정" in html  # five → unreachable 라벨
+    assert 'class="badge bad"' in html  # unreachable = 검사 실패 확정(빨강)
+    assert "귀납 깊이 j=" in html  # 최소 귀납 깊이 detail 노출
+
+
 def test_trace_highlights_changed_vars() -> None:
     # 직전 스텝 대비 바뀐 변수만 강조(changed) — 첫 스텝엔 강조가 없다.
     trace = Trace(

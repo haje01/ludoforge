@@ -16,12 +16,12 @@ import html
 from logic.solver.bmc import _LABEL, BmcReport, PropertyResult, Trace
 
 # 상태 → 의미 분류(배지 색). 나머지(미도달·unknown)는 경고.
-_GOOD = {"reachable", "holds_up_to_k", "no_deadlock_up_to_k"}
-_BAD = {"violated", "deadlock"}
+_GOOD = {"reachable", "holds", "holds_up_to_k", "no_deadlock", "no_deadlock_up_to_k"}
+_BAD = {"violated", "deadlock", "unreachable"}
 
 _BOUND_LABEL = (
-    "⚠️ 유계(bounded) 검사 — k 스텝까지만 봅니다. '위반 없음 · 데드락 없음 · 미도달'은 "
-    "그 깊이까지의 결과일 뿐 무한 지평 증명이 아닙니다."
+    "⚠️ 유계(bounded) 검사 — '증명(무한 지평, k-귀납)' 표시가 없는 '위반 없음 · 데드락 없음 · "
+    "미도달'은 k 스텝까지의 결과일 뿐 무한 지평 증명이 아닙니다(D25)."
 )
 
 _KBOUND_NOTE: dict[str, str] = {
