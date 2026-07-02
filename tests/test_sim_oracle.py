@@ -71,3 +71,36 @@ def test_sim_win_rates_match_prism_oracle() -> None:
         )
         # 보수적 허용오차로도 확인(시드 고정 — 비플레이키).
         assert abs(exact - sim_win.p_hat) < 0.02
+
+
+# ---------- 상태 의존 weight(D26) 오라클 ----------
+
+URN = Path(__file__).parent / "fixtures" / "urn.lf"
+_URN_EXACT = 2 / 3  # 닫힌형: 마지막 공은 3개 중 균등, 그중 2개가 빨강
+
+
+def test_urn_prism_model_renders_ratio_weights() -> None:
+    # 상태 의존 weight는 비율형 (w_i)/(Σw)로 렌더 — 합=1 구성적 보장(D26).
+    rs = load_rule_file(URN)
+    model = generate(rs).model
+    assert "/((red / (red + blue))+(blue / (red + blue)))" in model
+
+
+@pytest.mark.skipif(find_prism() is None, reason="prism 바이너리 미설치")
+def test_urn_sim_matches_prism_oracle() -> None:
+    """비복원 추출(D26): PRISM 정확값 = 닫힌형 2/3 이고 sim 95% CI가 그 값을 담는다."""
+    rs = load_rule_file(URN)
+    validate(rs)
+    prism = run_prism(generate(rs))
+    ends_red = next(o for o in prism.outcomes if o.prop_id == "ends_red")
+    assert ends_red.result is not None
+    exact = float(ends_red.result.split()[0])
+    assert abs(exact - _URN_EXACT) < 1e-6  # PRISM이 비율 weight를 정확히 푼다
+
+    report = run_sim(rs, samples=8000, horizon=20, seed=1)
+    (cfg,) = report.configs  # 자유변수 없음 — 단일 설정
+    sim_red = next(r for r in cfg.checks if r.check_id == "ends_red")
+    assert isinstance(sim_red, ProportionResult)
+    assert sim_red.ci[0] <= exact <= sim_red.ci[1], (
+        f"PRISM={exact} ∉ sim CI {sim_red.ci} (P̂={sim_red.p_hat})"
+    )

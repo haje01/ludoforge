@@ -17,7 +17,7 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass
 
-from core.ir import RuleSet, Variable
+from core.ir import RuleSet, Transition, Variable
 from core.schema import check_finite_state
 
 
@@ -104,25 +104,46 @@ def _commands(ruleset: RuleSet) -> list[str]:
     out: list[str] = []
     for t in ruleset.transitions:
         guard = _render(_parse(t.when)) if t.when is not None else "true"
-        if any(isinstance(oc.weight, str) for oc in t.outcomes):
-            # 상태 의존 weight(D26) 렌더는 후속(9차 Phase 3) — 조용히 뭉개지 않는다.
-            raise ProbError(
-                f"전이 '{t.id}'의 상태 의존 weight(식)는 PRISM 오라클이 아직 지원하지 않습니다."
-            )
-        weights = [float(oc.weight) for oc in t.outcomes if not isinstance(oc.weight, str)]
-        total = sum(weights)
-        if total <= 0:
+        consts = _const_weights(t)
+        if consts is not None and sum(consts) <= 0:
             raise ProbError(f"전이 '{t.id}'의 weight 합이 0입니다.")
         # guard와 _updates는 이미 필요한 괄호를 포함한다(이중 괄호 회피).
         if len(t.outcomes) == 1:
             out.append(f"[{t.id}] {guard} -> {_updates(t.outcomes[0].then)};")
-        else:
+        elif consts is not None:
+            total = sum(consts)
             branches = " + ".join(
                 f"{_prob(w, total)}:{_updates(oc.then)}"
-                for oc, w in zip(t.outcomes, weights, strict=True)
+                for oc, w in zip(t.outcomes, consts, strict=True)
+            )
+            out.append(f"[{t.id}] {guard} -> {branches};")
+        else:
+            # 상태 의존 weight(D26): 비율형 (w_i)/(Σw)로 렌더 — 상태마다 합=1이 구성적으로
+            # 보장된다. 합0 상태는 가드가 배제해야 하며(D26 규율), 어기면 PRISM이 모델
+            # 검사 시점에 well-formedness 오류로 크게 알린다(오라클의 이중 안전망).
+            terms = [_weight_term(oc.weight) for oc in t.outcomes]
+            total_expr = "(" + "+".join(terms) + ")"
+            branches = " + ".join(
+                f"({term})/{total_expr}:{_updates(oc.then)}"
+                for term, oc in zip(terms, t.outcomes, strict=True)
             )
             out.append(f"[{t.id}] {guard} -> {branches};")
     return out
+
+
+def _const_weights(t: Transition) -> list[float] | None:
+    """모든 outcome weight가 상수면 float 목록, 하나라도 상태 식(D26)이면 None."""
+    weights: list[float] = []
+    for oc in t.outcomes:
+        if isinstance(oc.weight, str):
+            return None
+        weights.append(float(oc.weight))
+    return weights
+
+
+def _weight_term(w: float | str) -> str:
+    """weight 하나를 PRISM 항으로 — 상수는 수치, 상태 식(D26)은 PRISM 식으로 렌더."""
+    return _render(_parse(w)) if isinstance(w, str) else _num(float(w))
 
 
 def _init_block(ruleset: RuleSet) -> list[str]:
@@ -168,7 +189,8 @@ def _properties(ruleset: RuleSet) -> tuple[PrismProperty, ...]:
 # ---------- 표현식 렌더 ----------
 
 _BOOL_OP = {ast.And: " & ", ast.Or: " | "}
-_BIN_OP = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*"}
+# `/`는 PRISM에서 항상 실수 나눗셈(double) — 상태 의존 weight(D26)의 비율식에 쓰인다.
+_BIN_OP = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/"}
 _CMP_OP = {
     ast.Eq: "=",
     ast.NotEq: "!=",
@@ -210,6 +232,8 @@ def _render(node: ast.AST) -> str:
             return "true" if node.value else "false"
         if isinstance(node.value, int):
             return str(node.value)
+        if isinstance(node.value, float):
+            return _num(node.value)  # weight 식(D26)의 실수 상수 — 상태 변수는 여전히 유한만
         raise ProbError(f"PRISM 백엔드가 지원하지 않는 상수: {node.value!r}")
     if isinstance(node, ast.Attribute):
         raise ProbError("next.* 는 전이 갱신(then)에서만 쓸 수 있습니다.")

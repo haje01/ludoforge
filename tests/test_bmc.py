@@ -185,3 +185,15 @@ def test_report_shows_violation_trace() -> None:
     assert "불변식 위반" in text
     assert "경로:" in text
     assert "--[inc]-->" in text
+
+
+# ---------- 상태 의존 weight(D26) — weight-erasure 무회귀 ----------
+
+
+def test_bmc_erases_state_dependent_weights() -> None:
+    """BMC는 weight가 식이어도 지우고(비결정 분기) 경로를 찾는다 — dialect 분리(D11·D26)."""
+    rs = load_rule_file(FIXTURES / "urn.lf")
+    report = run_bmc(rs, k=4)
+    r = _by_id(report)["ends_red"]
+    assert r.status == "reachable"  # type: ignore[attr-defined]
+    assert r.depth == 3  # type: ignore[attr-defined]  # 공 3개를 다 뽑는 최단 경로
