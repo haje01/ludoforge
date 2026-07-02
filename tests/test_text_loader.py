@@ -670,7 +670,13 @@ transitions:
 def test_example_lf_matches_yaml(lf_path: Path) -> None:
     """이관된 examples/*.lf는 같은 이름의 *.rule(YAML)과 IR 등가여야 한다(이관 회귀 하니스).
 
-    새 .lf를 추가하면 자동으로 등가가 검증된다. 대응 YAML이 없으면 건너뛴다."""
+    새 .lf를 추가하면 자동으로 등가가 검증된다. 대응 YAML이 없으면 건너뛴다.
+    YAML로 표현 불가한 `.lf` 전용 기능(D26 상태 식 pref/weight)을 쓰도록 진화한 예제는
+    old_examples/에 이관 시점 `.lf` 스냅샷을 동결해 그 쌍으로 비교한다(dungeon 사례 —
+    test_full_dungeon_golden_equivalence)."""
+    frozen = _OLD_EXAMPLES / lf_path.name
+    if frozen.exists():
+        lf_path = frozen  # 살아있는 예제가 .lf 전용 기능으로 진화 — 동결 스냅샷으로 비교
     yaml_path = _OLD_EXAMPLES / (lf_path.stem + ".rule")
     if not yaml_path.exists():
         pytest.skip(f"대응 YAML 없음: {yaml_path.name}")
@@ -690,14 +696,18 @@ def test_loop_var_domain_collision_rejected() -> None:
 
 
 def test_full_dungeon_golden_equivalence() -> None:
-    """실제 examples/dungeon.{rule,lf}가 IR 등가여야 한다(밀스톤 인수 테스트).
+    """6차 이관 시점의 dungeon.{rule,lf} 스냅샷이 IR 등가여야 한다(이관 회귀 하니스).
 
     전 기능을 한 번에 검증: 도메인·정적 constraints·5개 table·init·이동/조우/전투(8-way
     for-template)/흡수 전이·5종 check kind·괄호-or 가드·다중 대입·표 색인 가중치·desc 메타데이터.
     .lf는 로더 디스패치(확장자)로 읽는다.
+
+    D26 이후 examples/dungeon.lf는 YAML로 표현 불가한 상태 의존 pref/weight를 쓰므로
+    (`.lf` 전용), 이관 등가는 old_examples/의 동결 스냅샷 쌍으로 고정한다 — 살아있는
+    예제는 자유롭게 진화하고, 이관 무회귀 증명은 스냅샷이 계속 지킨다.
     """
     yaml_rs = load_rule_file(_OLD_EXAMPLES / "dungeon.rule")
-    native_rs = load_rule_file(_EXAMPLES / "dungeon.lf")
+    native_rs = load_rule_file(_OLD_EXAMPLES / "dungeon.lf")
     _assert_ir_equiv(native_rs, yaml_rs)
     # 자체 IR이 백엔드가 거치는 스키마 게이트(참조 무결성·next.* 규칙·중복 id)를 통과하는가
     # — 골든 등가에 더해 백엔드-준비 상태를 확인(IR 동일 ⇒ BMC/sim/PRISM 동작 동일).
@@ -790,5 +800,9 @@ def test_numeric_pref_and_weight_stay_float() -> None:
     # 상수는 여전히 float — 기존 골든 IR 등가(하위 호환, D26).
     rs = load_rule_file(Path("examples/dungeon.lf"))
     by = {t.id: t for t in rs.transitions}
-    assert isinstance(by["descend_l2"].pref, float)
-    assert all(isinstance(oc.weight, float) for oc in by["descend_l2"].outcomes)
+    assert isinstance(by["go_home"].pref, float)  # `pref 5` 상수
+    # 표 색인 weight는 desugar 후 수치 — float 유지
+    assert all(isinstance(oc.weight, float) for oc in by["fight_goblin_fighter"].outcomes)
+    # 상태 식 pref/weight(D26)는 문자열 — 던전의 적응 정책·비복원 덱
+    assert by["descend_l2"].pref == "max(win_gold - gold, 0)"
+    assert by["descend_l2"].outcomes[0].weight == "l2_goblins / (l2_goblins + l2_dragons)"

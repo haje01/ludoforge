@@ -275,9 +275,12 @@ def _check_references(ruleset: RuleSet) -> list[str]:
                 _check_expr_references(f"전이 '{t.id}'", "when", t.when, known, known_vars)
             )
         if isinstance(t.pref, str):
-            # 상태 식 pref(D26) — 현재 상태 식이므로 next.*/함수 불허(기본값).
+            # 상태 식 pref(D26) — 현재 상태 식이라 next.* 불허. min/max는 요율의 클램프
+            # (예: 욕심 = max(win_gold - gold, 0))에 유용하고 Z3는 pref를 안 보므로 허용.
             errors.extend(
-                _check_expr_references(f"전이 '{t.id}'", "pref", t.pref, known, known_vars)
+                _check_expr_references(
+                    f"전이 '{t.id}'", "pref", t.pref, known, known_vars, allow_funcs=True
+                )
             )
         for i, oc in enumerate(t.outcomes):
             label = "then" if len(t.outcomes) == 1 else f"outcomes[{i}].then"
@@ -293,10 +296,13 @@ def _check_references(ruleset: RuleSet) -> list[str]:
                 )
             )
             if isinstance(oc.weight, str):
-                # 상태 식 weight(D26) — 전이 직전 상태에서 평가되므로 next.* 불허(기본값).
+                # 상태 식 weight(D26) — 전이 직전 상태에서 평가되므로 next.* 불허.
+                # min/max는 요율 클램프용으로 허용(pref와 동일 — weight는 Z3에 안 간다).
                 wlabel = "weight" if len(t.outcomes) == 1 else f"outcomes[{i}].weight"
                 errors.extend(
-                    _check_expr_references(f"전이 '{t.id}'", wlabel, oc.weight, known, known_vars)
+                    _check_expr_references(
+                        f"전이 '{t.id}'", wlabel, oc.weight, known, known_vars, allow_funcs=True
+                    )
                 )
     for c in ruleset.checks:
         if c.kind in ("reachable", "invariant") and c.that is not None:

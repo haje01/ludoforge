@@ -68,6 +68,18 @@ PRISM을 사용자 표면에서 내려 테스트 전용 오라클로 격하(D23)
 
 P5(distinct-state 강화)는 보류 — 트리거: 실전에서 "참인데 비귀납" 반복 관측 시.
 
+## 9차 마일스톤 — 상태 의존 pref/weight(런타임 식) — ✅ 완료 (2026-07-02)
+
+`pref`(D20)·outcome `weight`(D12)에 현재 상태의 식을 허용(D26) — 적응적 정책과 비복원
+추출이 표현된다. 계획은 [PLAN.md 9차](PLAN.md), 근거는 [decisions.md D26](docs/decisions.md).
+
+| Phase | 내용 | 상태 | 비고 |
+|-------|------|------|------|
+| P0 D26 기록·비준 | enabledness=가드 단독·BMC 과근사 수용·`.lf` 전용 | ✅ | 2026-07-02 사용자 비준 |
+| P1+P2 프론트엔드+sim | 문법/IR `float\|str`/schema + 엔진 런타임 평가 | ✅ | 수직 슬라이스(6차 선례). 골든: `urn.lf`(닫힌형 2/3)·`policy_adaptive.lf`(0.3) |
+| P3 PRISM 오라클 | 비율형 `(w_i)/(Σw)` 렌더 + urn 교차검증 | ✅ | PRISM 정확값 ∈ sim CI(D19 DNA). BMC erasure 무회귀 |
+| P4 북극성 1단계 | 던전 2층 몬스터 덱(비복원)+적응 욕심 pref + 문서 | ✅ | bmc 9검사 지위 불변(k-귀납 증명 유지)·min/max 요율 허용. 이관 골든은 old_examples 스냅샷으로 동결 |
+
 ## 작업 로그
 - 2026-06-25: **6차 마일스톤 착수.** PLAN.md 6차·decisions.md D21·CLAUDE.md §4/§5 동기화
   완료(외부 DSL·`=`/`==` 분리). PROGRESS를 리셋(이전 상세 로그는 git 이력으로, 기반

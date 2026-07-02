@@ -31,7 +31,10 @@ def _write(tmp_path: Path, body: str) -> Path:
 def test_loads_dungeon_transition_system() -> None:
     rs = load_rule_file(EXAMPLES / "dungeon.lf")
 
-    assert rs.init == "gold == 0 and room == hall and monster == none and status == exploring"
+    assert rs.init == (
+        "gold == 0 and room == hall and monster == none and status == exploring "
+        "and l2_goblins == 2 and l2_dragons == 2"
+    )
 
     tids = [t.id for t in rs.transitions]
     assert tids == [
@@ -58,9 +61,9 @@ def test_loads_dungeon_transition_system() -> None:
         Outcome(then="next.room == l1 and next.monster == goblin", weight=1.0),
     )
 
-    # 플레이어 선택(pref, D20) — descend_l2는 욕심 정책 가중치를 단다
+    # 플레이어 선택(pref, D20·D26) — descend_l2는 적응적 욕심(남은 목표액 비례)을 단다
     descend = next(t for t in rs.transitions if t.id == "descend_l2")
-    assert descend.pref == 0.5
+    assert descend.pref == "max(win_gold - gold, 0)"
 
     # 확률 전이(fight_goblin_fighter) → 3-way 가중치 보존(승리/무소득/사망)
     fight = next(t for t in rs.transitions if t.id == "fight_goblin_fighter")

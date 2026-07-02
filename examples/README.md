@@ -20,7 +20,7 @@
 | [`day_night_cycle.lf`](day_night_cycle.lf) | enum 도달 불가 (중복 값) | sky·lighting이 같은 값 이름(day/night)을 쓰며, 두 시스템이 밤 조명을 상충 강제해 sky=night 봉쇄 (D8) |
 | [`balanced_stats.lf`](balanced_stats.lf) | (정합) | 공격력=레벨×10, 상한 500, 레벨 상한 50이 정확히 맞아떨어져 모순 없음 |
 | [`balanced_build.lf`](balanced_build.lf) | (정합, expect 충족) | stat_budget과 같은 예산이지만 "공40·방40 균형 빌드"(합 80)는 도달 가능 → `expect:` 충족 (D10) |
-| [`dungeon.lf`](dungeon.lf) | (전이 시스템, MDP+정책) | 던전!(WotC 2012판) 통합 모델 — 클래스 4종·클래스별 전투(2d6 환산)·몬스터 2종에 "욕심 vs 안전"의 **`pref` 정책**을 얹었다. **한 모델, 두 질문:** `bmc`로 건전성(클래스별 winnable·불변식·데드락), `sim`으로 직업별 승률·보물 분포 추정 (D12·D15·D20·D23) |
+| [`dungeon.lf`](dungeon.lf) | (전이 시스템, MDP+정책+덱) | 던전!(WotC 2012판) 통합 모델 — 클래스 4종·클래스별 전투(2d6 환산)에 **적응적 욕심 정책**(`pref max(win_gold - gold, 0)`, D26)과 **2층 몬스터 덱 비복원 추출**(남은 카드 수 비례 weight, D26)을 얹었다. **한 모델, 두 질문:** `bmc`로 건전성(클래스별 winnable·불변식·데드락 — k-귀납 증명 포함), `sim`으로 직업별 승률·보물 분포 추정 (D12·D15·D20·D23·D25·D26) |
 | [`market_sim.lf`](market_sim.lf) | (전이 시스템, real) | 두 자산을 복리로 굴리는 **연속(real)·다변수** 모델 — `sim`이 분포로 추정(PRISM이 못 다루는 영역, D19) |
 | [`team_example/`](team_example/) | (협업 패턴) | 공유 `_domain.lf` + 기획자별 constraints 파일을 디렉토리로 병합 검사 |
 
@@ -30,8 +30,11 @@
 `dungeon.lf`은 정적 모순이 아니라 **전이 시스템**(init/transitions/checks) 예제다. 던전!(WotC
 2012판)을 모델링해 클래스 4종(rogue·cleric·fighter·wizard, 목표 보물액 10·10·20·30)과
 **클래스의존 전투**(같은 몬스터라도 클래스별 승률이 다름 — 2d6 격파 목표값을 확률로 환산),
-몬스터 2종(고블린/드래곤)을 담고, 한 층을 클리어하면 **"더 깊이(욕심) vs 귀환(안전)"** 을
-`pref`(무작위 정책, D20)로 가른다. 한 모델을 **두 질문**으로 검사한다(dialect 분리, D11):
+몬스터 2종(고블린/드래곤)을 담는다. 한 층을 클리어하면 **"더 깊이(욕심) vs 귀환(안전)"** 을
+고르는데 욕심이 **남은 목표액에 비례**하고(`pref max(win_gold - gold, 0)` — 상태 의존
+정책, D26), 2층 조우는 **몬스터 덱에서 비복원 추출**한다(남은 카드 수에 비례하는 상태 의존
+weight, 뽑힌 카드는 감소 — 실물 게임의 레벨별 몬스터 카드, D26). 한 모델을 **두 질문**으로
+검사한다(dialect 분리, D11):
 
 - 논리·건전성(`bmc`): "클래스별로 이길 길이 *존재*하는가·불변식·데드락" — `pref`를 무시하고
   비결정으로 탐색한다. `ludoforge bmc examples/dungeon.lf --k 14`
