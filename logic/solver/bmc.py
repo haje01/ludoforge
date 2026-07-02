@@ -229,13 +229,16 @@ class _Bmc:
 
     # --- 풀이 ---
 
-    def _solver_to_depth(self, j: int) -> z3.Solver:
-        """init ∧ (상태제약 0..j) ∧ (전이 0..j-1)를 담은 solver."""
+    def _solver_span(self, j: int, anchored: bool = True) -> z3.Solver:
+        """상태열 s_0..s_j의 제약을 담은 solver: (상태제약 0..j) ∧ (전이 0..j-1).
+
+        anchored=True면 s_0에 init을 건다(기존 BMC base). False면 init 없는 임의 합법
+        상태열 — k-귀납 스텝 검사용(D25)."""
         s = z3.Solver()
         for i in range(j + 1):
             for c in self.state_cons[i]:
                 s.add(c)
-        if self.init_con is not None:
+        if anchored and self.init_con is not None:
             s.add(self.init_con)
         for i in range(j):
             s.add(self.relations[i])
@@ -243,7 +246,7 @@ class _Bmc:
 
     def _check_reachable(self, that: str) -> PropertyResult | tuple[str, int, Trace]:
         for j in range(self.k + 1):
-            s = self._solver_to_depth(j)
+            s = self._solver_span(j)
             s.add(translate_expression(_parse(that), *self._state_ctx(j)))
             r = s.check()
             if r == z3.sat:
@@ -254,7 +257,7 @@ class _Bmc:
 
     def _check_invariant(self, that: str) -> PropertyResult | tuple[str, int, Trace]:
         for j in range(self.k + 1):
-            s = self._solver_to_depth(j)
+            s = self._solver_span(j)
             s.add(z3.Not(translate_expression(_parse(that), *self._state_ctx(j))))
             r = s.check()
             if r == z3.sat:
@@ -267,7 +270,7 @@ class _Bmc:
         for j in range(self.k + 1):
             guards = self._guards(j)
             enabled = z3.Or(*guards) if guards else z3.BoolVal(False)
-            s = self._solver_to_depth(j)
+            s = self._solver_span(j)
             s.add(z3.Not(enabled))
             r = s.check()
             if r == z3.sat:
@@ -385,8 +388,7 @@ def format_bmc_report(report: BmcReport) -> str:
     if report.skipped_other:
         lines.append("")
         lines.append(
-            "ℹ️ 다른 백엔드 전용 검사라 건너뜀(distribution=sim): "
-            + ", ".join(report.skipped_other)
+            "ℹ️ 다른 백엔드 전용 검사라 건너뜀(distribution=sim): " + ", ".join(report.skipped_other)
         )
     return "\n".join(lines)
 
