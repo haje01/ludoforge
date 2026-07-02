@@ -939,3 +939,17 @@ def test_array_table_name_overlap_rejected() -> None:
 def test_array_two_indices_rejected() -> None:
     with pytest.raises(TextLoaderError, match="색인을 1개만"):
         parse_rule_text("domain { gold[p1, p2]: int 0..9 } init: gold[p1][p2] == 0")
+
+
+def test_race_folded_equals_manual_golden() -> None:
+    """접힌 레이스(배열+템플릿, D28)가 수동 복제판과 IR 등가 — 북극성 3단계 인수 테스트.
+
+    배열 desugar(스칼라 가족)·for 템플릿·표(정책/상대)가 합쳐져 손으로 나열한 모델과
+    정확히 같은 IR을 냄을 영구 증명한다(펼친 이름·순서·pref·소유 태그·검사 전부)."""
+    folded = load_rule_file(_EXAMPLES / "dungeon_race.lf")
+    manual = load_rule_file(Path(__file__).parent / "fixtures" / "race_manual.lf")
+    _assert_ir_equiv(folded, manual)
+    # player 태그(D27)는 _assert_ir_equiv 범위 밖 — 명시 비교.
+    for f, m in zip(folded.transitions, manual.transitions, strict=True):
+        assert f.player == m.player
+    validate(folded)
