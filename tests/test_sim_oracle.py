@@ -104,3 +104,27 @@ def test_urn_sim_matches_prism_oracle() -> None:
     assert sim_red.ci[0] <= exact <= sim_red.ci[1], (
         f"PRISM={exact} ∉ sim CI {sim_red.ci} (P̂={sim_red.p_hat})"
     )
+
+
+# ---------- 동적 색인(D28) 오라클 ----------
+
+DYN = Path(__file__).parent / "fixtures" / "dyn_index.lf"
+
+
+@pytest.mark.skipif(find_prism() is None, reason="prism 바이너리 미설치")
+def test_dyn_index_sim_matches_prism_oracle() -> None:
+    """동적 색인 가드(D28)의 DTMC: PRISM 정확값(ternary 렌더)이 sim 95% CI 안에 있다."""
+    rs = load_rule_file(DYN)
+    validate(rs)
+    prism = run_prism(generate(rs))
+    full = next(o for o in prism.outcomes if o.prop_id == "p1_full")
+    assert full.result is not None
+    exact = float(full.result.split()[0])
+
+    report = run_sim(rs, samples=8000, horizon=50, seed=1)
+    (cfg,) = report.configs
+    sim_full = next(r for r in cfg.checks if r.check_id == "p1_full")
+    assert isinstance(sim_full, ProportionResult)
+    assert sim_full.ci[0] <= exact <= sim_full.ci[1], (
+        f"PRISM={exact} ∉ sim CI {sim_full.ci} (P̂={sim_full.p_hat})"
+    )

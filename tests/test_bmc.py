@@ -215,3 +215,12 @@ def test_race_dungeon_soundness() -> None:
     assert by["win_needs_target_p1"].status == "holds"  # type: ignore[attr-defined]
     assert by["win_needs_target_p2"].status == "holds"  # type: ignore[attr-defined]
     assert by["no_stuck"].status == "no_deadlock"  # type: ignore[attr-defined]
+
+
+def test_dynamic_index_guard_translates_to_z3_if() -> None:
+    """동적 색인 가드(D28)가 z3.If로 번역돼 BMC 도달성이 동작한다."""
+    rs = load_rule_file(FIXTURES / "dyn_index.lf")
+    report = run_bmc(rs, k=8)
+    r = _by_id(report)["p1_full"]
+    assert r.status == "reachable"  # type: ignore[attr-defined]
+    assert r.depth == 5  # type: ignore[attr-defined]  # p1 3득점 + p2 턴 2회 개재

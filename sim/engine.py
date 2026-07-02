@@ -150,6 +150,12 @@ def evaluate(node: ast.AST, env: dict[str, Any]) -> Any:
             return node.value
         raise EvalError(f"지원하지 않는 상수: {node.value!r} (정수/실수/불리언만)")
 
+    if isinstance(node, ast.IfExp):
+        # 배열 동적 색인(D28)의 desugar 산출물(유한 case-분기) — 사용자 문법엔 삼항이 없다.
+        if evaluate(node.test, env):
+            return evaluate(node.body, env)
+        return evaluate(node.orelse, env)
+
     raise EvalError(f"지원하지 않는 표현식 요소: {type(node).__name__}")
 
 

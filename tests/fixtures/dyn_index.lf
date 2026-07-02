@@ -1,0 +1,26 @@
+// 동적 색인(D28, 읽기 전용) 픽스처: 가드가 **현재 턴 플레이어**의 점수를 읽는다
+// (`score[turn]` → 유한 case-분기 IfExp로 lowering). 자기 점수가 3인 플레이어의 턴이
+// 오면 전이가 꺼져 자연 종료 — p1이 유리한 비대칭 확률(0.7 vs 0.3)의 DTMC다.
+// 세 백엔드 일치 검증용: bmc(도달성)·sim(추정)·PRISM 오라클(정확값 ∈ sim CI).
+domain {
+    turn: enum { p1, p2 }
+    score[p1, p2]: int 0..3
+}
+
+init: turn == p1 and score[p1] == 0 and score[p2] == 0
+
+transition round_p1:
+    when turn == p1 and score[turn] < 3
+    player p1
+    outcomes:
+        0.7 -> { score[p1] = score[p1] + 1; turn = p2 }
+        0.3 -> turn = p2
+transition round_p2:
+    when turn == p2 and score[turn] < 3
+    player p2
+    outcomes:
+        0.3 -> { score[p2] = score[p2] + 1; turn = p1 }
+        0.7 -> turn = p1
+
+check p1_full reachable: score[p1] == 3
+check lead distribution: score[turn]

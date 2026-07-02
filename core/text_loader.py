@@ -240,6 +240,10 @@ class _ToIR(lark.Transformer[lark.Token, RuleSet]):
         # 배열 선언(D28)은 desugar(_expand_tree)가 스칼라 가족으로 펼친다 — 방어.
         raise TextLoaderError("배열 선언이 펼쳐지지 않았습니다(내부 오류).")
 
+    def verbatim(self, items: list[lark.Token]) -> str:
+        # 동적 색인(D28)의 desugar 산출물 — 완성된 파이썬-식 문자열을 그대로 통과.
+        return str(items[0])
+
     def id(self, items: list[lark.Token]) -> str:
         tok = items[0]
         return tok[1:-1] if tok.type == "STRING" else str(tok)
@@ -512,6 +516,38 @@ class _Array:
     values: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class _EnumVar:
+    """스칼라 enum 변수(동적 색인 후보, D28). desugar env에서 치환 금지 마커를 겸한다."""
+
+    values: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _IfExpr:
+    """동적 색인의 lowering 산출물(D28) — 완성된 파이썬-식 문자열(유한 case-분기 IfExp).
+
+    사용자 문법엔 삼항이 없다 — desugar 내부 생성물로만 IR에 들어간다(비-튜링완전 유지)."""
+
+    text: str
+
+
+def _collect_enum_vars(tree: Any) -> dict[str, _EnumVar]:
+    """스칼라 enum 변수(이름 → 값들). 배열의 동적 색인(`arr[turn]`) 판별·검증용(D28).
+
+    배열 원소 enum(`monster[p1]` 등)은 v1에서 색인 변수로 못 쓴다."""
+    out: dict[str, _EnumVar] = {}
+    for child in tree.children:
+        if not (isinstance(child, lark.Tree) and child.data == "domain_block"):
+            continue
+        for vd in child.children:
+            if len(vd.children) == 2 and (
+                isinstance(vd.children[1], lark.Tree) and vd.children[1].data == "enum_type"
+            ):
+                out[str(vd.children[0])] = _EnumVar(tuple(str(t) for t in vd.children[1].children))
+    return out
+
+
 def _collect_arrays(tree: Any) -> dict[str, _Array]:
     """domain의 배열 선언(D28)을 base 이름 → _Array로 수집한다."""
     arrays: dict[str, _Array] = {}
@@ -583,13 +619,13 @@ def _eval_key(node: Any, env: dict[str, Any]) -> Any:
     return str(node.children[0])[1:-1]  # key_str
 
 
-def _eval_index(node: Any, env: dict[str, Any]) -> Any:
+def _eval_index(node: Any, env: dict[str, Any], lhs: bool = False) -> Any:
     base_name = str(node.children[0])
     if base_name not in env:
         raise TextLoaderError(f"미정의 테이블/배열/파라미터: '{base_name}'")
     val: Any = env[base_name]
     if isinstance(val, _Array):
-        return _resolve_array_element(val, node, env)
+        return _resolve_array_element(val, node, env, lhs=lhs)
     for key_node in node.children[1:]:
         k = _eval_key(key_node, env)
         try:
@@ -599,11 +635,13 @@ def _eval_index(node: Any, env: dict[str, Any]) -> Any:
     return val
 
 
-def _resolve_array_element(arr: _Array, node: Any, env: dict[str, Any]) -> str:
-    """배열 정적 색인(D28)을 스칼라 이름 `<base>_<idx>`로 해소한다.
+def _resolve_array_element(
+    arr: _Array, node: Any, env: dict[str, Any], lhs: bool = False
+) -> str | _IfExpr:
+    """배열 색인(D28)을 해소한다 — 정적(리터럴·loop 변수)이면 스칼라 이름
+    `<base>_<idx>`, 동적(enum 변수)이면 유한 case-분기 IfExp 식(읽기 전용).
 
-    색인은 선언된 값 리터럴 또는 loop 변수(치환 후 값)여야 한다 — enum 변수를 통한
-    동적 색인은 Phase 3(읽기 전용 IfExp lowering)에서 지원한다."""
+    효과 LHS의 동적 색인은 보류라 거부한다(프레임 의미 수술 필요 — D28)."""
     keys = node.children[1:]
     if len(keys) != 1:
         raise TextLoaderError(f"배열 '{arr.base}'는 색인을 1개만 받습니다(선언이 1차원).")
@@ -613,13 +651,34 @@ def _resolve_array_element(arr: _Array, node: Any, env: dict[str, Any]) -> str:
     name = str(key.children[0])
     if name in env and isinstance(env[name], str):
         name = env[name]  # for loop 변수 → 바인딩 값
-    if name not in arr.values:
-        raise TextLoaderError(
-            f"배열 '{arr.base}'에 색인 값 '{name}'가 없습니다 "
-            f"(선언: {', '.join(arr.values)}). enum 변수를 통한 동적 색인은 아직 "
-            f"지원하지 않습니다(D28 — 술어/RHS 한정으로 후속)."
-        )
-    return f"{arr.base}_{name}"
+    if name in arr.values:
+        return f"{arr.base}_{name}"
+    ev = env.get(name)
+    if isinstance(ev, _EnumVar):
+        if lhs:
+            raise TextLoaderError(
+                f"효과 좌변의 동적 색인('{arr.base}[{name}] = …')은 지원하지 않습니다"
+                f"(D28 보류) — 플레이어별 전이(가드 `{name} == 값`) + 정적 색인을 쓰세요."
+            )
+        missing = sorted(set(ev.values) - set(arr.values))
+        if missing:
+            raise TextLoaderError(
+                f"동적 색인 '{arr.base}[{name}]': enum '{name}'의 값 {missing}이 배열 색인"
+                f"(선언: {', '.join(arr.values)})에 없습니다 — 색인 집합이 enum 값을 덮어야 합니다."
+            )
+        return _IfExpr(_ifexp_text(arr, name, ev.values))
+    raise TextLoaderError(
+        f"배열 '{arr.base}'에 색인 값 '{name}'가 없습니다 "
+        f"(선언: {', '.join(arr.values)}). 동적 색인은 선언된 enum 변수로만 가능합니다(D28)."
+    )
+
+
+def _ifexp_text(arr: _Array, var: str, values: tuple[str, ...]) -> str:
+    """동적 색인의 유한 case-분기 문자열: `(a_v1 if var == v1 else (… else a_vn))`."""
+    expr = f"{arr.base}_{values[-1]}"
+    for v in reversed(values[:-1]):
+        expr = f"({arr.base}_{v} if {var} == {v} else {expr})"
+    return expr
 
 
 def _interp_string(token: Any, env: dict[str, Any]) -> Any:
@@ -633,17 +692,32 @@ def _interp_string(token: Any, env: dict[str, Any]) -> Any:
 
 
 def _subst_tree(node: Any, env: dict[str, Any]) -> Any:
-    """식·id 트리에서 loop 변수(name)·표 색인(index)·id `${}`를 env로 해소."""
+    """식·id 트리에서 loop 변수(name)·표/배열 색인(index)·id `${}`를 env로 해소."""
     if isinstance(node, lark.Token):
         return _interp_string(node, env) if node.type == "STRING" else node
+    if node.data == "assign_indexed":
+        # 효과 좌변 색인(D28) — 배열의 정적 색인만 허용(동적은 _resolve가 거부).
+        lhs_node, rhs = node.children
+        base = str(lhs_node.children[0])
+        if not isinstance(env.get(base), _Array):
+            raise TextLoaderError(f"효과 좌변의 색인('{base}[…] = …')은 배열 변수만 가능합니다.")
+        val = _eval_index(lhs_node, env, lhs=True)
+        assert isinstance(val, str)  # lhs=True면 동적 색인이 이미 거부됨
+        return lark.Tree(node.data, [_literal_tree(val), _subst_tree(rhs, env)])
     if node.data == "index":
-        return _literal_tree(_eval_index(node, env))
+        val = _eval_index(node, env)
+        if isinstance(val, _IfExpr):
+            # 동적 색인(D28) — 완성된 식 문자열을 그대로 통과시키는 verbatim 노드.
+            return lark.Tree("verbatim", [lark.Token("NAME", val.text)])
+        return _literal_tree(val)
     if node.data == "name":
         nm = str(node.children[0])
         if nm in env and isinstance(env[nm], _Array):
             raise TextLoaderError(
                 f"배열 변수 '{nm}'는 색인해서만 씁니다(예: {nm}[{env[nm].values[0]}])."
             )
+        if nm in env and isinstance(env[nm], _EnumVar):
+            return node  # 도메인 enum 변수 — 치환 대상 아님(동적 색인 판별용 마커)
         if nm in env and not isinstance(env[nm], dict):  # 표(dict)는 bare로 치환 안 함
             return _literal_tree(env[nm])
         return node
@@ -708,13 +782,21 @@ def parse_rule_text(src: str, source: str | None = None) -> RuleSet:
     try:
         tables = _collect_tables(tree)
         arrays = _collect_arrays(tree)
+        enum_vars = _collect_enum_vars(tree)
+        domain_vars = _collect_domain_vars(tree)
         overlap = set(tables) & set(arrays)
         if overlap:
             raise TextLoaderError(
                 f"표(table)와 배열 변수의 이름이 겹칩니다: {sorted(overlap)} — "
                 f"색인 구문이 같아 판별할 수 없으니 한쪽 이름을 바꾸세요(D28)."
             )
-        expanded = _expand_tree(tree, {**tables, **arrays}, _collect_domain_vars(tree))
+        overlap_tv = set(tables) & domain_vars
+        if overlap_tv:
+            raise TextLoaderError(
+                f"표(table) 이름이 도메인 변수와 겹칩니다: {sorted(overlap_tv)} — "
+                f"치환이 모호해지니 한쪽 이름을 바꾸세요."
+            )
+        expanded = _expand_tree(tree, {**tables, **arrays, **enum_vars}, domain_vars)
         rs: RuleSet = _TRANSFORMER.transform(expanded)
     except TextLoaderError as exc:  # 데구거에서 직접 발생
         if prefix:

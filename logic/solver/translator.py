@@ -232,6 +232,14 @@ def _translate_expr(
             raise TranslationError(f"지원하지 않는 상수: {node.value!r} (정수/실수/불리언만 허용)")
         return node.value
 
+    if isinstance(node, ast.IfExp):
+        # 배열 동적 색인(D28)의 desugar 산출물(유한 case-분기) — 사용자 문법엔 삼항이 없다.
+        return z3.If(
+            _translate_expr(node.test, symbols, enums),
+            _translate_expr(node.body, symbols, enums),
+            _translate_expr(node.orelse, symbols, enums),
+        )
+
     raise TranslationError(f"지원하지 않는 표현식 요소: {type(node).__name__}")
 
 

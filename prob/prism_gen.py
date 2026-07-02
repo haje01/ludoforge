@@ -237,6 +237,9 @@ def _render(node: ast.AST) -> str:
         raise ProbError(f"PRISM 백엔드가 지원하지 않는 상수: {node.value!r}")
     if isinstance(node, ast.Attribute):
         raise ProbError("next.* 는 전이 갱신(then)에서만 쓸 수 있습니다.")
+    if isinstance(node, ast.IfExp):
+        # 배열 동적 색인(D28)의 desugar 산출물 — PRISM 삼항 `cond ? a : b`로 렌더.
+        return f"({_render(node.test)} ? {_render(node.body)} : {_render(node.orelse)})"
     raise ProbError(f"PRISM 백엔드가 지원하지 않는 표현식 요소: {type(node).__name__}")
 
 

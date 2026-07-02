@@ -953,3 +953,36 @@ def test_race_folded_equals_manual_golden() -> None:
     for f, m in zip(folded.transitions, manual.transitions, strict=True):
         assert f.player == m.player
     validate(folded)
+
+
+def test_dynamic_index_lowers_to_finite_ifexp() -> None:
+    """`score[turn]`(enum 변수 색인, D28 읽기 전용)이 유한 case-분기 IfExp로 lowering된다."""
+    rs = load_rule_file(Path(__file__).parent / "fixtures" / "dyn_index.lf")
+    t = rs.transitions[0]
+    assert _expr_eq(t.when, "turn == p1 and (score_p1 if turn == p1 else score_p2) < 3")
+    # distribution 수치식에서도 동일하게 동작한다(sim 전용 식).
+    dist = next(c for c in rs.checks if c.kind == "distribution")
+    assert _expr_eq(dist.expr, "score_p1 if turn == p1 else score_p2")
+    validate(rs)
+
+
+def test_dynamic_index_on_effect_lhs_rejected() -> None:
+    """효과 좌변의 동적 색인은 보류(D28) — 프레임 의미 수술 필요라 명확히 거부."""
+    with pytest.raises(TextLoaderError, match="효과 좌변의 동적 색인"):
+        parse_rule_text(
+            """
+            domain { turn: enum { p1, p2 }  score[p1, p2]: int 0..3 }
+            transition t: then score[turn] = 1
+            """
+        )
+
+
+def test_dynamic_index_requires_enum_values_covered() -> None:
+    """색인 enum의 값이 배열 색인 집합을 벗어나면 거부 — 조용한 잘못 매핑 방지(D28)."""
+    with pytest.raises(TextLoaderError, match="\\['p3'\\]이 배열 색인"):
+        parse_rule_text(
+            """
+            domain { turn: enum { p1, p2, p3 }  score[p1, p2]: int 0..3 }
+            init: score[turn] == 0
+            """
+        )
