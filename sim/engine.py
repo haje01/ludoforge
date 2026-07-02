@@ -340,11 +340,11 @@ def run_once(
         enabled = enabled_transitions(ruleset, state, constants)
         if not enabled:
             return RunResult(tuple(states), tuple(actions), terminated=True, truncated=False)
-        t = _select_transition(enabled, state, rng)
+        t = _select_transition(enabled, state, constants, rng)
         if _is_absorbing(t, state, constants):
             # 흡수 상태(모든 outcome이 상태를 유지) — 더 펼쳐도 stutter뿐이라 자연 종료로 본다.
             return RunResult(tuple(states), tuple(actions), terminated=True, truncated=False)
-        then = _sample_outcome(t, rng)
+        then = _sample_outcome(t, state, constants, rng)
         state = apply_outcome(then, state, constants)
         states.append(state)
         actions.append(t.id)
@@ -412,43 +412,80 @@ def _is_absorbing(t: Transition, state: State, constants: dict[str, Any]) -> boo
     return all(apply_outcome(oc.then, state, constants) == state for oc in t.outcomes)
 
 
-def _select_transition(enabled: list[Transition], state: State, rng: SupportsRandom) -> Transition:
+def _rate_value(value: float | str, env: dict[str, Any], what: str) -> float:
+    """weight/pref 값을 수치로 만든다 — 상수는 그대로, 상태 식(str, D26)은 현재 상태에서 평가.
+
+    음수는 모델 오류로 크게 실패한다. enabledness는 가드 단독이므로(D26) 음수·합0이 나오는
+    상태는 가드로 배제하는 것이 모델러 책임이다.
+    """
+    if isinstance(value, str):
+        result = evaluate(_parse(value), env)
+        if isinstance(result, bool) or not isinstance(result, (int, float)):
+            raise SimError(f"{what} 식 {value!r}이 수치가 아닌 값으로 평가됐습니다: {result!r}")
+        value = float(result)
+    if value < 0:
+        raise SimError(f"{what}가 음수입니다: {value} — 그런 상태는 가드(when)로 배제하세요(D26).")
+    return float(value)
+
+
+def _select_transition(
+    enabled: list[Transition], state: State, constants: dict[str, Any], rng: SupportsRandom
+) -> Transition:
     """enabled 전이 중 하나를 고른다(무작위 정책, D20).
 
     - enabled 1개: 그 전이(선택 없음 → **rng 미소비**로 기존 DTMC 모델의 재현성·비트 동일 유지).
     - enabled 2개 이상: 모든 전이가 `pref`를 명시했으면 enabled끼리 정규화해 표집하고,
       하나라도 미선언(None)이 섞이면 의도치 않은 가드 중첩으로 보고 `DtmcViolation` 거부
       (명시적 opt-in 안전망). `pref` 합이 0이면 정규화 불가로 SimError.
+    - 상태 식 pref(D26)는 현재 상태에서 평가한다(음수면 SimError).
     """
     if len(enabled) == 1:
         return enabled[0]
-    prefs = [t.pref for t in enabled]
-    if any(p is None for p in prefs):
+    if any(t.pref is None for t in enabled):
         raise _dtmc_violation(state, enabled)
-    total = sum(p for p in prefs if p is not None)
+    env = {**constants, **state}
+    prefs = [
+        _rate_value(t.pref, env, f"전이 '{t.id}'의 pref")
+        for t in enabled
+        if t.pref is not None  # 위에서 None 배제 — mypy 좁히기용
+    ]
+    total = sum(prefs)
     if total <= 0:
         ids = ", ".join(t.id for t in enabled)
         raise SimError(f"선택 집합 {{{ids}}}의 pref 합이 0입니다 — 정규화할 수 없습니다.")
     threshold = rng.random() * total
     acc = 0.0
     for t, p in zip(enabled, prefs, strict=True):
-        acc += p if p is not None else 0.0
+        acc += p
         if threshold < acc:
             return t
     return enabled[-1]  # 부동소수 오차 안전망
 
 
-def _sample_outcome(t: Transition, rng: SupportsRandom) -> str:
-    """단일 전이의 outcome을 weight로 표집해 then 문자열을 돌려준다(가중치 정규화)."""
+def _sample_outcome(
+    t: Transition, state: State, constants: dict[str, Any], rng: SupportsRandom
+) -> str:
+    """단일 전이의 outcome을 weight로 표집해 then 문자열을 돌려준다(가중치 정규화).
+
+    상태 식 weight(D26)는 전이 직전 상태에서 평가한다 — 남은 덱 구성에 비례하는 비복원
+    추출 등. outcome이 1개면 표집이 없어 rng를 소비하지 않는다(재현성 보존).
+    """
     if len(t.outcomes) == 1:
         return t.outcomes[0].then
-    total = sum(oc.weight for oc in t.outcomes)
+    env = {**constants, **state}
+    weights = [
+        _rate_value(oc.weight, env, f"전이 '{t.id}' outcomes[{i}]의 weight")
+        for i, oc in enumerate(t.outcomes)
+    ]
+    total = sum(weights)
     if total <= 0:
-        raise SimError(f"전이 '{t.id}'의 weight 합이 0입니다.")
+        raise SimError(
+            f"전이 '{t.id}'의 weight 합이 0입니다 — 그런 상태는 가드(when)로 배제하세요(D26)."
+        )
     threshold = rng.random() * total
     acc = 0.0
-    for oc in t.outcomes:
-        acc += oc.weight
+    for oc, w in zip(t.outcomes, weights, strict=True):
+        acc += w
         if threshold < acc:
             return oc.then
     return t.outcomes[-1].then  # 부동소수 오차 안전망

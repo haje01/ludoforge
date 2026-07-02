@@ -223,3 +223,65 @@ def test_choice_set_with_zero_pref_sum_rejected() -> None:
     rs = _build_choice_set(pref_a=0.0, pref_b=0.0)
     with pytest.raises(SimError, match="pref"):
         run_once(rs, random.Random(0), horizon=10)
+
+
+# ---------- 상태 의존 pref/weight (D26) ----------
+
+
+def test_urn_without_replacement_converges_to_closed_form() -> None:
+    """비복원 추출(상태 의존 weight): 마지막 공이 빨강일 확률의 닫힌형 2/3에 수렴."""
+    rs = load_rule_file(FIXTURES / "urn.lf")
+    n = 4000
+    hits = sum(
+        1 for s in range(n) if run_once(rs, random.Random(s), horizon=10).states[-1]["last"] == "r"
+    )
+    # 기댓값 2/3, 3σ≈0.022(n=4000) — 여유 있게 0.03 이내.
+    assert abs(hits / n - 2 / 3) < 0.03
+
+
+def test_adaptive_pref_converges_to_state_ratio() -> None:
+    """상태 식 pref: x=3에서 pick_a 확률 = 3/10 = 0.3에 수렴."""
+    rs = load_rule_file(FIXTURES / "policy_adaptive.lf")
+    n = 4000
+    hits = sum(
+        1 for s in range(n) if run_once(rs, random.Random(s), horizon=5).states[-1]["done"] == "a"
+    )
+    assert abs(hits / n - 0.3) < 0.03
+
+
+def test_state_expr_run_is_reproducible() -> None:
+    rs = load_rule_file(FIXTURES / "urn.lf")
+    assert run_once(rs, random.Random(7), horizon=10) == run_once(rs, random.Random(7), horizon=10)
+
+
+def _zero_sum_ruleset(weights: tuple[str, str]) -> RuleSet:
+    """가드 없는 draw가 red=blue=0 상태에서도 enabled인 잘못된 모델(D26 가드 규율 위반)."""
+    return RuleSet(
+        variables=(
+            Variable(name="red", type="int", min=0, max=2),
+            Variable(name="blue", type="int", min=0, max=1),
+        ),
+        init="red == 0 and blue == 0",
+        transitions=(
+            Transition(
+                id="draw",
+                outcomes=(
+                    Outcome(then="next.red == red - 1", weight=weights[0]),
+                    Outcome(then="next.blue == blue - 1", weight=weights[1]),
+                ),
+            ),
+        ),
+    )
+
+
+def test_weight_sum_zero_state_fails_loudly() -> None:
+    """weight 합 0 상태 도달 = 가드 누락 — 조용히 덮지 않고 SimError(D26)."""
+    rs = _zero_sum_ruleset(("red", "blue"))
+    with pytest.raises(SimError, match="weight 합이 0"):
+        run_once(rs, random.Random(0), horizon=5)
+
+
+def test_negative_weight_evaluation_fails_loudly() -> None:
+    rs = _zero_sum_ruleset(("red - 5", "blue + 1"))
+    with pytest.raises(SimError, match="음수"):
+        run_once(rs, random.Random(0), horizon=5)

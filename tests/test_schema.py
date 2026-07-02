@@ -239,3 +239,60 @@ def test_constraint_pinned_var_not_mutated_passes() -> None:
         ),
     )
     validate(rs)  # 예외 없이 통과
+
+
+# ---------- 상태 의존 pref/weight (D26) ----------
+
+_D26_VARS = (
+    Variable(name="red", type="int", min=0, max=2),
+    Variable(name="blue", type="int", min=0, max=1),
+)
+
+
+def test_weight_expr_undefined_symbol_is_reported() -> None:
+    rs = RuleSet(
+        variables=_D26_VARS,
+        transitions=(
+            Transition(
+                id="draw",
+                outcomes=(
+                    Outcome(then="next.red == red - 1", weight="reed / (red + blue)"),
+                    Outcome(then="next.blue == blue - 1", weight="blue / (red + blue)"),
+                ),
+            ),
+        ),
+    )
+    with pytest.raises(SchemaError, match="미정의 심볼.*reed"):
+        validate(rs)
+
+
+def test_pref_expr_with_next_is_rejected() -> None:
+    rs = RuleSet(
+        variables=_D26_VARS,
+        transitions=(
+            Transition(
+                id="a",
+                outcomes=(Outcome(then="next.red == red", weight=1.0),),
+                pref="next.red",
+            ),
+        ),
+    )
+    with pytest.raises(SchemaError, match="next\\..*전이 then에서만"):
+        validate(rs)
+
+
+def test_negative_constant_weight_is_rejected() -> None:
+    rs = RuleSet(
+        variables=_D26_VARS,
+        transitions=(
+            Transition(
+                id="a",
+                outcomes=(
+                    Outcome(then="next.red == red", weight=-0.5),
+                    Outcome(then="next.red == red", weight=1.0),
+                ),
+            ),
+        ),
+    )
+    with pytest.raises(SchemaError, match="weight는 음수일 수 없습니다"):
+        validate(rs)

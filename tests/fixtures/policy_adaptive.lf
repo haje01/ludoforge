@@ -1,0 +1,13 @@
+// 상태 의존 pref 골든 픽스처(D26): x=3에서 pick_a 선택 확률 = x / (x + (10-x)) = 0.3.
+// 선택 후에는 enabled 전이가 없어 자연 종료된다.
+domain {
+    x:    int 0..10
+    done: enum { no, a, b }
+}
+
+init: x == 3 and done == no
+
+transition pick_a: when done == no  pref x       then done = a
+transition pick_b: when done == no  pref 10 - x  then done = b
+
+check picked_a reachable: done == a

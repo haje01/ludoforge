@@ -67,10 +67,16 @@ class Outcome:
     `weight`는 확률(PRISM) 백엔드용 확률 가중치다. 논리 백엔드는 이를 **무시하고**(weight-
     erasure) 분기를 비결정으로 본다(decisions.md D12). 결정적 전이는 weight=1.0인 단일
     Outcome으로 정규화한다.
+
+    D26: 상수(float) 대신 **현재 상태의 식(str)**을 둘 수 있다 — 전이 직전 상태에서
+    평가해 정규화 표집한다(비복원 추출 등). 음수/합0 평가는 sim이 런타임 거부하며, 그런
+    상태는 **가드로 배제**하는 것이 모델러 책임이다(enabledness는 가드 단독). BMC는
+    식이어도 erasure로 지우고(0-가중 분기도 "가능"으로 탐색 — 과근사), PRISM 오라클은
+    비율형으로 렌더한다.
     """
 
     then: str
-    weight: float = 1.0
+    weight: float | str = 1.0
 
 
 @dataclass(frozen=True)
@@ -87,6 +93,10 @@ class Transition:
     `None`은 **미선언**이다 — co-enabled 집합에 하나라도 None이 섞이면 sim은 의도치 않은
     가드 중첩으로 보고 거부한다(명시적 opt-in 안전망, D20). 균등 선택은 같은 `pref`를
     명시해 얻는다. `outcomes.weight`(환경 우연, D12)와 의미가 다르다 — BMC/PRISM은 무시한다.
+
+    D26: 상수(float) 대신 **현재 상태의 식(str)**을 둘 수 있다(적응적 정책 — 예: 욕심도가
+    남은 목표액에 비례). co-enabled 정규화·opt-in 안전망·enabled 1개 rng 미소비 등 D20
+    의미는 전부 불변이며, 상수 자리에 식이 들어갈 뿐이다.
     """
 
     id: str
@@ -94,7 +104,7 @@ class Transition:
     when: str | None = None
     desc: str | None = None
     source: str | None = None
-    pref: float | None = None
+    pref: float | str | None = None
 
 
 @dataclass(frozen=True)

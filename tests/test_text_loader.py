@@ -766,3 +766,29 @@ def test_yaml_load_emits_deprecation_warning(tmp_path) -> None:  # type: ignore[
     f.write_text("domain:\n  variables:\n    g: { type: int, min: 0, max: 9 }\n", encoding="utf-8")
     with pytest.warns(DeprecationWarning, match="디프리케이트"):
         loader_mod.load_rule_file(f)
+
+
+# ---------- 상태 의존 pref/weight (D26) ----------
+
+
+def test_state_expr_weight_lowered_as_string() -> None:
+    rs = load_rule_file(Path("tests/fixtures/urn.lf"))
+    draw = rs.transitions[0]
+    # 상태 식은 문자열로 보존(전이 직전 상태에서 sim이 평가), 수치가 아니다.
+    assert draw.outcomes[0].weight == "red / (red + blue)"
+    assert draw.outcomes[1].weight == "blue / (red + blue)"
+
+
+def test_state_expr_pref_lowered_as_string() -> None:
+    rs = load_rule_file(Path("tests/fixtures/policy_adaptive.lf"))
+    by = {t.id: t for t in rs.transitions}
+    assert by["pick_a"].pref == "x"
+    assert by["pick_b"].pref == "10 - x"
+
+
+def test_numeric_pref_and_weight_stay_float() -> None:
+    # 상수는 여전히 float — 기존 골든 IR 등가(하위 호환, D26).
+    rs = load_rule_file(Path("examples/dungeon.lf"))
+    by = {t.id: t for t in rs.transitions}
+    assert isinstance(by["descend_l2"].pref, float)
+    assert all(isinstance(oc.weight, float) for oc in by["descend_l2"].outcomes)

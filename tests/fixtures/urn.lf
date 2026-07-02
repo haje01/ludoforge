@@ -1,0 +1,19 @@
+// 비복원 추출 골든 픽스처(D26): 빨강 2 · 파랑 1 항아리에서 다 뽑을 때까지 뽑는다.
+// 매 추출 확률이 남은 구성에 비례(상태 의존 weight) — 마지막 공이 빨강일 확률의
+// 닫힌형 = 2/3(대칭성: 마지막 공은 3개 중 균등, 그중 2개가 빨강).
+// 항아리가 비면 가드가 꺼져 자연 종료 — 합0 상태는 가드로 배제한다(D26 규율).
+domain {
+    red:  int 0..2
+    blue: int 0..1
+    last: enum { none, r, b }
+}
+
+init: red == 2 and blue == 1 and last == none
+
+transition draw:
+    when red + blue > 0
+    outcomes:
+        red / (red + blue)  -> { red = red - 1; last = r }
+        blue / (red + blue) -> { blue = blue - 1; last = b }
+
+check ends_red reachable: red == 0 and blue == 0 and last == r

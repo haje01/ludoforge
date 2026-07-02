@@ -85,10 +85,10 @@ c_meta: "desc" STRING -> meta_desc | "author" STRING -> meta_author
 // ── 전이(S3) — 효과는 대입(`var' = expr`), 술어 가드는 `==` ──
 transition_decl: "transition" id ":" meta* t_guard? t_pref? t_body
 t_guard: "when" pred
-t_pref: "pref" NUMBER
+t_pref: "pref" sum                       // 상수 또는 현재 상태 식(D26 — 적응적 정책)
 t_body: "then" update            -> then_body
       | "outcomes" ":" outcome+  -> outcomes_body
-outcome: sum "->" update                 // weight는 상수/표 색인(desugar 후 수치로 평가)
+outcome: sum "->" update                 // weight: 상수/표 색인(desugar 후 수치) 또는 상태 식(D26)
 ?update: assign                          -> single_update
        | "{" assign (";" assign)* "}"    -> multi_update
 assign: NAME "=" sum                     // var = expr — then 문맥이 곧 다음 상태(D22)
@@ -153,6 +153,15 @@ def _to_int(tok: lark.Token | None, what: str) -> int | None:
 def _to_float(tok: lark.Token | None) -> float | None:
     """real 변수 경계: 정수/실수 모두 float로 정규화(_parse_opt_float와 동형)."""
     return None if tok is None else float(str(tok))
+
+
+def _rate(text: str) -> float | str:
+    """weight/pref 값(D26): 수치(상수·desugar된 표 색인)면 float — 기존 골든 IR과 등가,
+    아니면 현재 상태 식 문자열로 보존(전이 직전 상태에서 sim이 평가)."""
+    try:
+        return float(text)
+    except ValueError:
+        return text
 
 
 class _ToIR(lark.Transformer[lark.Token, RuleSet]):
@@ -309,13 +318,7 @@ class _ToIR(lark.Transformer[lark.Token, RuleSet]):
 
     def outcome(self, items: list[Any]) -> Outcome:
         weight_str, then = items
-        try:
-            weight = float(weight_str)  # desugar 후 상수/색인 → 수치
-        except ValueError as e:
-            raise TextLoaderError(
-                f"outcome weight는 수치(상수·표 색인)여야 합니다: {weight_str!r}"
-            ) from e
-        return Outcome(then=then, weight=weight)
+        return Outcome(then=then, weight=_rate(str(weight_str)))
 
     def then_body(self, items: list[str]) -> tuple[str, tuple[Outcome, ...]]:
         # bare then → weight=1.0 단일 Outcome(YAML 로더 정규화와 동형).
@@ -327,13 +330,14 @@ class _ToIR(lark.Transformer[lark.Token, RuleSet]):
     def t_guard(self, items: list[str]) -> tuple[str, Any]:
         return ("when", items[0])
 
-    def t_pref(self, items: list[lark.Token]) -> tuple[str, Any]:
-        return ("pref", float(items[0]))
+    def t_pref(self, items: list[Any]) -> tuple[str, Any]:
+        # sum 규칙이 이미 파이썬-식 문자열로 lowering — 수치면 float, 아니면 상태 식(D26).
+        return ("pref", _rate(str(items[0])))
 
     def transition_decl(self, items: list[Any]) -> tuple[str, Any]:
         tid = items[0]
         when: str | None = None
-        pref: float | None = None
+        pref: float | str | None = None
         desc: str | None = None
         outcomes: tuple[Outcome, ...] = ()
         for tag, val in items[1:]:

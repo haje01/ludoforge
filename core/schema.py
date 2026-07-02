@@ -89,15 +89,22 @@ def check_finite_state(ruleset: RuleSet) -> None:
 
 
 def _check_transition_prefs(ruleset: RuleSet) -> list[str]:
-    """전이 선호도(pref, D20)는 음수일 수 없다 — IR 직접 구성 시의 방어적 검증.
+    """전이 선호도(pref, D20)·outcome weight(D12)의 **상수**는 음수일 수 없다 — IR 직접
+    구성 시의 방어적 검증(로더도 거부). 상태 식(str, D26)의 음수 평가는 sim 런타임이
+    거부한다(참조 무결성은 `_check_references`가 본다).
 
     로더는 파싱 시 이미 거부하나, IR을 코드로 만들면 우회되므로 여기서도 막는다.
     """
-    return [
-        f"전이 '{t.id}': pref는 음수일 수 없습니다 (현재 {t.pref})"
-        for t in ruleset.transitions
-        if t.pref is not None and t.pref < 0
-    ]
+    errors: list[str] = []
+    for t in ruleset.transitions:
+        if isinstance(t.pref, (int, float)) and t.pref < 0:
+            errors.append(f"전이 '{t.id}': pref는 음수일 수 없습니다 (현재 {t.pref})")
+        for i, oc in enumerate(t.outcomes):
+            if isinstance(oc.weight, (int, float)) and oc.weight < 0:
+                errors.append(
+                    f"전이 '{t.id}' outcomes[{i}]: weight는 음수일 수 없습니다 (현재 {oc.weight})"
+                )
+    return errors
 
 
 def _check_constraint_pinned_not_mutated(ruleset: RuleSet) -> list[str]:
@@ -267,6 +274,11 @@ def _check_references(ruleset: RuleSet) -> list[str]:
             errors.extend(
                 _check_expr_references(f"전이 '{t.id}'", "when", t.when, known, known_vars)
             )
+        if isinstance(t.pref, str):
+            # 상태 식 pref(D26) — 현재 상태 식이므로 next.*/함수 불허(기본값).
+            errors.extend(
+                _check_expr_references(f"전이 '{t.id}'", "pref", t.pref, known, known_vars)
+            )
         for i, oc in enumerate(t.outcomes):
             label = "then" if len(t.outcomes) == 1 else f"outcomes[{i}].then"
             errors.extend(
@@ -280,6 +292,12 @@ def _check_references(ruleset: RuleSet) -> list[str]:
                     allow_funcs=True,  # 효과 RHS에서만 min/max(포화) 허용
                 )
             )
+            if isinstance(oc.weight, str):
+                # 상태 식 weight(D26) — 전이 직전 상태에서 평가되므로 next.* 불허(기본값).
+                wlabel = "weight" if len(t.outcomes) == 1 else f"outcomes[{i}].weight"
+                errors.extend(
+                    _check_expr_references(f"전이 '{t.id}'", wlabel, oc.weight, known, known_vars)
+                )
     for c in ruleset.checks:
         if c.kind in ("reachable", "invariant") and c.that is not None:
             errors.extend(

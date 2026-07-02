@@ -104,7 +104,13 @@ def _commands(ruleset: RuleSet) -> list[str]:
     out: list[str] = []
     for t in ruleset.transitions:
         guard = _render(_parse(t.when)) if t.when is not None else "true"
-        total = sum(oc.weight for oc in t.outcomes)
+        if any(isinstance(oc.weight, str) for oc in t.outcomes):
+            # 상태 의존 weight(D26) 렌더는 후속(9차 Phase 3) — 조용히 뭉개지 않는다.
+            raise ProbError(
+                f"전이 '{t.id}'의 상태 의존 weight(식)는 PRISM 오라클이 아직 지원하지 않습니다."
+            )
+        weights = [float(oc.weight) for oc in t.outcomes if not isinstance(oc.weight, str)]
+        total = sum(weights)
         if total <= 0:
             raise ProbError(f"전이 '{t.id}'의 weight 합이 0입니다.")
         # guard와 _updates는 이미 필요한 괄호를 포함한다(이중 괄호 회피).
@@ -112,7 +118,8 @@ def _commands(ruleset: RuleSet) -> list[str]:
             out.append(f"[{t.id}] {guard} -> {_updates(t.outcomes[0].then)};")
         else:
             branches = " + ".join(
-                f"{_prob(oc.weight, total)}:{_updates(oc.then)}" for oc in t.outcomes
+                f"{_prob(w, total)}:{_updates(oc.then)}"
+                for oc, w in zip(t.outcomes, weights, strict=True)
             )
             out.append(f"[{t.id}] {guard} -> {branches};")
     return out
