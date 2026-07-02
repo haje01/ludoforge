@@ -305,6 +305,42 @@ for mon in [goblin, dragon], cls in [fighter, rogue]:
 - **미도입(후속):** `${1 - win - death}` 같은 **산술 계산식**은 부동소수 정밀도 문제로
   보류(`miss`는 표에 명시). 필요해지면 Tier 2.5로.
 
+### 4.3 배열/인덱스 변수 — 유한 색인 스칼라 가족 (D28)
+
+플레이어·유닛처럼 구조가 같은 개체별 상태를 위해 **유한 색인 배열**을 선언한다.
+구현은 D18 계보의 **순수 desugar** — 로더가 스칼라 가족으로 펼치므로 IR·세 백엔드·
+결정론 경계가 불변이다.
+
+```text
+domain {
+    turn: enum { p1, p2 }
+    gold[p1, p2]: int 0..30        // → 스칼라 gold_p1·gold_p2로 펼침(선언 순서 유지)
+}
+for p in [p1, p2]:
+    transition "earn_${p}":
+        when turn == p and gold[p] < 30      // 정적 색인(loop 변수) → gold_p1 등으로 해소
+        player p
+        then gold[p] = gold[p] + 1
+check leader reachable: gold[turn] >= 10     // 동적 색인(enum 변수) — 읽기 전용
+```
+
+- **정적 색인**(리터럴·`for` loop 변수)은 선언·식·효과 LHS 모두 허용 — 스칼라 이름으로
+  치환된다. 배열 × `for` 템플릿 × 표(D18)의 결합이 다인 게임의 수동 복제를 접는다
+  (`examples/dungeon_race.lf` — 수동판과의 IR 등가는 `tests/fixtures/race_manual.lf`
+  골든이 영구 증명).
+- **동적 색인**(`gold[turn]` — 색인이 enum 변수)은 **읽기 전용**(술어·효과 RHS·요율 식).
+  desugar가 유한 case-분기 IfExp(`gold_p1 if turn == p1 else gold_p2`)로 lowering하고
+  sim(평가)·Z3(`If`)·PRISM(ternary)이 지원한다. **IfExp는 desugar 산출물로만 존재** —
+  문법에 삼항이 없어 사용자 표면은 비-튜링완전 그대로. 색인 enum의 값 집합은 배열 색인
+  집합에 덮여야 한다(아니면 거부 — 조용한 잘못 매핑 방지).
+- **효과 LHS 동적 색인(`gold[turn] = …`)은 보류·거부** — 프레임(D15)이 "모든 원소 조건부
+  갱신"이 되어 세 백엔드 수술 필요. 턴제의 "현재 플레이어" 갱신은 플레이어별 전이(가드
+  `turn == p`) + 정적 색인이 관례.
+- **경계(비도입):** 가변 길이 시퀀스·삽입/삭제·손패 연산 없음 — 카운트 멀티셋(D26 비복원
+  추출)이 덱/자원의 지원 표현. 펼친 이름(`gold_p1`)이 리포트에 그대로 보이며(추적 가능,
+  원칙 4), 기존 변수와 충돌하면 로드 거부. **펼치기는 소스만 줄인다** — 검증 모델
+  크기(상태공간)는 그대로다(§4.2 주의와 동일).
+
 ---
 
 ## 5. 기술 스택 / 환경
