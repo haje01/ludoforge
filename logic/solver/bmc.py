@@ -63,10 +63,12 @@ class PropertyResult:
     """한 속성의 BMC 결과.
 
     status:
-    - reachable:    "reachable"(+trace) | "unreachable_within_k" | "unknown"
+    - reachable:    "reachable"(+trace) | "unreachable"(도달 불가 확정, D25)
+                    | "unreachable_within_k" | "unknown"
     - invariant:    "holds"(무한 지평 증명, D25) | "holds_up_to_k" | "violated"(+trace)
                     | "unknown"
-    - no_deadlock:  "no_deadlock_up_to_k" | "deadlock"(+trace) | "unknown"
+    - no_deadlock:  "no_deadlock"(무한 지평 증명, D25) | "no_deadlock_up_to_k"
+                    | "deadlock"(+trace) | "unknown"
     """
 
     prop_id: str
@@ -86,8 +88,11 @@ class BmcReport:
 
     @property
     def has_violation(self) -> bool:
-        """증명된 문제(불변식 위반 / 데드락)가 있는가 — 종료코드 1."""
-        return any(r.status in ("violated", "deadlock") for r in self.results)
+        """증명된 문제(불변식 위반 / 데드락 / 도달 불가 확정)가 있는가 — 종료코드 1.
+
+        `unreachable`은 reachable 검사의 **실패 확정**(어떤 깊이에서도 불가, D25 비준)이라
+        "아직 k가 작아 미도달"(미확인, 종료코드 3)과 구분해 위반으로 취급한다."""
+        return any(r.status in ("violated", "deadlock", "unreachable") for r in self.results)
 
     @property
     def has_unconfirmed(self) -> bool:
@@ -258,7 +263,17 @@ class _Bmc:
                 return "reachable", j, self._trace(s.model(), j)
             if r == z3.unknown:
                 return _unknown(f"깊이 {j}에서 unknown")
-        return _status("unreachable_within_k")
+
+        # k까지 미도달 → ¬that을 불변식으로 귀납해 성공하면 도달 불가 확정(D25).
+        def not_that(i: int) -> Any:
+            return z3.Not(translate_expression(_parse(that), *self._state_ctx(i)))
+
+        return self._conclude_bounded(
+            "unreachable",
+            "unreachable_within_k",
+            not_that,
+            proved_note="¬that의 k-귀납으로 도달 불가 확정",
+        )
 
     def _check_invariant(self, that: str) -> PropertyResult | tuple[str, int, Trace]:
         for j in range(self.k + 1):
@@ -294,7 +309,11 @@ class _Bmc:
         return None, saw_unknown
 
     def _conclude_bounded(
-        self, proved_status: str, bounded_status: str, phi: Callable[[int], Any]
+        self,
+        proved_status: str,
+        bounded_status: str,
+        phi: Callable[[int], Any],
+        proved_note: str = "k-귀납으로 증명",
     ) -> PropertyResult:
         """base가 k까지 통과한 속성을 k-귀납(D25)으로 무한 지평 증명 시도 후 결론짓는다.
 
@@ -302,7 +321,7 @@ class _Bmc:
         남긴다 — 절대 증명으로 승격하지 않는다(정직성)."""
         proved_j, saw_unknown = self._induction(phi)
         if proved_j is not None:
-            return _status(proved_status, detail=f"k-귀납으로 증명(귀납 깊이 j={proved_j})")
+            return _status(proved_status, detail=f"{proved_note}(귀납 깊이 j={proved_j})")
         detail = "k-귀납 실패(k 내 비귀납) — 귀납 반례는 도달 가능성을 보장하지 않음"
         if saw_unknown:
             detail += " · 일부 스텝 검사 unknown"
@@ -319,7 +338,14 @@ class _Bmc:
                 return "deadlock", j, self._trace(s.model(), j)
             if r == z3.unknown:
                 return _unknown(f"깊이 {j}에서 unknown")
-        return _status("no_deadlock_up_to_k")
+
+        # φ = "어떤 가드든 enabled". 전이 관계가 s_0..s_{j-1}의 발화를 강제하므로
+        # ¬enabled(s_j) unsat 검사와 동형이다(D25).
+        def enabled_phi(i: int) -> Any:
+            guards = self._guards(i)
+            return z3.Or(*guards) if guards else z3.BoolVal(False)
+
+        return self._conclude_bounded("no_deadlock", "no_deadlock_up_to_k", enabled_phi)
 
     def _trace(self, model: Any, j: int) -> Trace:
         steps = tuple(
@@ -437,10 +463,12 @@ def format_bmc_report(report: BmcReport) -> str:
 
 _LABEL: dict[str, str] = {
     "reachable": "✅ 도달 가능",
+    "unreachable": "❌ 도달 불가 확정(무한 지평, k-귀납)",
     "unreachable_within_k": "⚠️ k까지 도달 불가(미확인)",
     "holds": "✅ 불변식 증명(무한 지평, k-귀납)",
     "holds_up_to_k": "✅ k까지 위반 없음",
     "violated": "❌ 불변식 위반",
+    "no_deadlock": "✅ 데드락 없음 증명(무한 지평, k-귀납)",
     "no_deadlock_up_to_k": "✅ k까지 데드락 없음",
     "deadlock": "❌ 데드락 도달",
     "unknown": "⚠️ 판단 불가(unknown)",

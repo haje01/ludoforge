@@ -14,3 +14,4 @@ transition inc:
 
 check odd3 invariant: x != 3
 check five reachable: x == 5
+check live no_deadlock   // inc가 무가드 → 모든 합법 상태 enabled — j=0 귀납으로 증명

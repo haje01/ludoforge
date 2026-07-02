@@ -38,6 +38,27 @@ def test_reachable_unconfirmed_within_small_k() -> None:
     rs = load_rule_file(FIXTURES / "bmc_counter.rule")
     report = run_bmc(rs, k=2)  # 깊이 3 필요한데 k=2
     r = _by_id(report)["reach3"]
+    # 실제로는 도달 가능(깊이 3)이므로 ¬that 귀납은 실패해야 한다(건전성) — 미확인 유지
+    assert r.status == "unreachable_within_k"  # type: ignore[attr-defined]
+    assert report.has_unconfirmed
+
+
+def test_reachable_proved_unreachable() -> None:
+    """짝수만 도달하는 x에서 x==5는 ¬that 귀납(j=3)으로 도달 불가 확정(D25) — 종료코드 1."""
+    rs = load_rule_file(FIXTURES / "bmc_induction.lf")
+    report = run_bmc(rs, k=5)
+    r = _by_id(report)["five"]
+    assert r.status == "unreachable"  # type: ignore[attr-defined]
+    assert "j=3" in r.detail  # type: ignore[attr-defined]
+    assert report.has_violation  # 도달 불가 확정 = reachable 검사의 실패 확정(D25 비준)
+    assert not report.has_unconfirmed
+
+
+def test_reachable_stays_unconfirmed_when_k_below_induction_depth() -> None:
+    """k=2는 도달 불가 확정에 필요한 귀납 깊이 3에 못 미침 — 미확인(3) 유지(D25 정직성)."""
+    rs = load_rule_file(FIXTURES / "bmc_induction.lf")
+    report = run_bmc(rs, k=2)
+    r = _by_id(report)["five"]
     assert r.status == "unreachable_within_k"  # type: ignore[attr-defined]
     assert report.has_unconfirmed
 
@@ -95,6 +116,23 @@ def test_deadlock_detected() -> None:
     assert report.has_violation
 
 
+def test_no_deadlock_proved_when_always_enabled() -> None:
+    """무가드 전이가 있으면 모든 합법 상태가 enabled — j=0 귀납으로 데드락 없음 증명(D25)."""
+    rs = load_rule_file(FIXTURES / "bmc_induction.lf")
+    report = run_bmc(rs, k=3)
+    r = _by_id(report)["live"]
+    assert r.status == "no_deadlock"  # type: ignore[attr-defined]
+    assert "j=0" in r.detail  # type: ignore[attr-defined]
+
+
+def test_no_deadlock_stays_bounded_when_not_inductive() -> None:
+    """bmc_deadlock은 깊이 2에 실제 데드락 — k=1이면 base 통과·비귀납 → 유계 유지(건전성)."""
+    rs = load_rule_file(FIXTURES / "bmc_deadlock.rule")
+    report = run_bmc(rs, k=1)
+    r = _by_id(report)["live"]
+    assert r.status == "no_deadlock_up_to_k"  # type: ignore[attr-defined]
+
+
 # ---------- 던전! 통합 ----------
 
 
@@ -108,6 +146,8 @@ def test_dungeon_winnable_reachable() -> None:
     assert by["gold_nonneg"].status == "holds"  # type: ignore[attr-defined]
     assert by["no_monster_in_hall"].status == "holds"  # type: ignore[attr-defined]
     assert by["sound_victory"].status == "holds"  # type: ignore[attr-defined]
+    # 모든 합법 상태에 후속 전이가 있음 — 데드락 없음도 증명으로 승격(D25)
+    assert by["no_stuck"].status == "no_deadlock"  # type: ignore[attr-defined]
 
 
 def test_dungeon_winning_trace_ends_at_hall_with_target_gold() -> None:
