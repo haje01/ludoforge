@@ -85,7 +85,8 @@ transition descend_l3:
 transition go_home:
     desc "안전: 지금 보물을 들고 중앙으로 귀환(목표 미달이면 hall에서 재진입)"
     when (room == l1 or room == l2 or room == l3) and status == exploring and monster == none
-    pref 5
+    pref 5    // 안전 성향의 상수 기준선: 합0 방지(욕심이 0이어도 정규화 가능 → 목표 달성 시
+              // 반드시 귀환)이자 균형점 — 남은 목표액이 5보다 크면 잠수, 작으면 귀환이 우세
     then room = hall
 
 // ── 전투 ── 클래스×몬스터 곱(8개). 승=보물+몬스터 소멸, 무소득=재시도, 사망=종료.
