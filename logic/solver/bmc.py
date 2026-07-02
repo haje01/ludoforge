@@ -10,12 +10,16 @@
 
 검사 kind(D12): reachable / invariant / no_deadlock. prob는 확률 백엔드 전용이라 건너뛴다.
 "k까지 유지/미도달"은 증명이 아니라 **유계 결과**임을 리포트에 명시한다(k-bound 정직성).
+base가 k까지 통과하면 **k-귀납**(D25: init 없는 합법 상태열에서 φ(s_0..s_{j-1}) ∧ ¬φ(s_j)가
+unsat)으로 무한 지평 증명을 시도한다 — 성공 시 증명으로 승격, 비귀납/unknown이면 유계 결과
+유지(증명으로 뭉개지 않음).
 """
 
 from __future__ import annotations
 
 import ast
 import itertools
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -60,7 +64,8 @@ class PropertyResult:
 
     status:
     - reachable:    "reachable"(+trace) | "unreachable_within_k" | "unknown"
-    - invariant:    "holds_up_to_k" | "violated"(+trace) | "unknown"
+    - invariant:    "holds"(무한 지평 증명, D25) | "holds_up_to_k" | "violated"(+trace)
+                    | "unknown"
     - no_deadlock:  "no_deadlock_up_to_k" | "deadlock"(+trace) | "unknown"
     """
 
@@ -264,7 +269,44 @@ class _Bmc:
                 return "violated", j, self._trace(s.model(), j)
             if r == z3.unknown:
                 return _unknown(f"깊이 {j}에서 unknown")
-        return _status("holds_up_to_k")
+
+        def phi(i: int) -> Any:
+            return translate_expression(_parse(that), *self._state_ctx(i))
+
+        return self._conclude_bounded("holds", "holds_up_to_k", phi)
+
+    def _induction(self, phi: Callable[[int], Any]) -> tuple[int | None, bool]:
+        """k-귀납 스텝(D25): init 없는 합법 상태열 s_0..s_j에서 귀납 가설 φ(s_0..s_{j-1})
+        하에 ¬φ(s_j)가 unsat인 최소 j를 찾는다(j=0은 가설 없이 모든 합법 상태 검사).
+
+        반환: (증명된 귀납 깊이 j 또는 None, 스텝 검사 중 unknown 발생 여부)."""
+        saw_unknown = False
+        for j in range(self.k + 1):
+            s = self._solver_span(j, anchored=False)
+            for i in range(j):
+                s.add(phi(i))
+            s.add(z3.Not(phi(j)))
+            r = s.check()
+            if r == z3.unsat:
+                return j, saw_unknown
+            if r == z3.unknown:
+                saw_unknown = True
+        return None, saw_unknown
+
+    def _conclude_bounded(
+        self, proved_status: str, bounded_status: str, phi: Callable[[int], Any]
+    ) -> PropertyResult:
+        """base가 k까지 통과한 속성을 k-귀납(D25)으로 무한 지평 증명 시도 후 결론짓는다.
+
+        증명되면 proved_status(+최소 귀납 깊이), 비귀납/unknown이면 bounded_status에 사유를
+        남긴다 — 절대 증명으로 승격하지 않는다(정직성)."""
+        proved_j, saw_unknown = self._induction(phi)
+        if proved_j is not None:
+            return _status(proved_status, detail=f"k-귀납으로 증명(귀납 깊이 j={proved_j})")
+        detail = "k-귀납 실패(k 내 비귀납) — 귀납 반례는 도달 가능성을 보장하지 않음"
+        if saw_unknown:
+            detail += " · 일부 스텝 검사 unknown"
+        return _status(bounded_status, detail=detail)
 
     def _check_no_deadlock(self) -> PropertyResult | tuple[str, int, Trace]:
         for j in range(self.k + 1):
@@ -352,8 +394,8 @@ class _NextRewriter(ast.NodeTransformer):
 # 아래 헬퍼들이 그것을 최종 PropertyResult로 정규화한다.
 
 
-def _status(status: str) -> PropertyResult:
-    return PropertyResult(prop_id="", kind="", desc=None, status=status)
+def _status(status: str, detail: str | None = None) -> PropertyResult:
+    return PropertyResult(prop_id="", kind="", desc=None, status=status, detail=detail)
 
 
 def _unknown(detail: str) -> PropertyResult:
@@ -396,6 +438,7 @@ def format_bmc_report(report: BmcReport) -> str:
 _LABEL: dict[str, str] = {
     "reachable": "✅ 도달 가능",
     "unreachable_within_k": "⚠️ k까지 도달 불가(미확인)",
+    "holds": "✅ 불변식 증명(무한 지평, k-귀납)",
     "holds_up_to_k": "✅ k까지 위반 없음",
     "violated": "❌ 불변식 위반",
     "no_deadlock_up_to_k": "✅ k까지 데드락 없음",
