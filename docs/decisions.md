@@ -365,7 +365,8 @@
     아니면 k까지 유지), `no_deadlock`(가드 전부 거짓인 도달 상태 → 데드락 경로). 전이 선택은
     스텝별 `action@i` 정수로 인코딩해 경로에 어느 전이가 발생했는지 보고한다.
   - **k-bound 정직성:** "k까지 유지/미도달"은 증명이 아니라 **유계 결과**임을 리포트에 항상
-    명시한다(무한 지평 보장은 k-induction 필요 — 미해결, PLAN §6).
+    명시한다(무한 지평 보장은 k-induction 필요 — **D25로 해소**: k-귀납이 붙어 귀납 가능한
+    속성은 무한 지평 증명으로 승격된다. 비귀납 속성은 여전히 유계 결과로 정직하게 보고).
 - **기각한 대안:**
   - *프레임=미제약(자유)*: 안 건드린 변수가 임의로 바뀌어(룸 순간이동) 게임 의미가 깨진다.
   - *constraints를 BMC에서 제외*: role↔win_gold 같은 상태 불변 관계가 사라져 거짓 도달성을 낸다.
@@ -836,6 +837,47 @@
   `tests/test_schema.py`(거부 2 + 통과 2 케이스), CLAUDE.md §4.1, README "DSL 작성 팁".
 - **성공 기준:** `examples/dungeon.lf`는 그대로 통과, `win_gold`를 transition에서 갱신하도록
   변형하면 정확히 거부. 관계형 불변식 + 갱신은 통과. 전체 테스트·ruff·mypy 통과.
+---
+
+## D25. BMC k-귀납 — 유계 결과를 무한 지평 증명으로 승격
+
+- **상태:** 확정 (2026-07-02, 사용자 비준 — 종료코드 승격 포함) — 8차 마일스톤.
+- **맥락:** D15가 못박은 대로 BMC의 `invariant`/`no_deadlock` "k까지 유지"는 증명이 아닌
+  **유계 결과**다("무한 지평 보장은 k-induction 필요 — 미해결"). 게임이 커질수록(표현력
+  확장 아크의 북극성: Dungeon! 2~4인 레이스판, 수백 턴) 미증명 구간이 리포트의 대부분이
+  된다. "존재·건전성은 solver가 증명한다"(원칙 1·D19 분업)를 완성하려면 무한 지평 증명
+  경로가 필요하다.
+- **결정:**
+  - **귀납 스텝:** base(기존 init 기준 BMC)가 k까지 통과한 뒤, **init을 뗀** 임의 합법
+    상태열 s_0..s_j에 대해 `φ(s_0) ∧ … ∧ φ(s_{j-1}) ∧ ¬φ(s_j)`가 **unsat**이면 φ는 모든
+    깊이에서 성립(증명). j=0..k로 시도해 **최소 귀납 깊이 j**를 보고한다(j=0 = 귀납 가설
+    없이 모든 합법 상태에서 성립).
+  - **귀납 가설에 상태 제약 포함(D15 재사용):** 도메인 min/max·정적 constraints는 매 스텝
+    불변식(D15)이므로 스텝 검사의 모든 s_i에 건다. 건전성: 도달 가능한 상태는 항상
+    합법이므로 합법 상태로 좁혀 귀납해도 도달 상태를 놓치지 않는다.
+  - **세 kind 모두 같은 꼴로 승격:** `invariant` → `holds`(증명) / `no_deadlock` →
+    `no_deadlock`(증명 — 전이 관계가 s_0..s_{j-1}의 발화를 이미 강제하므로 `¬enabled(s_j)`
+    unsat 검사와 동형) / `reachable`의 k-미도달 → ¬that을 귀납해 성공 시
+    `unreachable`(도달 불가 확정).
+  - **정직성(무타협):** 스텝이 sat(비귀납)이거나 unknown이면 기존 k-bound status를
+    유지하고 사유를 detail로 남긴다 — 절대 증명으로 뭉개지 않는다(§8). 귀납 반례(CTI)는
+    도달 가능성을 보장하지 않으므로 v1은 사유 한 줄만(CTI trace 노출은 후속).
+  - **종료코드(사용자 비준 2026-07-02):** 증명된 `holds`/`no_deadlock`은 정상(0).
+    **`unreachable`(도달 불가 확정)은 reachable 검사의 실패 확정 → `has_violation`
+    (종료코드 1)로 승격** — "아직 k가 작아 미도달"(3)과 "영원히 불가"(1)를 가른다.
+  - **기본 활성:** 별도 플래그 없음. base 통과 후에만 추가 solver 호출이라 저비용.
+- **기각한 대안:**
+  - *distinct-state(단순 경로) 강화 즉시 도입*: 유한 상태에서 귀납 완전성을 높이지만
+    제약이 커진다 — "참인데 비귀납"이 실전에서 반복 관측될 때 후속(PLAN 8차 Phase 5).
+  - *보조 불변식 합성·IC3/PDR*: 비귀납 불변식의 근본 해법이나 스코프가 다른 마일스톤.
+  - *`unreachable`를 미확인(3)으로 유지*: 확정 부정을 미확인과 뭉개 정직성 원칙에 반함. 기각.
+- **영향:** `logic/solver/bmc.py`(`_solver_span` init 매개화 + `_induction` + 새 status
+  `holds`/`no_deadlock`/`unreachable` + 리포트 라벨), `logic/solver/html_report.py`(배지·
+  k-bound 라벨 동기화), `ludoforge/cli.py`(종료코드 문서), `tests/test_bmc.py`(+귀납 픽스처
+  `bmc_induction.lf`), CLAUDE.md §4.1, concepts.md, D15 상태 주석.
+- **성공 기준:** `dungeon.lf`의 `gold_nonneg`·`no_monster_in_hall`·`sound_victory`·`no_stuck`
+  이 무한 지평 증명으로 승격, 기존 reachable-sat 검사 무변경. 비귀납 케이스는 k-bound
+  status + 사유 유지. 전체 테스트·ruff·mypy 통과.
 ---
 
 ## 참고
