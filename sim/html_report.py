@@ -50,7 +50,9 @@ h2 { font-size: 1.05rem; margin: 0 0 .75rem; color: var(--accent); }
 .meta { color: var(--muted); font-size: .85rem; margin: .5rem 0 1.5rem; }
 .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
   padding: 1.1rem 1.25rem; margin: 0 0 1.25rem; }
-.cfg { font-size: .9rem; color: var(--accent); margin-bottom: .5rem; }
+/* 설정 라벨 = 카드의 제목(sweep 설정별 결과 구분) — 본문보다 크고 굵게 강조. */
+.cfg { font-size: 1.15rem; font-weight: 700; color: var(--accent);
+  padding-bottom: .5rem; margin-bottom: .75rem; border-bottom: 1px solid var(--border); }
 .trunc { font-size: .8rem; color: var(--muted); margin-bottom: 1rem; }
 .trunc.high { color: var(--warn); }
 .check { margin: 1rem 0; padding-top: .9rem; border-top: 1px dashed var(--border); }
