@@ -34,7 +34,7 @@ _CSS = """
 :root {
   --bg: #0d1117; --panel: #161b22; --border: #30363d; --fg: #e6edf3;
   --muted: #8b949e; --accent: #58a6ff; --ok: #3fb950; --bad: #f85149;
-  --warn: #d29922; --chip: #21262d; --chip-hi: #1f6feb;
+  --warn: #d29922; --chip: #21262d; --chip-hi: #1f6feb; --cfg: #bc8cff;
 }
 * { box-sizing: border-box; }
 body { background: var(--bg); color: var(--fg); margin: 0; padding: 2rem;
@@ -47,8 +47,10 @@ h1 { font-size: 1.5rem; margin: 0 0 .5rem; }
 .meta { color: var(--muted); font-size: .85rem; margin: .5rem 0 1.5rem; }
 .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
   padding: 1.1rem 1.25rem; margin: 0 0 1.25rem; }
-.head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
-.title { font-weight: 600; }
+/* 검사 제목 = 카드의 제목 — sim HTML의 설정 라벨과 같은 스타일(보라·크고 굵게·구분선). */
+.head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
+  padding-bottom: .5rem; margin-bottom: .5rem; border-bottom: 1px solid var(--border); }
+.title { font-size: 1.15rem; font-weight: 700; color: var(--cfg); }
 .title .kind { color: var(--muted); font-weight: 400; font-size: .8rem; }
 .badge { font-size: .8rem; font-weight: 600; padding: .15rem .55rem; border-radius: 999px;
   white-space: nowrap; border: 1px solid transparent; }
