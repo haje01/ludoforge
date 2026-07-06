@@ -874,6 +874,255 @@ PRISM 생성기도 이미 **비율형**(`weight/total`, `prism_gen._prob`)으로
 
 ---
 
+## 규칙서 SSOT 아크 (12~14차) — 개요 — ⬜ 계획 수립 (2026-07-06, 비준 대기)
+
+> **진단(2026-07-06 합의):** `.lf`는 검증·추정에 최적화되어 실제 게임 규칙의 서술이 두
+> 방식으로 유실된다 — ① **형식화 손실**: 규칙 원형이 DSL 밖에서 손으로 lowering됨(2d6
+> 격파 목표값→승률 상수 표, 칸 이동→순간이동), ② **서술 손실**: 검증에 무의미한 절차·
+> 연출·출처는 아예 없음. 이 아크는 `.lf`를 **기획자·개발자가 읽는 게임 규칙 SSOT 문서**로
+> 승격하되 검증·추정 부하를 0(12·13차)~sim 미미(14차)로 유지한다. 방법론은 기존 두
+> 계보의 확장이다: **"지워지는 주석"**(D12 weight-erasure→D20 pref→D27 player)과
+> **"순수 desugar"**(D18 템플릿→D28 배열).
+>
+> - **12차(Tier 0, D29 후보):** 문서 메타데이터(`note`/`ref`/`tag`/`section`) +
+>   `ludoforge doc` 규칙서 생성기 — 서술 손실 처방. passthrough 주석이라 백엔드 부하 0.
+> - **13차(Tier 1, D30 후보):** 주사위 확률식 `chance(2d6 >= …)`/`rest` desugar —
+>   형식화 손실 처방(매직 넘버 승률 표→룰북 원형 수치). 순수 구문 변환이라 부하 0.
+> - **14차(Tier 2, D31 후보):** `ghost` 서술 변수 — 상태성 서술(턴 수·최심 도달 층)을
+>   sim만 실행하고 bmc/PRISM은 상태공간에서 제거(`erase_ghosts`). 단방향 의존 게이트
+>   (D24 계보)가 백엔드 의미 분기를 정적으로 차단.
+>
+> **기각(진단 시 합의):** 상세/추상 모델 파일 분리(기계 검사 없는 대응 = 형식의 옷을
+> 입은 산문 드리프트 재현), Event-B식 정련 증명(체급 초과 — desugar가 곧 기계 보증된
+> 추상화), DSL 범용 언어화(비-튜링완전 경계 붕괴 — §1 비목표 그대로). 맵/페이즈
+> desugar는 비도입·"보류 중"에 트리거와 함께 기록. 12→13→14 순서를 권장하나 세
+> 마일스톤은 상호 독립(어느 것도 다른 것을 전제하지 않음 — docgen의 chance/ghost 표기만
+> 후행 연계).
+
+---
+
+## 12차 마일스톤 — 문서 메타데이터 + 규칙서 생성기(`ludoforge doc`) — 🔵 진행중 (P0~P1 ✅)
+
+> **Phase 0 완료:** 사용자 비준(2026-07-06) — 설계는 **decisions.md D29**로 승격 기록됨.
+> **Phase 1 완료(2026-07-06):** 문서 절 문법·IR `Doc` passthrough·`[[이름]]` 참조 게이트.
+>
+> 설계 근거는 본 절(→ **decisions.md D29**). 한 줄: **모든 선언에 구조화된
+> 문서 절(`note`/`ref`/`tag`)과 파일 수준 `section`을 허용하고, `.lf` 하나에서 사람이
+> 읽는 규칙서(HTML/MD)를 생성한다** — SSOT는 `.lf` 하나, 규칙서는 단방향 파생 뷰.
+
+### 1. 동기와 한 줄 목표
+
+`desc` 한 줄로는 절차·연출·출처를 못 담아, 실제 규칙 설명은 `//` 주석에 산다
+(dungeon.lf 헤더 22줄이 증거) — 주석은 구조가 없어 도구(문서 생성·리포트)가 못 쓰고
+참조 무결성도 없다. 문서 절을 1급 문법으로 들이면: ① 규칙서 생성이 가능해지고
+(`ludoforge doc`), ② `[[이름]]` 상호참조를 로더가 검사해 "존재하지 않는 것을 서술"하는
+부패를 기계가 잡고, ③ bmc/sim 리포트가 note를 활용할 수 있다(후속). 산문 드리프트
+위험은 남는다(내용 불일치는 기계가 못 잡음 — 한계로 명시). 그래도 형식 룰 *바로 옆*
+산문 + 참조 게이트는 별도 위키 대비 질적으로 낫다 — 규칙서가 `.lf`에서 생성되는 한
+"문서 따로 모델 따로"의 드리프트는 원천 차단된다.
+
+### 2. 핵심 설계 (D29 후보)
+
+- **문법(`.lf` 전용 — D26·D27 계보):** constraint/transition/check/expect 몸통의 선택
+  절로 `note "..."`(반복 허용 — 절차·연출 산문), `ref "..."`(출처 — 룰북 페이지·URL),
+  `tag name ("," name)*`(분류). domain 변수 뒤 `desc "..."`(용어집용), `table` 헤더
+  `desc`. 최상위 항목 `section "제목"`(이후 선언들이 그 절에 속함 — 문서 목차).
+- **IR passthrough:** 새 frozen `Doc(notes, ref, tags)` + 각 선언 IR에 `doc: Doc | None
+  = None`, `Variable`에 `desc: str | None = None`. 기본 None → 골든 IR 등가 무회귀.
+  세 백엔드는 전부 무시(주석 계보). **`section`은 IR 미탑재** — 문서 전용이라 파스
+  트리에만 있으면 된다(아래).
+- **doc 생성은 desugar *전* 파스 트리 기반:** 규칙서는 저자가 쓴 접힌 형태(for 템플릿
+  1개 + 표)를 보여야지 펼친 전이 8개를 나열하면 안 된다. IR(검증용)과 문서 뷰(표면용)의
+  요구가 다르므로 `core/docgen.py`는 text_loader의 desugar 전 트리를 소비한다.
+  `.rule`(YAML)은 doc 미지원(디프리케이트 일관).
+- **참조 게이트(드리프트 억제):** note/desc 문자열 안 `[[이름]]`은 로드 시 검사 —
+  변수·enum 값·선언 id·table 이름 중 하나여야 하며 미정의면 위치와 함께 거부(실패는
+  크게). docgen은 상호링크로 렌더.
+- **CLI:** `ludoforge doc <path> [-o out]` — 자체 완결 HTML(의존성 없음, html_report
+  계보) 기본 + `--md`. 구성: section 목차 → 용어집(domain desc) → 데이터 표(table) →
+  규칙(선언별: 가드="언제"·효과="결과"·note·ref) → 검증 성질(check desc — "이 규칙서가
+  기계 검증/추정하는 성질"이 일반 규칙서와의 차별점).
+
+### 3. 단계별 계획 (작은 PR · TDD · Tidy First)
+
+> 게이트(매 PR): `pytest` + `ruff check` + `ruff format` + `mypy`(strict).
+
+**Phase 0 — D29 기록 & 비준** *(행위 변경 없음)* — ✅ 완료 (2026-07-06)
+- decisions.md D29(위 핵심 설계). 비준 포인트: ① `.lf` 전용, ② IR passthrough(`Doc`)·
+  section 미탑재, ③ docgen=desugar 전 트리 기반, ④ `[[이름]]` 참조 게이트(존재만 검사 —
+  내용 드리프트는 한계 명시), ⑤ 신규 키워드(note/ref/tag/section) 예약어 충돌 정책.
+- **성공 기준 충족:** 사용자 비준(2026-07-06).
+
+**Phase 1 — 문법·IR·참조 게이트** *(구조+행위)* — ✅ 완료 (2026-07-06)
+- text_loader에 문서 절 문법 + `Doc` lowering + `[[이름]]` 무결성 검사. 신규 키워드와
+  기존 코퍼스 변수명 충돌 사전 확인(충돌 시 line:col 거부).
+- **성공 기준 충족:** 문서 절 픽스처 round-trip(IR `doc` 채움·note 반복 순서 유지·for
+  템플릿 `${}` 보간), 미정의 `[[..]]`는 선언·필드를 짚어 거부(변수 desc·table desc·
+  section 제목 포함), 문서 절 없는 전 코퍼스 골든 IR 무회귀(전체 358 통과), bmc/sim
+  e2e 무변경(doc 스모크 포함). 테스트 7건 추가.
+
+**Phase 2 — `core/docgen.py` + `ludoforge doc`** *(행위적 변경, 핵심)*
+- desugar 전 트리 → 규칙서 HTML/MD 렌더: 접힌 템플릿·표·`[[..]]` 상호링크·check 절.
+- **성공 기준:** dungeon.lf 규칙서가 규칙 설명 문서로 읽힘(테스트는 구조 단언 위주 —
+  스냅샷 취약성 회피), 생성물 자체 완결(외부 의존 0), 생성은 읽기 전용(SSOT 불변).
+
+**Phase 3 — 예제 저술 & 문서 정합** *(문서)*
+- dungeon.lf·dungeon_race.lf에 section/note/ref 실제 저술(2012판 룰북 ref — 헤더 `//`
+  주석의 산문을 문서 절로 이동), CLAUDE §4 신설 절·README(`ludoforge doc` 빠른시작).
+- **성공 기준:** 예제 규칙서 생성물을 사람이 게임 규칙으로 읽을 수 있음, bmc/sim 결과
+  무변경(골든 등가·기존 테스트 전부 통과).
+
+### 4. 위험 & 미해결 질문
+
+- **산문 드리프트 잔존:** 참조 게이트는 *존재*만 검사 — 내용 불일치는 못 잡는다. docgen이
+  형식부(가드·효과)를 산문 옆에 항상 병기해 사람이 대조하게 하는 것이 완화책.
+- **키워드 충돌:** note/ref/tag/section이 변수명으로 쓰인 모델 — **현 코퍼스 확인 완료
+  (2026-07-06): 아크 전체 신규 키워드(note/ref/tag/section/chance/rest/ghost) 충돌 없음.**
+  예약어 목록은 문법 노트에 문서화(D27 `player` 선례).
+- **골든 등가 유지비:** passthrough 필드가 늘수록 `.lf`↔`.rule` 골든 비교가 doc 필드를
+  제외해야 함(YAML 미지원이므로) — 비교기에 명시적 제외 목록.
+- **doc 테스트 취약성:** HTML 스냅샷 대신 구조(절 수·링크 해소·용어집 항목) 단언 위주.
+
+---
+
+## 13차 마일스톤 — 주사위 확률식(`chance`/`rest` desugar) — ⬜ 비준 대기
+
+> 설계 근거는 본 절(착수 시 **decisions.md D30**로 승격). 한 줄: **outcome weight
+> 자리에 주사위 술어의 닫힌형 확률 `chance(2d6 >= beat[mon][cls])`와 잔여 `rest`를
+> 허용**하고, desugar가 정확한 유리수(`Fraction`)로 계산해 기존 float weight로
+> lowering한다 — IR·백엔드·결정론 경계 불변(D18 계보의 순수 구문 변환).
+
+### 1. 동기와 한 줄 목표
+
+dungeon.lf의 win/miss/death 표 24칸은 실제 규칙("2d6이 격파 목표값 이상이면 승리")을
+손으로 환산한 매직 넘버다 — 원형(목표값)은 주석에만 살고, 표를 고칠 때 규칙과 어긋나도
+아무도 모른다(형식화 손실의 대표 사례). 주사위 식이 1급이 되면 룰북 수치가 SSOT에 남고
+환산은 로더의 몫이 된다 — 규칙서(12차)에도 "2d6 ≥ 9 (10/36)"처럼 원형이 노출된다.
+부수 효과: D18이 부동소수 정밀도 문제로 보류한 `${1-win-death}`류 잔여 계산이
+`rest`(유리수 잔여)로 근원적으로 해소된다.
+
+### 2. 핵심 설계 (D30 후보)
+
+- **문법:** weight 위치에 `chance(<dice pred>)` | `rest` 추가. dice 원자는 `NdM`
+  (정수 리터럴, 예 `2d6` — 전용 토큰 DICE로 렉서 충돌 회피), 술어는 `NdM CMP 상수식`.
+  상수식 = 리터럴·표 색인·loop 변수(desugar 후 상수 강제) — **상태 의존 목표값은 거부**
+  (상태 의존 확률은 D26 식 weight의 몫, 여기는 닫힌형 전용).
+- **desugar:** NdM 분포 콘볼루션(`fractions.Fraction`) → 술어 확률 → float lowering.
+  `rest` = 1 − (같은 outcomes 블록의 chance 합, 유리수 정확). 블록당 `rest` 최대 1회,
+  chance 합 > 1이면 위치와 함께 거부. IR엔 기존 float weight만 남음 — 백엔드 완전 불변.
+- **경계:** v1은 outcome weight 전용(`pref` 불허 — 정책은 주사위가 아님). dice 원자
+  1개만(합성 `2d6+1d4`·개별 눈 참조 미지원 — 실전 트리거 시 확장).
+- **예제 재저술:** dungeon.lf 전투를 격파 목표값 표(beat) + `chance`/`rest`로 —
+  승률 표 3개(win/miss/death)가 목표값 표 1~2개로 줄고 룰북 원형이 남는다. 3분기는
+  단일 롤 2문턱으로 모델링: `chance(2d6 >= beat[mon][cls])` 승 ·
+  `chance(2d6 <= fumble[mon])` 사망 · `rest` 무소득. **주의: 기존 확률을 정확히 역산할
+  수 없어 예제 수치(sim 추정치)가 바뀐다** — 새 닫힌형 골든으로 교체(모델링 결정을
+  예제 주석에 명시).
+
+### 3. 단계별 계획 (작은 PR · TDD · Tidy First)
+
+> 게이트(매 PR): `pytest` + `ruff check` + `ruff format` + `mypy`(strict).
+
+**Phase 0 — D30 기록 & 비준** *(행위 변경 없음)*
+- decisions.md D30. 비준 포인트: ① `chance`/`rest` 문법·상수 목표값 한정, ② dungeon
+  표 교체로 예제 수치 변동 수용, ③ pref 불허·dice 원자 1개 경계.
+- **성공 기준:** 사용자 비준.
+
+**Phase 1 — 문법 + desugar** *(구조+행위, 핵심)*
+- DICE 토큰·chance/rest 문법, Fraction 콘볼루션·확률 평가 → float lowering.
+- **성공 기준:** 손 계산 골든(P(2d6≥9)=10/36, P(2d6≤3)=3/36 등) 일치, 합>1·rest 중복·
+  상태 의존 목표·pref 위치 거부(위치 보고), 전 코퍼스 골든 IR 무회귀.
+
+**Phase 2 — 예제 재저술 & 오라클 교차검증** *(행위+문서)*
+- dungeon.lf 전투를 beat/fumble 표 + chance/rest로 재저술(win/miss/death 표 제거),
+  소형 PRISM 오라클 픽스처로 닫힌형 교차검증(정확값 ∈ sim CI — D19 DNA). test_corpus·
+  sim 골든 갱신. CLAUDE §4.2 확장, docgen(12차)이 chance를 "2d6 ≥ 9 (10/36)"로 렌더.
+- **성공 기준:** bmc 검사 지위 불변(k-귀납 증명 유지), sim 새 닫힌형 골든 통과, 규칙서에
+  주사위 원형 노출. "보류 중"에 맵/페이즈 desugar 후보를 트리거와 함께 기록.
+
+### 4. 위험 & 미해결 질문
+
+- **실물 3분기 정합:** 단일 롤 2문턱 근사가 실물 Dungeon!의 실패 표와 얼마나 다른지 —
+  예제 주석에 모델링 결정 명시(규칙서에도 노출).
+- **렉서:** `2d6`이 NUMBER+NAME으로 쪼개지지 않게 전용 토큰 — 기존 수식(`2*d` 류)과의
+  모호성은 코퍼스+우선순위로 확인.
+- **PRISM 합=1:** float lowering 후 합이 1±ε — 유리수로 계산해 마지막에 변환하므로
+  구성적으로 안전하나 오라클 픽스처로 실측.
+
+---
+
+## 14차 마일스톤 — `ghost` 서술 변수(검증 제외 상태) — ⬜ 비준 대기
+
+> 설계 근거는 본 절(착수 시 **decisions.md D31**로 승격). 한 줄: **비-ghost 궤적에 영향을
+> 줄 수 없는 서술 전용 상태 변수**를 들여, 턴 수·최심 도달 층 같은 상태성 서술을 sim이
+> 실행(분포 리포트)하되 bmc/PRISM은 상태공간에서 완전 제거(`erase_ghosts`)한다 — BMC
+> 부하 0, 단방향 의존은 schema가 정적으로 강제(D24 계보).
+
+### 1. 동기와 한 줄 목표
+
+"게임이 보통 몇 턴 걸리나", "평균 최심 도달 층은?" 같은 서술적 정량은 규칙서·튜닝 모두에
+유용하지만, 상태 변수로 넣는 순간 BMC/PRISM 상태공간이 곱으로 커진다(k-귀납·데드락 증명
+저하). `ghost` 표식은 이 트레이드오프를 끊는다: sim(추정)은 얻고 bmc(증명)는 잃지 않는다.
+위험은 하나 — ghost가 게임 진행에 몰래 영향을 주면 두 백엔드 의미가 갈라진다(D24가 막는
+것과 동종의 조용한 불일치). 그래서 **단방향 의존을 schema가 정적으로 강제하는 게이트가
+이 마일스톤의 본체**다 — 게이트 없이는 도입하지 않는다.
+
+### 2. 핵심 설계 (D31 후보)
+
+- **선언:** `ghost turns: int 0..` 수식어(`.lf` 전용, 배열 D28과 결합 가능 —
+  `ghost visits[p1, p2]: int 0..`). IR `Variable.ghost: bool = False`(기본 False →
+  골든 무회귀).
+- **단방향 의존(핵심 불변식): "ghost 전부 제거 시 비-ghost 궤적 비트 동일".** ghost를
+  읽을 수 있는 곳 = ① ghost 대입의 RHS(ghost·비-ghost 모두 읽기 가능), ② `distribution`
+  check expr(sim 전용 리포트), ③ 문서 절 `[[..]]`(12차)뿐. **가드(when)·constraint·
+  expects·reachable/invariant that·pref/weight 요율·비-ghost 효과 RHS에서 ghost 참조는
+  schema가 위치와 함께 거부**(`_check_ghost_one_way`). init에서 ghost는 상수 고정만
+  (자유 ghost sweep·constraint 파생 금지).
+- **`erase_ghosts(ruleset)` — core의 순수 IR→IR 변환:** ghost 변수 선언·ghost 대입·
+  init의 ghost conjunct를 제거. **bmc·PRISM 오라클은 erase 후 소비**(상태공간 완전
+  제거 — 증명 지위·k-귀납 불변), **sim은 원본 실행**(ghost 대입은 rng 미소비 →
+  비-ghost 추정 비트 동일). `check_finite_state`는 erase 후 기준(ghost는 real·무한
+  이어도 PRISM 게이트에 무해).
+- **리포트 정직성:** sim distribution에 ghost 식 허용 + "서술 변수(논리 검증 제외)"
+  라벨. bmc 리포트에 ghost 부재를 각주로 명시(조용히 숨기지 않음).
+
+### 3. 단계별 계획 (작은 PR · TDD · Tidy First)
+
+> 게이트(매 PR): `pytest` + `ruff check` + `ruff format` + `mypy`(strict).
+
+**Phase 0 — D31 기록 & 비준** *(행위 변경 없음)*
+- decisions.md D31. 비준 포인트: ① 단방향 의존 규칙(특히 weight/pref에서도 금지),
+  ② init 상수 고정만, ③ `erase_ghosts`를 core에 두고 bmc/PRISM만 통과, ④ 리포트 라벨.
+- **성공 기준:** 사용자 비준.
+
+**Phase 1 — 문법·IR·schema 게이트** *(구조+행위)*
+- `ghost` 수식어 문법·`Variable.ghost`·참조 위치 게이트(`_check_ghost_one_way`).
+- **성공 기준:** 위반 픽스처(가드/weight/pref/constraint/비-ghost RHS의 ghost 참조)
+  전부 위치 보고 거부, ghost 없는 전 코퍼스 골든 IR 무회귀.
+
+**Phase 2 — `erase_ghosts` + 백엔드 배선** *(행위적 변경, 핵심)*
+- core 순수 변환 + bmc/PRISM 소비 전 적용, sim은 원본. distribution의 ghost 참조 허용.
+- **성공 기준(핵심 회귀):** ghost 단 모델에서 ① bmc 리포트가 ghost 제거판과 **동일**
+  (증명 지위 불변), ② sim 비-ghost 추정 **비트 동일**(rng 미소비 확인), ③ ghost
+  distribution 신규 동작(평균·CI·백분위).
+
+**Phase 3 — 예제·문서** *(행위+문서)*
+- dungeon.lf에 ghost 추가(예: `turns` 게임 길이·`max_depth` 최심 층) + distribution
+  check("평균 게임 길이·최심 도달 분포"), docgen "서술 변수" 표기(12차 후행 연계),
+  CLAUDE §4 신설 절·concepts·README.
+- **성공 기준:** 기존 bmc 9검사 지위 불변 + sim 신규 분포 리포트, 문서·예제 일관.
+
+### 4. 위험 & 미해결 질문
+
+- **검증 회피 오용:** 게임에 영향 있는 변수를 ghost로 선언 — 참조 게이트가 구조적으로
+  막지만(영향을 줄 수 없음), "영향 주고 싶은데 ghost라 거부"가 UX로 나타난다 → 거부
+  메시지가 "ghost 해제"를 안내.
+- **distribution의 지위:** ghost 분포는 추정 리포트일 뿐 검증 아님 — 라벨로 명시(DNA).
+- **무한 ghost의 sim 비용:** `int 0..` ghost 카운터의 표집 비용은 무시 가능 예상 — 실측.
+- **12·13차와의 순서 의존:** 없음(독립 도입 가능) — docgen의 ghost 표기만 12차 후행.
+
+---
+
 ## 다중 백엔드 마일스톤 — ✅ 완료 (2026-06-17)
 
 > **상태: 완료.** Phase 0~4 모두 끝났다(D11~D16). 공유 IR(`forge_core`) 위에 RuleForge
@@ -1051,6 +1300,11 @@ checks:                             # 백엔드별 dialect, 공통 의미는 kin
 
 ## 보류 중 (기존 후보 — 다중 백엔드와 별개로 잔존)
 
+- **맵/그래프 선언·페이즈 문법 desugar (규칙서 아크 후속, 진단 2026-07-06)**:
+  `map { hall -- l1 -- l2 -- l3 }`→이동 전이 생성, 턴 페이즈 선언→phase enum+가드 결합.
+  형식화 손실(순간이동·페이즈 수동 인코딩)의 나머지 처방 — 순수 desugar(D18 계보)라
+  부하 0이나 문법 유지비가 있다. *트리거*: 실전 모델에서 이동/페이즈 보일러플레이트
+  반복이 실측될 때(13차 chance와 동형 수법으로 도입).
 - **모노폴리-미니 스트레스 테스트 (아크 후속, 진단 2026-07-02)**: 협상 없는 solo-변형
   (부동산 배열·찬스 카드 카운트 덱·긴 지평 경제)을 sim 전용으로 — 배열(D28) 규모와 sim의
   장기 지평 능력 실측. *트리거*: 배열을 수십 개 원소 규모로 쓰는 실전 요구가 생길 때.
