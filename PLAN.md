@@ -996,9 +996,14 @@ PRISM 생성기도 이미 **비율형**(`weight/total`, `prism_gen._prob`)으로
 
 ---
 
-## 13차 마일스톤 — 주사위 확률식(`chance`/`rest` desugar) — ⬜ 비준 대기
+## 13차 마일스톤 — 주사위 확률식(`chance`/`rest` desugar) — ✅ 완료 (2026-07-06, P0~P2)
 
-> 설계 근거는 본 절(착수 시 **decisions.md D30**로 승격). 한 줄: **outcome weight
+> **Phase 0 완료:** 사용자 비준(2026-07-06) — 설계는 **decisions.md D30**로 승격 기록됨.
+> **Phase 1 완료(2026-07-06):** DICE 토큰·chance/rest 문법·Fraction desugar·게이트 4종.
+> **Phase 2 완료(2026-07-06):** dungeon.lf 전투 재저술(beat/fumble 표)·PRISM 오라클
+> 교차검증(실측 통과)·문서 정합. **13차 마감** — 다음은 14차(ghost) P0 비준.
+>
+> 설계 근거는 본 절(→ **decisions.md D30**). 한 줄: **outcome weight
 > 자리에 주사위 술어의 닫힌형 확률 `chance(2d6 >= beat[mon][cls])`와 잔여 `rest`를
 > 허용**하고, desugar가 정확한 유리수(`Fraction`)로 계산해 기존 float weight로
 > lowering한다 — IR·백엔드·결정론 경계 불변(D18 계보의 순수 구문 변환).
@@ -1034,22 +1039,28 @@ dungeon.lf의 win/miss/death 표 24칸은 실제 규칙("2d6이 격파 목표값
 
 > 게이트(매 PR): `pytest` + `ruff check` + `ruff format` + `mypy`(strict).
 
-**Phase 0 — D30 기록 & 비준** *(행위 변경 없음)*
+**Phase 0 — D30 기록 & 비준** *(행위 변경 없음)* — ✅ 완료 (2026-07-06)
 - decisions.md D30. 비준 포인트: ① `chance`/`rest` 문법·상수 목표값 한정, ② dungeon
   표 교체로 예제 수치 변동 수용, ③ pref 불허·dice 원자 1개 경계.
-- **성공 기준:** 사용자 비준.
+- **성공 기준 충족:** 사용자 비준(2026-07-06).
 
-**Phase 1 — 문법 + desugar** *(구조+행위, 핵심)*
+**Phase 1 — 문법 + desugar** *(구조+행위, 핵심)* — ✅ 완료 (2026-07-06)
 - DICE 토큰·chance/rest 문법, Fraction 콘볼루션·확률 평가 → float lowering.
-- **성공 기준:** 손 계산 골든(P(2d6≥9)=10/36, P(2d6≤3)=3/36 등) 일치, 합>1·rest 중복·
-  상태 의존 목표·pref 위치 거부(위치 보고), 전 코퍼스 골든 IR 무회귀.
+- **성공 기준 충족:** 손 계산 골든(P(2d6≥9)=10/36 · 1d6 위 6개 CMP 전부·표 색인/loop 변수
+  목표값·소수 가중치 잔여 0.3 정확) 일치, 합>1·rest 중복·상태 의존 목표·상태 식 weight
+  혼합·주사위 범위 초과 거부 + pref 위치는 문법 차원 거부. 전 코퍼스 골든 IR 무회귀.
+  테스트 10건.
 
-**Phase 2 — 예제 재저술 & 오라클 교차검증** *(행위+문서)*
+**Phase 2 — 예제 재저술 & 오라클 교차검증** *(행위+문서)* — ✅ 완료 (2026-07-06)
 - dungeon.lf 전투를 beat/fumble 표 + chance/rest로 재저술(win/miss/death 표 제거),
   소형 PRISM 오라클 픽스처로 닫힌형 교차검증(정확값 ∈ sim CI — D19 DNA). test_corpus·
   sim 골든 갱신. CLAUDE §4.2 확장, docgen(12차)이 chance를 "2d6 ≥ 9 (10/36)"로 렌더.
-- **성공 기준:** bmc 검사 지위 불변(k-귀납 증명 유지), sim 새 닫힌형 골든 통과, 규칙서에
-  주사위 원형 노출. "보류 중"에 맵/페이즈 desugar 후보를 트리거와 함께 기록.
+- **성공 기준 충족:** bmc 9검사 지위 불변(도달 가능·k-귀납 증명 유지), 전투 가중치 골든을
+  닫힌형(33/36·1/36·2/36)으로 교체, `dice_fight.lf` 오라클이 PRISM 정확값 10/36 = 닫힌형
+  = sim CI 포함으로 **실측 통과**(PRISM 4.10.1). 규칙서에 주사위 원형(`chance(2d6 >=
+  beat[mon][cls])`) 노출 — 닫힌형 수치 병기("(10/36)")는 접힌 템플릿에서 목표값이 미해소라
+  원문 슬라이스 렌더로 갈음(계획의 소소한 정련). CLAUDE §4.1 D30 절·§4.2 잔여 계산 해소
+  주석, examples README 갱신. 맵/페이즈 desugar 후보는 "보류 중"에 기록 완료(12차 때).
 
 ### 4. 위험 & 미해결 질문
 
