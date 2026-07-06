@@ -11,7 +11,8 @@
 // 모델링 노트(도구 문맥 — 게임 규칙이 아니라 규칙서엔 안 싣는다):
 //   - role은 init에서 고정하지 않아 sim이 **직업별로 sweep**한다(win_gold는 constraints로
 //     파생 — D24: 파생 상수라 전이 효과로 갱신 금지).
-//   - 2d6 전투 판정은 승/무소득/사망 확률 표(win/miss/death)로 손 환산해 담았다(D12 weight).
+//   - 2d6 전투 판정은 chance/rest(D30)로 룰북 원형(격파 목표값·치명 문턱) 그대로 쓴다 —
+//     로더가 닫힌형 확률(Fraction)로 환산해 기존 weight로 lowering(승률 매직 넘버 표 제거).
 //   - 층 클리어 후 descend vs go_home만 플레이어 선택(D20 pref) — 그 외 상태는 가드가
 //     상호 배타라 단일 enabled(sim DTMC 환원).
 //   - BMC는 pref·weight를 지우고 비결정으로 본다(D12·D20). 덱 카운터의 도메인 하한(0)이
@@ -53,19 +54,15 @@ constraint wizard_win_target:
 
 section "전투 데이터"
 
-// 클래스×몬스터 격파 프로필(D18) — 전투 전이가 색인 참조한다.
+// 클래스×몬스터 격파 프로필(D18·D30) — 룰북 원형(2d6 목표값). 확률 환산은 로더의 몫.
 table reward desc "몬스터 처치 보상(보물액)" { goblin: 2, dragon: 10 }
-table win desc "승리 확률 — 몬스터×직업(2d6 격파 목표값의 손 환산)" {
-    goblin: { fighter: 0.92, cleric: 0.83, rogue: 0.72, wizard: 0.83 }
-    dragon: { fighter: 0.58, cleric: 0.28, rogue: 0.08, wizard: 0.72 }
+table beat desc "격파 목표값 — 2d6이 이 값 이상이면 승리" {
+    goblin: { fighter: 4, cleric: 5, rogue: 6, wizard: 5 }
+    dragon: { fighter: 7, cleric: 9, rogue: 11, wizard: 6 }
 }
-table miss desc "무소득 확률 — 격파 실패했지만 생존" {
-    goblin: { fighter: 0.07, cleric: 0.16, rogue: 0.26, wizard: 0.16 }
-    dragon: { fighter: 0.38, cleric: 0.66, rogue: 0.84, wizard: 0.26 }
-}
-table death desc "사망 확률 — 전투 패배로 게임 종료" {
-    goblin: { fighter: 0.01, cleric: 0.01, rogue: 0.02, wizard: 0.01 }
-    dragon: { fighter: 0.04, cleric: 0.06, rogue: 0.08, wizard: 0.02 }
+table fumble desc "치명 문턱 — 2d6이 이 값 이하면 사망" {
+    goblin: { fighter: 2, cleric: 2, rogue: 2, wizard: 2 }
+    dragon: { fighter: 2, cleric: 3, rogue: 3, wizard: 2 }
 }
 
 section "게임의 흐름 — 탐험과 선택"
@@ -106,7 +103,7 @@ transition descend_l2:
         l2_dragons / (l2_goblins + l2_dragons) -> { room = l2; monster = dragon; l2_dragons = l2_dragons - 1 }
 transition descend_l3:
     desc "욕심: 3층으로 — 드래곤만"
-    note "3층에는 드래곤만 나온다 — 가장 위험하고([[death]] 표) 가장 보상이 크다([[reward]] 표)."
+    note "3층에는 드래곤만 나온다 — 격파 목표값([[beat]])이 높아 가장 위험하고, 보상([[reward]])이 가장 크다."
     tag choice
     when room == l2 and status == exploring and monster == none
     pref max(win_gold - gold, 0)
@@ -126,17 +123,17 @@ section "전투"
 // 오버플로를 막는다(누적식의 책임, D24). 최대 목표(wizard 30)=상한이라 클램프로 승패 손실 없음.
 for mon in [goblin, dragon], cls in [fighter, cleric, rogue, wizard]:
     transition "fight_${mon}_${cls}":
-        desc "직업×몬스터 전투 — 2d6 판정의 확률 환산"
-        note "전투는 2d6 판정이다 — 직업×몬스터 조합마다 승리([[win]])·무소득([[miss]])·사망([[death]]) 확률이 다르다. 이기면 보상([[reward]])을 얻고 몬스터는 사라진다."
-        note "무소득이면 보상 없이 조우가 끝난다 — 실물 규칙의 재도전·후퇴는 이 모델에선 단순화했다. 사망하면 보물을 모두 잃고 게임이 끝난다."
+        desc "직업×몬스터 전투 — 2d6 판정"
+        note "전투는 2d6 판정이다 — 굴림이 격파 목표값([[beat]]) 이상이면 승리해 보상([[reward]])을 얻고 몬스터는 사라진다. 치명 문턱([[fumble]]) 이하면 사망해 보물을 모두 잃고 게임이 끝난다."
+        note "그 사이 굴림은 무소득 — 보상 없이 조우가 끝난다(실물 규칙의 재도전·후퇴는 이 모델에선 단순화). 확률 환산은 도구가 한다(chance/rest, D30) — 모델에는 룰북 수치만 남는다."
         note "보상은 보물액 상한(30)에서 포화된다 — 상한을 넘는 초과분은 버린다."
         ref "던전! 2012판 — 전투 판정(2d6)"
         tag combat
         when role == cls and monster == mon and status == exploring
         outcomes:
-            win[mon][cls]   -> { gold = min(gold + reward[mon], 30); monster = none }
-            miss[mon][cls]  -> monster = none
-            death[mon][cls] -> { gold = 0; room = hall; status = dead; monster = none }
+            chance(2d6 >= beat[mon][cls])   -> { gold = min(gold + reward[mon], 30); monster = none }
+            chance(2d6 <= fumble[mon][cls]) -> { gold = 0; room = hall; status = dead; monster = none }
+            rest                            -> monster = none
 
 // ── 종료 상태 흡수 루프 ── (데드락 방지)
 transition won_absorb:

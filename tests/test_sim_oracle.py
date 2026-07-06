@@ -128,3 +128,29 @@ def test_dyn_index_sim_matches_prism_oracle() -> None:
     assert sim_full.ci[0] <= exact <= sim_full.ci[1], (
         f"PRISM={exact} ∉ sim CI {sim_full.ci} (P̂={sim_full.p_hat})"
     )
+
+
+# ---------- 주사위 닫힌형 chance/rest(D30) 오라클 ----------
+
+DICE = Path(__file__).parent / "fixtures" / "dice_fight.lf"
+_DICE_EXACT = 10 / 36  # 닫힌형: P(2d6 >= 9)
+
+
+@pytest.mark.skipif(find_prism() is None, reason="prism 바이너리 미설치")
+def test_dice_chance_sim_matches_prism_oracle() -> None:
+    """chance/rest(D30) desugar: PRISM 정확값 = 닫힌형 10/36 이고 sim 95% CI가 담는다."""
+    rs = load_rule_file(DICE)
+    validate(rs)
+    prism = run_prism(generate(rs))
+    winnable = next(o for o in prism.outcomes if o.prop_id == "winnable")
+    assert winnable.result is not None
+    exact = float(winnable.result.split()[0])
+    assert abs(exact - _DICE_EXACT) < 1e-9  # desugar된 weight가 닫힌형과 일치
+
+    report = run_sim(rs, samples=8000, horizon=10, seed=1)
+    (cfg,) = report.configs
+    sim_win = next(r for r in cfg.checks if r.check_id == "winnable")
+    assert isinstance(sim_win, ProportionResult)
+    assert sim_win.ci[0] <= _DICE_EXACT <= sim_win.ci[1], (
+        f"닫힌형={_DICE_EXACT} ∉ sim CI {sim_win.ci} (P̂={sim_win.p_hat})"
+    )

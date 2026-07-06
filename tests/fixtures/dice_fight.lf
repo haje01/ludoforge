@@ -1,0 +1,14 @@
+// D30 오라클 픽스처: 단일 2d6 전투 DTMC — 닫힌형 P(승) = P(2d6 >= 9) = 10/36.
+// chance/rest가 desugar한 float weight를 PRISM 정확값·sim 추정과 교차검증한다(D19 DNA).
+domain {
+    status: enum { fighting, won, lost }
+}
+init: status == fighting
+transition fight:
+    when status == fighting
+    outcomes:
+        chance(2d6 >= 9) -> status = won
+        rest             -> status = lost
+transition won_absorb:  when status == won  then status = won
+transition lost_absorb: when status == lost then status = lost
+check winnable reachable: status == won

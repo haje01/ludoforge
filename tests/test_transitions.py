@@ -65,15 +65,18 @@ def test_loads_dungeon_transition_system() -> None:
     descend = next(t for t in rs.transitions if t.id == "descend_l2")
     assert descend.pref == "max(win_gold - gold, 0)"
 
-    # 확률 전이(fight_goblin_fighter) → 3-way 가중치 보존(승리/무소득/사망)
+    # 확률 전이(fight_goblin_fighter) → 3-way: 승리/사망/무소득(rest).
+    # 가중치는 chance/rest(D30)의 닫힌형 — fighter는 goblin 격파 목표값 4(P(2d6>=4)=33/36),
+    # 치명 문턱 2(P(2d6<=2)=1/36), 잔여 무소득 2/36. 유리수 정확 계산 후 float lowering.
     fight = next(t for t in rs.transitions if t.id == "fight_goblin_fighter")
     assert len(fight.outcomes) == 3
     # 보상은 상한(30)에서 포화(min) — 가드 없이 오버플로 회피.
     assert (fight.outcomes[0].weight, fight.outcomes[0].then) == (
-        0.92,
+        33 / 36,
         "next.gold == min(gold + 2, 30) and next.monster == none",
     )
-    assert fight.outcomes[2].weight == 0.01
+    assert fight.outcomes[1].weight == 1 / 36
+    assert fight.outcomes[2].weight == 2 / 36
 
 
 def test_loads_dungeon_properties() -> None:

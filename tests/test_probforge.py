@@ -49,12 +49,13 @@ def test_deterministic_and_probabilistic_commands() -> None:
     # 결정적 전이(weight 1.0) — 확률 접두 없음
     assert "[enter_l1]" in model
     assert "(room'=l1)" in model
-    # 확률 전이 — 가중치 보존(합=1). fight_goblin_fighter: 승0.92 / 무소득0.07 / 사망0.01.
+    # 확률 전이 — 가중치 보존(합=1). fight_goblin_fighter는 chance/rest(D30)의 닫힌형:
+    # 승 33/36(2d6>=4) / 사망 1/36(2d6<=2) / 무소득 2/36(rest).
     # 보상은 상한(30)에서 포화(min) — PRISM 내장 min으로 그대로 번역.
-    assert "0.92:(gold'=min((gold + 2), 30))" in model
-    assert "0.07:(monster'=none)" in model
+    assert f"{33 / 36}:(gold'=min((gold + 2), 30))" in model
+    assert f"{2 / 36}:(monster'=none)" in model
     # 사망 분기는 다중 갱신
-    assert "0.01:(gold'=0) & (room'=hall) & (status'=dead) & (monster'=none)" in model
+    assert f"{1 / 36}:(gold'=0) & (room'=hall) & (status'=dead) & (monster'=none)" in model
 
 
 def test_init_block_encodes_init_and_rules() -> None:

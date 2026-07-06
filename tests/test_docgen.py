@@ -110,6 +110,8 @@ def test_dungeon_example_renders() -> None:
     md = render_doc_markdown(src, "dungeon 규칙서")
     assert "fight_${mon}_${cls}" in md and "fight_goblin_fighter" not in md
     assert "## 검증·추정 성질" in md and "no_stuck" in md
+    # chance/rest(D30)는 룰북 원형 그대로 렌더 — 규칙서에 주사위 판정이 노출된다.
+    assert "chance(2d6 >= beat[mon][cls])" in md and "`rest`" in md
 
 
 def test_cli_doc_writes_html(tmp_path: Path) -> None:
