@@ -104,6 +104,22 @@ def test_html_self_contained_and_deterministic() -> None:
     assert html_out == render_doc_html(_SRC, "테스트 규칙서")  # 결정론
 
 
+def test_committed_dungeon_rulebook_is_current() -> None:
+    """커밋된 examples/dungeon.doc.md가 SSOT(dungeon.lf)의 최신 생성물과 바이트 동일해야
+    한다 — 파생 산출물 커밋의 드리프트 게이트(D29: 규칙서는 단방향 파생 뷰).
+
+    docgen은 결정론(같은 입력 = 같은 출력)이라 바이트 비교가 가능하다. 이 테스트가
+    깨졌다면 dungeon.lf를 고치고 규칙서 재생성을 잊은 것이다."""
+    src = (_EXAMPLES / "dungeon.lf").read_text(encoding="utf-8")
+    committed = (_EXAMPLES / "dungeon.doc.md").read_text(encoding="utf-8")
+    # CLI(`ludoforge doc --md`)와 동일한 title/source 규약으로 재생성해 비교한다.
+    regenerated = render_doc_markdown(src, "dungeon 규칙서", source="dungeon.lf")
+    assert committed == regenerated, (
+        "examples/dungeon.doc.md가 dungeon.lf와 어긋났습니다 — "
+        "`uv run ludoforge doc examples/dungeon.lf --md`로 재생성해 함께 커밋하세요."
+    )
+
+
 def test_dungeon_example_renders() -> None:
     """실전 예제(dungeon.lf)가 규칙서로 렌더된다 — 접힌 8-way 전투 템플릿 포함."""
     src = (_EXAMPLES / "dungeon.lf").read_text(encoding="utf-8")

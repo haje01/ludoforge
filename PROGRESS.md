@@ -160,6 +160,12 @@ sim이 추정(전투 노출량 분포 포함)을 낸다. 후속 후보는 PLAN "
 concepts.md 아크 개념 절 등 — 트리거 명시).
 
 ## 작업 로그
+- 2026-07-06: **규칙서 산출물 커밋(12차 후속).** `examples/dungeon.doc.md`(Markdown 규칙서)
+  를 커밋하고 README·examples README에 링크 — GitHub가 렌더해 방문자가 생성 결과를 바로
+  본다. 파생 산출물 커밋의 드리프트는 **재생성 바이트 동일 테스트**(test_docgen —
+  docgen 결정론 활용)가 기계로 강제: dungeon.lf 수정 후 재생성을 잊으면 pytest가 재생성
+  명령을 안내하며 실패. HTML 산출물(`*.doc.html`)은 GitHub 미렌더라 .gitignore로 커밋
+  제외(로컬 열람용).
 - 2026-07-06: **14차 완료 — ghost 서술 변수(D31, P0~P3) · 규칙서 SSOT 아크 마감.**
   ① 문법·IR: `ghost` 수식어(`var_decl: ghost_mod? …`) → `Variable.ghost`, 배열(D28)과
   결합 시 원소 승계. var_decl 파츠 헬퍼를 노드 종류 기반으로 확장(docgen 용어집 포함).

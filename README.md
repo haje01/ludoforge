@@ -277,6 +277,11 @@ ludoforge doc examples/dungeon.lf                    # → examples/dungeon.doc.
 ludoforge doc examples/dungeon_race.lf --md -o race.md   # Markdown으로
 ```
 
+**생성 결과 예시:** [던전! 규칙서(`examples/dungeon.doc.md`)](examples/dungeon.doc.md) —
+저장소에 커밋된 Markdown 규칙서로, GitHub에서 바로 렌더된다. 파생 산출물이지만 드리프트
+걱정은 없다: 테스트가 `dungeon.lf`에서의 재생성과 **바이트 동일**함을 검사해, 룰을 고치고
+재생성을 잊으면 곧바로 실패한다(HTML 산출물 `*.doc.html`은 로컬 열람용 — 커밋 제외).
+
 `for` 템플릿·표는 펼치지 않고 저자가 쓴 **접힌 형태**로 렌더되고(전투 8종 → 템플릿 1개 +
 확률 표), check들은 맨 끝 **"검증·추정 성질"** 절에 모인다 — 이 규칙서의 성질은 산문
 약속이 아니라 `bmc`(증명)·`sim`(추정)이 기계로 확인한다는 것이 일반 규칙서와의 차별점이다.

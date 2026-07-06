@@ -51,6 +51,8 @@ sim 전용으로 추정한다(bmc/PRISM 상태공간에선 제거 — 검증 부
 `dungeon.lf`·`dungeon_race.lf`는 **문서 절**(D29 — `section`/`note`/`ref`/`tag`·`desc`)로
 게임 규칙 산문까지 담고 있다 — `ludoforge doc examples/dungeon.lf`로 사람이 읽는 규칙서
 (HTML)를 생성해 보라. 산문 속 `[[이름]]` 참조는 로더가 존재를 검사한다(문서 부패 방지).
+생성 결과 예시는 [dungeon.doc.md](dungeon.doc.md)에 커밋돼 있다(재생성 바이트 동일을
+테스트가 강제 — 드리프트 게이트).
 
 > **참고(D23):** sim↔PRISM 교차검증용 DTMC 던전판은 사용자 예제가 아니라 테스트 오라클
 > 픽스처(`tests/fixtures/oracle_dungeon.lf`)다 — `tests/test_sim_oracle.py`가 PRISM 정확값을

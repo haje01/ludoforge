@@ -18,4 +18,9 @@ dist/
 *.pptx
 *.pdf
 
+# 규칙서 HTML 산출물(로컬 열람용 — GitHub가 렌더하지 않아 커밋 제외).
+# Markdown 규칙서(*.doc.md)는 예외적으로 커밋한다 — GitHub 렌더 + 드리프트 게이트
+# 테스트(test_docgen의 재생성 비교)가 SSOT(.lf)와의 일치를 기계로 강제한다(D29).
+*.doc.html
+
 .claude/
