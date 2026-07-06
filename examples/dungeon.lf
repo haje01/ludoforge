@@ -31,6 +31,7 @@ domain {
     status:     enum { exploring, won, dead }            desc "게임 진행 상태 — 탐험 중·승리·사망"
     l2_goblins: int 0..2                                 desc "2층 몬스터 덱에 남은 고블린 카드(비복원)"
     l2_dragons: int 0..2                                 desc "2층 몬스터 덱에 남은 드래곤 카드(비복원)"
+    ghost fights: int 0..                                desc "치른 전투 횟수 — 게임 노출량의 서술 지표"
 }
 
 section "직업과 목표 보물액"
@@ -68,7 +69,7 @@ table fumble desc "치명 문턱 — 2d6이 이 값 이하면 사망" {
 section "게임의 흐름 — 탐험과 선택"
 
 init: gold == 0 and room == hall and monster == none and status == exploring
-    and l2_goblins == 2 and l2_dragons == 2
+    and l2_goblins == 2 and l2_dragons == 2 and fights == 0
 
 // ── 중앙(hall): 목표 달성이면 승리, 미달이면 1층 진입(상호 배타 가드 — 선택 아님) ──
 transition claim_victory:
@@ -131,9 +132,9 @@ for mon in [goblin, dragon], cls in [fighter, cleric, rogue, wizard]:
         tag combat
         when role == cls and monster == mon and status == exploring
         outcomes:
-            chance(2d6 >= beat[mon][cls])   -> { gold = min(gold + reward[mon], 30); monster = none }
-            chance(2d6 <= fumble[mon][cls]) -> { gold = 0; room = hall; status = dead; monster = none }
-            rest                            -> monster = none
+            chance(2d6 >= beat[mon][cls])   -> { gold = min(gold + reward[mon], 30); monster = none; fights = fights + 1 }
+            chance(2d6 <= fumble[mon][cls]) -> { gold = 0; room = hall; status = dead; monster = none; fights = fights + 1 }
+            rest                            -> { monster = none; fights = fights + 1 }
 
 // ── 종료 상태 흡수 루프 ── (데드락 방지)
 transition won_absorb:
@@ -176,3 +177,7 @@ check no_stuck
 check final_gold
     desc "종료 시 확보한 보물 분포(sim 전용) — 정책의 욕심도에 따라 달라진다"
     distribution: gold
+check fight_count
+    desc "게임당 전투 횟수 분포([[fights]] — 서술 변수, D31) — 직업별 노출량·게임 길이의 대리"
+    note "ghost 변수라 bmc/PRISM 상태공간엔 없다 — 검증 부하 0으로 얻는 서술 지표(sim 전용)."
+    distribution: fights

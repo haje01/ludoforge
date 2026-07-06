@@ -33,7 +33,7 @@ def test_loads_dungeon_transition_system() -> None:
 
     assert rs.init == (
         "gold == 0 and room == hall and monster == none and status == exploring "
-        "and l2_goblins == 2 and l2_dragons == 2"
+        "and l2_goblins == 2 and l2_dragons == 2 and fights == 0"
     )
 
     tids = [t.id for t in rs.transitions]
@@ -73,7 +73,7 @@ def test_loads_dungeon_transition_system() -> None:
     # 보상은 상한(30)에서 포화(min) — 가드 없이 오버플로 회피.
     assert (fight.outcomes[0].weight, fight.outcomes[0].then) == (
         33 / 36,
-        "next.gold == min(gold + 2, 30) and next.monster == none",
+        "next.gold == min(gold + 2, 30) and next.monster == none and next.fights == fights + 1",
     )
     assert fight.outcomes[1].weight == 1 / 36
     assert fight.outcomes[2].weight == 2 / 36
