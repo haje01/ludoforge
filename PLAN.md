@@ -901,10 +901,12 @@ PRISM 생성기도 이미 **비율형**(`weight/total`, `prism_gen._prob`)으로
 
 ---
 
-## 12차 마일스톤 — 문서 메타데이터 + 규칙서 생성기(`ludoforge doc`) — 🔵 진행중 (P0~P1 ✅)
+## 12차 마일스톤 — 문서 메타데이터 + 규칙서 생성기(`ludoforge doc`) — 🔵 진행중 (P0~P2 ✅)
 
 > **Phase 0 완료:** 사용자 비준(2026-07-06) — 설계는 **decisions.md D29**로 승격 기록됨.
 > **Phase 1 완료(2026-07-06):** 문서 절 문법·IR `Doc` passthrough·`[[이름]]` 참조 게이트.
+> **Phase 2 완료(2026-07-06):** `core/docgen.py` + `ludoforge doc`(HTML/MD, desugar 전
+> 트리 기반 — 접힌 템플릿·표·상호링크·check 모음).
 >
 > 설계 근거는 본 절(→ **decisions.md D29**). 한 줄: **모든 선언에 구조화된
 > 문서 절(`note`/`ref`/`tag`)과 파일 수준 `section`을 허용하고, `.lf` 하나에서 사람이
@@ -961,10 +963,14 @@ PRISM 생성기도 이미 **비율형**(`weight/total`, `prism_gen._prob`)으로
   section 제목 포함), 문서 절 없는 전 코퍼스 골든 IR 무회귀(전체 358 통과), bmc/sim
   e2e 무변경(doc 스모크 포함). 테스트 7건 추가.
 
-**Phase 2 — `core/docgen.py` + `ludoforge doc`** *(행위적 변경, 핵심)*
+**Phase 2 — `core/docgen.py` + `ludoforge doc`** *(행위적 변경, 핵심)* — ✅ 완료 (2026-07-06)
 - desugar 전 트리 → 규칙서 HTML/MD 렌더: 접힌 템플릿·표·`[[..]]` 상호링크·check 절.
-- **성공 기준:** dungeon.lf 규칙서가 규칙 설명 문서로 읽힘(테스트는 구조 단언 위주 —
-  스냅샷 취약성 회피), 생성물 자체 완결(외부 의존 0), 생성은 읽기 전용(SSOT 불변).
+- **성공 기준 충족:** dungeon.lf 규칙서가 규칙 설명 문서로 읽힘(용어집·표 행렬·8-way
+  전투가 접힌 템플릿 1개·검증 성질 절), 자체 완결 HTML(외부 의존 0·결정론)·`--md`,
+  깨진 모델(참조 게이트 실패)은 생성 거부(exit 2). `parse_doc_tree` 공개(위치 보존 —
+  parse_rule_text와 파싱 공유), 원문 슬라이스 렌더(재포매팅 없음 — 저자 표기 보존).
+  본문은 저자 소스 순서(section 절 구분), check만 맨 끝 "검증·추정 성질"로 모음(계획의
+  고정 배치를 저자 흐름 보존으로 정련). 테스트 9건(구조 단언 위주). 전체 367 통과.
 
 **Phase 3 — 예제 저술 & 문서 정합** *(문서)*
 - dungeon.lf·dungeon_race.lf에 section/note/ref 실제 저술(2012판 룰북 ref — 헤더 `//`
