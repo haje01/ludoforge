@@ -1145,3 +1145,145 @@ def test_doc_note_interpolated_in_for_template() -> None:
     notes = {t.id: t.doc.notes[0] for t in rs.transitions if t.doc is not None}
     assert "goblin" in notes["hunt_goblin"] and "[[hunt_goblin]]" in notes["hunt_goblin"]
     assert "dragon" in notes["hunt_dragon"] and "[[hunt_dragon]]" in notes["hunt_dragon"]
+
+
+# ── 주사위 닫힌형 chance/rest(D30, 13차) ─────────────────────────────────────────
+
+
+def test_chance_and_rest_closed_form() -> None:
+    """P(2d6>=9)=10/36을 Fraction으로 정확 계산해 float로 lowering, rest는 유리수 잔여."""
+    rs = parse_rule_text(
+        """
+        domain { status: enum { s, w, l } }
+        transition fight:
+            when status == s
+            outcomes:
+                chance(2d6 >= 9) -> status = w
+                rest             -> status = l
+        """
+    )
+    (t,) = rs.transitions
+    assert t.outcomes[0].weight == 10 / 36
+    assert t.outcomes[1].weight == 26 / 36
+
+
+def test_chance_all_comparison_ops() -> None:
+    # 1d6 위에서 6개 CMP 전부 — 손 계산 골든.
+    expected = {"==": 1 / 6, "!=": 5 / 6, "<=": 3 / 6, ">=": 4 / 6, "<": 2 / 6, ">": 3 / 6}
+    for op, prob in expected.items():
+        rs = parse_rule_text(
+            "domain { s: bool }\n"
+            "transition t:\n"
+            f"    outcomes:\n        chance(1d6 {op} 3) -> s = s\n        rest -> s = s\n"
+        )
+        assert rs.transitions[0].outcomes[0].weight == prob, op
+
+
+def test_chance_target_from_table_and_loop_var() -> None:
+    """표 색인·loop 변수 목표값은 desugar가 상수로 해소한 뒤 chance가 계산한다(D18 결합)."""
+    rs = parse_rule_text(
+        """
+        domain { monster: enum { g, d }  status: enum { s, w } }
+        table beat { g: 9, d: 11 }
+        for mon in [g, d]:
+            transition "f_${mon}":
+                when status == s and monster == mon
+                outcomes:
+                    chance(2d6 >= beat[mon]) -> status = w
+                    rest -> status = s
+        """
+    )
+    weights = {t.id: t.outcomes[0].weight for t in rs.transitions}
+    assert weights == {"f_g": 10 / 36, "f_d": 3 / 36}
+
+
+def test_rest_exact_with_decimal_weight() -> None:
+    # 상수 소수 가중치와의 잔여도 십진 Fraction으로 정확(0.7 → 3/10 잔여).
+    rs = parse_rule_text(
+        """
+        domain { s: bool }
+        transition t:
+            outcomes:
+                0.7  -> s = s
+                rest -> s = s
+        """
+    )
+    assert rs.transitions[0].outcomes[1].weight == 0.3
+
+
+def test_chance_sum_over_one_rejected() -> None:
+    with pytest.raises(TextLoaderError, match="1을 넘"):
+        parse_rule_text(
+            """
+            domain { s: bool }
+            transition t:
+                outcomes:
+                    chance(2d6 >= 2) -> s = s
+                    chance(2d6 >= 3) -> s = s
+            """
+        )
+
+
+def test_rest_twice_rejected() -> None:
+    with pytest.raises(TextLoaderError, match="한 번만"):
+        parse_rule_text(
+            """
+            domain { s: bool }
+            transition t:
+                outcomes:
+                    rest -> s = s
+                    rest -> s = s
+            """
+        )
+
+
+def test_chance_state_dependent_target_rejected() -> None:
+    with pytest.raises(TextLoaderError, match="상수여야"):
+        parse_rule_text(
+            """
+            domain { gold: int 0..30  s: bool }
+            transition t:
+                outcomes:
+                    chance(2d6 >= gold) -> s = s
+                    rest -> s = s
+            """
+        )
+
+
+def test_chance_mixed_with_state_weight_rejected() -> None:
+    with pytest.raises(TextLoaderError, match="상수 가중치와만"):
+        parse_rule_text(
+            """
+            domain { gold: int 1..30  s: bool }
+            transition t:
+                outcomes:
+                    chance(2d6 >= 9) -> s = s
+                    gold / 30        -> s = s
+            """
+        )
+
+
+def test_chance_in_pref_is_syntax_error() -> None:
+    # pref는 정책이지 주사위가 아니다(D30) — 문법 차원 거부.
+    with pytest.raises(TextLoaderError):
+        parse_rule_text(
+            """
+            domain { s: bool }
+            transition t:
+                pref chance(2d6 >= 9)
+                then s = s
+            """
+        )
+
+
+def test_dice_too_large_rejected() -> None:
+    with pytest.raises(TextLoaderError, match="지원 범위"):
+        parse_rule_text(
+            """
+            domain { s: bool }
+            transition t:
+                outcomes:
+                    chance(200d100 >= 5) -> s = s
+                    rest -> s = s
+            """
+        )

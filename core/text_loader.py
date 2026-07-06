@@ -29,6 +29,10 @@ desc/author surface와 코퍼스 이관은 S6.
 `section`. note/ref/tag는 IR `Doc`으로 passthrough(백엔드 무시 — "지워지는 주석" 계보),
 section·table desc는 IR 미탑재(규칙서 생성 전용 — docgen이 desugar 전 트리를 소비, P2).
 note/desc 본문의 `[[이름]]` 상호참조는 로드 시 존재를 검사한다(드리프트 억제, 실패는 크게).
+
+주사위 닫힌형(D30, 13차): outcome weight 자리의 `chance(NdM CMP 상수)`·`rest`를 desugar가
+`Fraction`으로 정확 계산해 기존 float weight로 lowering한다(순수 구문 변환 — IR·백엔드
+불변). 룰북 원형(격파 목표값)이 SSOT에 남는다. 상태 의존 확률은 D26 식 weight의 몫.
 """
 
 from __future__ import annotations
@@ -36,7 +40,9 @@ from __future__ import annotations
 import ast
 import itertools
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, replace
+from fractions import Fraction
 from typing import Any
 
 import lark
@@ -105,7 +111,12 @@ t_player: "player" NAME                  // 전이 소유 선언(D27) — 선언
 t_pref: "pref" sum                       // 상수 또는 현재 상태 식(D26 — 적응적 정책)
 t_body: "then" update            -> then_body
       | "outcomes" ":" outcome+  -> outcomes_body
-outcome: sum "->" update                 // weight: 상수/표 색인(desugar 후 수치) 또는 상태 식(D26)
+outcome: o_weight "->" update            // weight: 상수/표 색인(desugar 후 수치) 또는 상태 식(D26)
+?o_weight: sum
+         | chance_w                      // 주사위 닫힌형(D30) — Fraction으로 정확 계산 후 float
+         | rest_w                        // 잔여 = 1 - 같은 블록의 상수 가중치 합(블록당 1회, D30)
+chance_w: "chance" "(" DICE CMP sum ")"  // 목표값(sum)은 desugar 후 상수 강제(상태 의존은 D26 몫)
+!rest_w: "rest"
 ?update: assign                          -> single_update
        | "{" assign (";" assign)* "}"    -> multi_update
 assign: NAME "=" sum                     // var = expr — then 문맥이 곧 다음 상태(D22)
@@ -144,6 +155,7 @@ index: NAME ("[" key "]")+
 key: NAME -> key_name | NUMBER -> key_num | STRING -> key_str
 
 CMP: /==|!=|<=|>=|<|>/
+DICE: /\d+d\d+/
 RANGENUM: /-?\d+(\.\d+)?/
 NUMBER: /\d+(\.\d+)?/
 NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
@@ -180,6 +192,89 @@ def _rate(text: str) -> float | str:
         return float(text)
     except ValueError:
         return text
+
+
+# ── 주사위 닫힌형 chance/rest(D30) — desugar 시점 Fraction 정확 계산 ─────────────
+
+
+@dataclass(frozen=True)
+class _Chance:
+    """`chance(NdM CMP 상수)`의 닫힌형 확률(D30). desugar 동안만 존재 — IR엔 float weight."""
+
+    prob: Fraction
+
+
+@dataclass(frozen=True)
+class _Rest:
+    """`rest` 마커(D30) — outcomes 블록 해소 시 잔여(1 − 상수 가중치 합)를 받는다."""
+
+    line: int
+    column: int
+
+
+def _dice_pred_prob(n: int, m: int, op: str, target: Fraction) -> Fraction:
+    """NdM 분포(Fraction 콘볼루션)에서 `합 CMP target`의 정확한 확률."""
+    dist: dict[int, Fraction] = {0: Fraction(1)}
+    face_p = Fraction(1, m)
+    for _ in range(n):
+        nxt: dict[int, Fraction] = {}
+        for s, p in dist.items():
+            for face in range(1, m + 1):
+                nxt[s + face] = nxt.get(s + face, Fraction(0)) + p * face_p
+        dist = nxt
+    ops: dict[str, Callable[[int], bool]] = {
+        "==": lambda s: s == target,
+        "!=": lambda s: s != target,
+        "<=": lambda s: s <= target,
+        ">=": lambda s: s >= target,
+        "<": lambda s: s < target,
+        ">": lambda s: s > target,
+    }
+    return sum((p for s, p in dist.items() if ops[op](s)), Fraction(0))
+
+
+def _resolve_outcomes(entries: list[Any]) -> tuple[Outcome, ...]:
+    """outcomes 블록의 chance/rest(D30)를 닫힌형 float weight로 해소한다.
+
+    마커가 없으면 그대로(기존 경로 — 하위 호환 비트 동일). 있으면: ① 다른 가중치는 전부
+    상수여야 하고(상태 식 weight와 혼합 금지 — 잔여·합 검사 불가), ② 유리수 합이 1을
+    넘으면 거부, ③ `rest`는 블록당 1회로 잔여(1 − 합)를 정확히 받는다."""
+    if all(isinstance(e, Outcome) for e in entries):
+        return tuple(entries)
+    known = Fraction(0)
+    rest_seen: _Rest | None = None
+    slots: list[tuple[Fraction | None, str]] = []  # (확률, then) — None = rest 자리
+    for e in entries:
+        if isinstance(e, Outcome):
+            if isinstance(e.weight, str):
+                raise TextLoaderError(
+                    "chance/rest(D30)는 상수 가중치와만 섞을 수 있습니다 — 상태 의존 "
+                    f"weight('{e.weight}')와 혼합 금지(상태 의존 확률은 D26 식 weight로만)."
+                )
+            slots.append((Fraction(str(e.weight)), e.then))
+            known += Fraction(str(e.weight))
+            continue
+        marker, then = e
+        if isinstance(marker, _Chance):
+            slots.append((marker.prob, then))
+            known += marker.prob
+        else:
+            if rest_seen is not None:
+                raise TextLoaderError(
+                    f"{marker.line}:{marker.column}: rest는 outcomes 블록당 한 번만 "
+                    f"쓸 수 있습니다(D30)."
+                )
+            rest_seen = marker
+            slots.append((None, then))
+    if known > 1:
+        raise TextLoaderError(
+            f"outcomes의 chance/상수 가중치 합이 1을 넘습니다: {known} (D30 — "
+            f"주사위 문턱들이 겹치지 않는지 확인하세요)."
+        )
+    return tuple(
+        Outcome(then=then, weight=float(prob if prob is not None else 1 - known))
+        for prob, then in slots
+    )
 
 
 def _extract_doc(tagged: list[tuple[str, Any]]) -> tuple[list[tuple[str, Any]], Doc | None]:
@@ -396,16 +491,41 @@ class _ToIR(lark.Transformer[lark.Token, RuleSet]):
         # `{ a = ..; b = .. }` 병렬 대입 집합 → `and` 결합(YAML의 다중 효과와 동형).
         return " and ".join(items)
 
-    def outcome(self, items: list[Any]) -> Outcome:
-        weight_str, then = items
-        return Outcome(then=then, weight=_rate(str(weight_str)))
+    def chance_w(self, items: list[Any]) -> _Chance:
+        # `chance(NdM CMP 상수)`(D30) → 닫힌형 확률(Fraction). 목표값은 desugar가 이미
+        # 리터럴로 해소한 상수여야 한다(표 색인·loop 변수 포함) — 상태 식이면 거부.
+        dice_tok, cmp_tok, rhs = items
+        loc = f"{dice_tok.line}:{dice_tok.column}: "
+        n, m = (int(part) for part in str(dice_tok).split("d"))
+        if n < 1 or m < 2 or n * m > 10_000:
+            raise TextLoaderError(
+                loc
+                + f"주사위 '{dice_tok}'는 지원 범위 밖입니다(개수 ≥1 · 면 ≥2 · 개수×면 ≤ 10000)."
+            )
+        try:
+            target = Fraction(str(rhs))
+        except (ValueError, ZeroDivisionError):
+            raise TextLoaderError(
+                loc + f"chance({dice_tok} {cmp_tok} …)의 목표값은 상수여야 합니다"
+                f"(리터럴·표 색인·loop 변수 — 상태 의존 확률은 D26 식 weight로): '{rhs}'"
+            ) from None
+        return _Chance(prob=_dice_pred_prob(n, m, str(cmp_tok), target))
+
+    def rest_w(self, items: list[lark.Token]) -> _Rest:
+        return _Rest(line=items[0].line or 0, column=items[0].column or 0)
+
+    def outcome(self, items: list[Any]) -> Outcome | tuple[Any, str]:
+        weight_node, then = items
+        if isinstance(weight_node, _Chance | _Rest):  # D30 — 블록 해소는 outcomes_body에서
+            return (weight_node, then)
+        return Outcome(then=then, weight=_rate(str(weight_node)))
 
     def then_body(self, items: list[str]) -> tuple[str, tuple[Outcome, ...]]:
         # bare then → weight=1.0 단일 Outcome(YAML 로더 정규화와 동형).
         return ("body", (Outcome(then=items[0], weight=1.0),))
 
-    def outcomes_body(self, items: list[Outcome]) -> tuple[str, tuple[Outcome, ...]]:
-        return ("body", tuple(items))
+    def outcomes_body(self, items: list[Any]) -> tuple[str, tuple[Outcome, ...]]:
+        return ("body", _resolve_outcomes(items))
 
     def t_guard(self, items: list[str]) -> tuple[str, Any]:
         return ("when", items[0])
