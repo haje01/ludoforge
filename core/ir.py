@@ -14,6 +14,22 @@ VariableType = Literal["int", "enum", "bool", "real"]
 
 
 @dataclass(frozen=True)
+class Doc:
+    """문서 메타데이터(D29, 12차) — 규칙서(`ludoforge doc`)·리포트용 passthrough 주석.
+
+    세 백엔드(bmc/sim/PRISM 오라클)는 전부 무시한다 — D12 weight-erasure·D20 pref·
+    D27 player와 같은 "지워지는 주석" 계보라 검증·추정 의미에 영향이 없다.
+    `notes`는 절차·연출 산문(반복 선언, 순서 유지), `ref`는 출처(룰북 페이지·URL —
+    외부 참조라 `[[이름]]` 무결성 검사 제외), `tags`는 분류 라벨. note/desc 본문의
+    `[[이름]]` 상호참조는 로더가 존재를 검사한다(`.lf` 전용, 드리프트 억제).
+    """
+
+    notes: tuple[str, ...] = ()
+    ref: str | None = None
+    tags: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class Variable:
     """도메인 변수.
 
@@ -21,6 +37,7 @@ class Variable:
     - enum: `values`에 허용 값 목록을 둔다.
     - bool: 추가 필드 없음. True/False 두 상태를 자유롭게 가진다(상호 배제 등, D6).
     - real: `min`/`max`로 실수 범위를 둔다(LRA, D7). int 경계는 정수, real 경계는 실수.
+    - `desc`는 용어집용 문서 주석(D29, `.lf` 전용) — 백엔드는 무시한다.
     """
 
     name: str
@@ -28,6 +45,7 @@ class Variable:
     min: float | None = None
     max: float | None = None
     values: tuple[str, ...] = ()
+    desc: str | None = None
 
 
 @dataclass(frozen=True)
@@ -45,6 +63,7 @@ class Constraint:
     author: str | None = None
     desc: str | None = None
     source: str | None = None
+    doc: Doc | None = None
 
 
 @dataclass(frozen=True)
@@ -58,6 +77,7 @@ class Expect:
     id: str
     that: str
     desc: str | None = None
+    doc: Doc | None = None
 
 
 @dataclass(frozen=True)
@@ -113,6 +133,7 @@ class Transition:
     source: str | None = None
     pref: float | str | None = None
     player: str | None = None
+    doc: Doc | None = None
 
 
 @dataclass(frozen=True)
@@ -136,6 +157,7 @@ class Check:
     expr: str | None = None  # distribution 전용 수치식(sim 백엔드, D19)
     desc: str | None = None
     source: str | None = None
+    doc: Doc | None = None
 
 
 @dataclass(frozen=True)

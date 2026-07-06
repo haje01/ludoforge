@@ -986,3 +986,145 @@ def test_dynamic_index_requires_enum_values_covered() -> None:
             init: score[turn] == 0
             """
         )
+
+
+# ── 문서 메타데이터(D29, 12차 P1) — note/ref/tag/section·desc·[[이름]] 게이트 ──────
+
+
+_DOC_SRC = """
+section "경제 규칙"
+
+domain {
+    gold: int 0..30 desc "보유 보물 — 승리 조건은 [[cap]] 참조"
+    room: enum { hall, l1 }
+}
+
+table reward desc "몬스터 처치 보상" { goblin: 2 }
+
+init: gold == 0 and room == hall
+
+constraint cap:
+    author "planner_A"
+    desc "보물 상한"
+    note "보물([[gold]])은 30을 넘지 않는다."
+    note "둘째 문단 — 절차 서술."
+    ref "던전! 2012판 룰북 p.12"
+    tag economy, balance
+    then gold <= 30
+
+transition earn:
+    note "방([[hall]])에서 보상을 얻는다 — 표 [[reward]] 참조."
+    when room == hall
+    then gold = gold + 1
+
+expect can_earn:
+    note "보상 도달 단언."
+    gold == 1
+
+check gold_ok
+    note "보물 비음수 — [[earn]]이 지켜야 한다."
+    invariant: gold >= 0
+"""
+
+
+def test_doc_clauses_parsed_to_ir() -> None:
+    """note(반복·순서 유지)/ref/tag가 Doc으로, 변수 desc가 Variable.desc로 실린다."""
+    rs = parse_rule_text(_DOC_SRC)
+    gold = rs.variable("gold")
+    assert gold.desc == "보유 보물 — 승리 조건은 [[cap]] 참조"
+    assert rs.variable("room").desc is None
+    (c,) = rs.constraints
+    assert c.desc == "보물 상한" and c.author == "planner_A"
+    assert c.doc is not None
+    assert c.doc.notes == ("보물([[gold]])은 30을 넘지 않는다.", "둘째 문단 — 절차 서술.")
+    assert c.doc.ref == "던전! 2012판 룰북 p.12"
+    assert c.doc.tags == ("economy", "balance")
+    (t,) = rs.transitions
+    assert t.doc is not None and len(t.doc.notes) == 1 and t.doc.ref is None
+    (e,) = rs.expects
+    assert e.doc is not None and e.doc.notes == ("보상 도달 단언.",)
+    (ch,) = rs.checks
+    assert ch.doc is not None and ch.doc.notes[0].startswith("보물 비음수")
+
+
+def test_doc_defaults_stay_none() -> None:
+    """문서 절이 없으면 doc=None·desc=None — 기존 골든 IR 등가 무회귀의 근거."""
+    rs = parse_rule_text(
+        """
+        domain { gold: int 0..30 }
+        constraint cap: then gold <= 30
+        transition earn: then gold = gold + 1
+        check ok invariant: gold >= 0
+        """
+    )
+    assert rs.variables[0].desc is None
+    assert rs.constraints[0].doc is None
+    assert rs.transitions[0].doc is None
+    assert rs.checks[0].doc is None
+
+
+def test_section_and_table_desc_not_in_ir() -> None:
+    """section·table desc는 문서 전용 — IR에 아무 흔적이 없다(D29)."""
+    rs = parse_rule_text(_DOC_SRC)
+    assert rs == parse_rule_text(
+        _DOC_SRC.replace('section "경제 규칙"\n', "").replace(' desc "몬스터 처치 보상"', "")
+    )
+
+
+def test_doc_ref_gate_rejects_unknown_name() -> None:
+    """미정의 [[이름]]은 어느 선언의 어느 필드인지 짚어 거부한다(D29 참조 게이트)."""
+    with pytest.raises(TextLoaderError) as exc:
+        parse_rule_text(
+            """
+            domain { gold: int 0..30 }
+            constraint cap:
+                note "[[treasure]] 상한."
+                then gold <= 30
+            """
+        )
+    msg = str(exc.value)
+    assert "treasure" in msg and "cap" in msg and "note" in msg
+
+
+def test_doc_ref_gate_scans_variable_desc_and_table_desc() -> None:
+    with pytest.raises(TextLoaderError, match="nope"):
+        parse_rule_text('domain { gold: int 0..30 desc "[[nope]] 참조" }')
+    with pytest.raises(TextLoaderError, match="missing"):
+        parse_rule_text(
+            """
+            domain { gold: int 0..30 }
+            table reward desc "[[missing]] 보상" { goblin: 2 }
+            constraint cap: then gold <= 30
+            """
+        )
+
+
+def test_doc_ref_gate_scans_section_title() -> None:
+    with pytest.raises(TextLoaderError, match="ghost_rule"):
+        parse_rule_text(
+            """
+            section "[[ghost_rule]] 관련"
+            domain { gold: int 0..30 }
+            """
+        )
+
+
+def test_doc_note_interpolated_in_for_template() -> None:
+    """for 템플릿 안 note의 ${}는 id처럼 보간되고, [[..]]는 펼친 id로 검사를 통과한다."""
+    rs = parse_rule_text(
+        """
+        domain {
+            monster: enum { goblin, dragon }
+            gold: int 0..30
+        }
+        table reward { goblin: 2, dragon: 10 }
+        for mon in [goblin, dragon]:
+            transition "hunt_${mon}":
+                note "몬스터 ${mon} 사냥 — 보상은 [[reward]]·자기 자신은 [[hunt_${mon}]]."
+                when monster == mon
+                then gold = gold + reward[mon]
+        """
+    )
+    notes = {t.id: t.doc.notes[0] for t in rs.transitions if t.doc is not None}
+    assert "goblin" in notes["hunt_goblin"] and "[[hunt_goblin]]" in notes["hunt_goblin"]
+    assert "dragon" in notes["hunt_dragon"] and "[[hunt_dragon]]" in notes["hunt_dragon"]
