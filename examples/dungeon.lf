@@ -2,56 +2,73 @@
 //   • bmc(논리): 클래스별로 이길 길이 *존재*하는가·불변식·데드락 (pref 무시 = 비결정 탐색)
 //   • sim(추정): 주어진 *정책*에서 직업별 승률·보물 분포는? (pref로 선택 표집)
 //
-// 세 축을 한 모델에 담는다:
-//   ① 클래스 밸런스 — role 4종, 강할수록 목표 보물액↑(rogue·cleric 10 / fighter 20 / wizard 30).
-//      클래스의존 전투(2d6 격파 목표값을 승률 weight로 환산), 몬스터 2종(goblin 약·dragon 강).
-//   ② 적응적 욕심 vs 안전(pref, D20·D26) — 한 층을 클리어하면 **더 깊이 내려갈지(descend)**
-//      **귀환할지(go_home)**를 고르는데, 욕심이 **남은 목표액에 비례**한다(상태 의존 pref:
-//      max(win_gold - gold, 0) vs 상수 5). 목표를 채우면 욕심이 0이 되어 반드시 귀환한다.
-//   ③ 2층 몬스터 덱(비복원 추출, D26) — 실물 Dungeon!의 레벨별 몬스터 카드처럼 2층 조우는
-//      남은 카드 수에 **비례하는 상태 의존 weight**로 뽑고 뽑힌 카드는 줄어든다. 덱이 비면
-//      가드가 꺼진다(합0 상태는 가드로 배제 — D26 규율). BMC는 weight를 지우고 보지만(D12)
-//      덱 카운터의 도메인 하한(0)이 소진된 분기를 자동으로 가지치기한다(과근사가 여기선 정확).
-//
+// 게임 규칙 산문은 문서 절(D29 — section/note/ref/tag·desc)로 본문에 있다. 규칙서 생성:
+//   ludoforge doc examples/dungeon.lf                  # → examples/dungeon.doc.html
 // 검사:
-//   ludoforge bmc examples/dungeon.lf --k 14        # 클래스별 도달성·불변식·데드락
+//   ludoforge bmc examples/dungeon.lf --k 14           # 클래스별 도달성·불변식·데드락
 //   ludoforge sim examples/dungeon.lf -H 300 -n 20000  # 직업별 승률(role sweep)·보물 분포
 //
-// role은 init에서 고정하지 않아 sim이 **직업별로 sweep**한다(win_gold는 constraints로 파생).
-// 깊이/연속(real) 시연은 별도 예제(market_sim.lf). PRISM 교차검증은 tests/의 오라클 픽스처.
-// 주의: loop 변수는 도메인 변수 `monster`와 충돌을 피해 `mon`으로 쓴다(IR id·값 동일).
+// 모델링 노트(도구 문맥 — 게임 규칙이 아니라 규칙서엔 안 싣는다):
+//   - role은 init에서 고정하지 않아 sim이 **직업별로 sweep**한다(win_gold는 constraints로
+//     파생 — D24: 파생 상수라 전이 효과로 갱신 금지).
+//   - 2d6 전투 판정은 승/무소득/사망 확률 표(win/miss/death)로 손 환산해 담았다(D12 weight).
+//   - 층 클리어 후 descend vs go_home만 플레이어 선택(D20 pref) — 그 외 상태는 가드가
+//     상호 배타라 단일 enabled(sim DTMC 환원).
+//   - BMC는 pref·weight를 지우고 비결정으로 본다(D12·D20). 덱 카운터의 도메인 하한(0)이
+//     소진 분기를 자동 가지치기해 weight-erasure 과근사가 여기선 정확하다(D26).
+//   - loop 변수는 도메인 변수 `monster`와 충돌을 피해 `mon`으로 쓴다(IR id·값 동일).
+//   - 깊이/연속(real) 시연은 별도 예제(market_sim.lf). PRISM 교차검증은 tests/의 오라클 픽스처.
+
+section "게임 개요"
 
 domain {
-    gold:       int 0..30
-    win_gold:   int 0..30
-    room:       enum { hall, l1, l2, l3 }
-    role:       enum { rogue, cleric, fighter, wizard }
-    monster:    enum { none, goblin, dragon }
-    status:     enum { exploring, won, dead }
-    l2_goblins: int 0..2      // 2층 몬스터 덱(비복원, D26) — 남은 고블린 카드
-    l2_dragons: int 0..2      // 2층 몬스터 덱(비복원, D26) — 남은 드래곤 카드
+    gold:       int 0..30                                desc "지금 들고 있는 보물액"
+    win_gold:   int 0..30                                desc "목표 보물액 — [[role]]이 정하며 게임 내내 불변"
+    room:       enum { hall, l1, l2, l3 }                desc "현재 위치 — 중앙 홀(hall)과 던전 1~3층"
+    role:       enum { rogue, cleric, fighter, wizard }  desc "직업 — 게임 시작 시 하나를 고른다"
+    monster:    enum { none, goblin, dragon }            desc "지금 마주친 몬스터(none이면 조우 없음)"
+    status:     enum { exploring, won, dead }            desc "게임 진행 상태 — 탐험 중·승리·사망"
+    l2_goblins: int 0..2                                 desc "2층 몬스터 덱에 남은 고블린 카드(비복원)"
+    l2_dragons: int 0..2                                 desc "2층 몬스터 덱에 남은 드래곤 카드(비복원)"
 }
 
-// 클래스별 목표 보물액(2012판). 게임 내내 불변 → sim은 role로부터 파생해 초기 상태에 채운다.
-constraint rogue_win_target:   when role == rogue   then win_gold == 10
-constraint cleric_win_target:  when role == cleric  then win_gold == 10
-constraint fighter_win_target: when role == fighter then win_gold == 20
-constraint wizard_win_target:  when role == wizard  then win_gold == 30
+section "직업과 목표 보물액"
 
-// 전투 데이터 표(D18) — 클래스×몬스터 격파 프로필. 전투 전이가 색인 참조한다.
-table reward { goblin: 2, dragon: 10 }
-table win {
+// 파생 상수(D24) — constraint 등식 핀. sim은 role로부터 파생해 초기 상태에 채운다.
+constraint rogue_win_target:
+    desc "도적의 목표 보물액은 10"
+    note "직업이 강할수록 목표 보물액이 높다(클래스 밸런스 축) — 전투가 약한 [[rogue]]·[[cleric]]은 10, [[fighter]]는 20, 가장 강한 [[wizard]]는 30을 모아 귀환해야 승리한다."
+    ref "던전! 2012판 — 직업 카드(승리 조건)"
+    tag balance
+    when role == rogue   then win_gold == 10
+constraint cleric_win_target:
+    desc "성직자의 목표 보물액은 10"
+    when role == cleric  then win_gold == 10
+constraint fighter_win_target:
+    desc "전사의 목표 보물액은 20"
+    when role == fighter then win_gold == 20
+constraint wizard_win_target:
+    desc "마법사의 목표 보물액은 30"
+    when role == wizard  then win_gold == 30
+
+section "전투 데이터"
+
+// 클래스×몬스터 격파 프로필(D18) — 전투 전이가 색인 참조한다.
+table reward desc "몬스터 처치 보상(보물액)" { goblin: 2, dragon: 10 }
+table win desc "승리 확률 — 몬스터×직업(2d6 격파 목표값의 손 환산)" {
     goblin: { fighter: 0.92, cleric: 0.83, rogue: 0.72, wizard: 0.83 }
     dragon: { fighter: 0.58, cleric: 0.28, rogue: 0.08, wizard: 0.72 }
 }
-table miss {
+table miss desc "무소득 확률 — 격파 실패했지만 생존" {
     goblin: { fighter: 0.07, cleric: 0.16, rogue: 0.26, wizard: 0.16 }
     dragon: { fighter: 0.38, cleric: 0.66, rogue: 0.84, wizard: 0.26 }
 }
-table death {
+table death desc "사망 확률 — 전투 패배로 게임 종료" {
     goblin: { fighter: 0.01, cleric: 0.01, rogue: 0.02, wizard: 0.01 }
     dragon: { fighter: 0.04, cleric: 0.06, rogue: 0.08, wizard: 0.02 }
 }
+
+section "게임의 흐름 — 탐험과 선택"
 
 init: gold == 0 and room == hall and monster == none and status == exploring
     and l2_goblins == 2 and l2_dragons == 2
@@ -59,10 +76,15 @@ init: gold == 0 and room == hall and monster == none and status == exploring
 // ── 중앙(hall): 목표 달성이면 승리, 미달이면 1층 진입(상호 배타 가드 — 선택 아님) ──
 transition claim_victory:
     desc "목표 보물액 달성 + 중앙 → 즉시 승리"
+    note "목표 보물액([[win_gold]]) 이상을 들고 중앙 홀로 돌아오면 즉시 승리한다."
+    ref "던전! 2012판 — 승리 조건"
+    tag victory
     when room == hall and status == exploring and monster == none and gold >= win_gold
     then status = won
 transition enter_l1:
     desc "Great Hall에서 1층으로 진입(목표 미달) — 고블린 조우"
+    note "홀에서 목표가 아직 미달이면 1층으로 (재)진입한다 — 1층 조우는 항상 고블린이다."
+    tag explore
     when room == hall and status == exploring and monster == none and gold < win_gold
     then { room = l1; monster = goblin }
 
@@ -72,6 +94,11 @@ transition enter_l1:
 // descend/go_home을 비결정으로 함께 탐색한다(D20).
 transition descend_l2:
     desc "욕심: 2층으로 — 몬스터 덱에서 비복원 추출(남은 카드 수에 비례, D26)"
+    note "한 층을 클리어하면(조우 해소, [[monster]]가 none) 더 깊이 내려갈지 귀환할지 고른다 — 이 게임의 유일한 플레이어 선택이다."
+    note "2층 조우는 몬스터 덱에서 비복원으로 뽑는다: 남은 카드 수([[l2_goblins]]·[[l2_dragons]])에 비례하는 확률로 몬스터가 나오고, 뽑힌 카드는 줄어든다. 덱이 비면 더 내려갈 수 없다."
+    note "이 모델의 잠수 성향(욕심)은 남은 목표액에 비례한다 — 목표를 채우면 욕심이 0이 되어 반드시 귀환([[go_home]])한다."
+    ref "던전! 2012판 — 레벨별 몬스터 카드 덱"
+    tag choice
     when room == l1 and status == exploring and monster == none and l2_goblins + l2_dragons > 0
     pref max(win_gold - gold, 0)
     outcomes:
@@ -79,21 +106,32 @@ transition descend_l2:
         l2_dragons / (l2_goblins + l2_dragons) -> { room = l2; monster = dragon; l2_dragons = l2_dragons - 1 }
 transition descend_l3:
     desc "욕심: 3층으로 — 드래곤만"
+    note "3층에는 드래곤만 나온다 — 가장 위험하고([[death]] 표) 가장 보상이 크다([[reward]] 표)."
+    tag choice
     when room == l2 and status == exploring and monster == none
     pref max(win_gold - gold, 0)
     then { room = l3; monster = dragon }
 transition go_home:
     desc "안전: 지금 보물을 들고 중앙으로 귀환(목표 미달이면 hall에서 재진입)"
+    note "지금 들고 있는 보물과 함께 중앙 홀로 귀환한다. 목표 미달이면 홀에서 다시 1층으로 들어가게 된다([[enter_l1]])."
+    tag choice
     when (room == l1 or room == l2 or room == l3) and status == exploring and monster == none
     pref 5    // 안전 성향의 상수 기준선: 합0 방지(욕심이 0이어도 정규화 가능 → 목표 달성 시
               // 반드시 귀환)이자 균형점 — 남은 목표액이 5보다 크면 잠수, 작으면 귀환이 우세
     then room = hall
 
-// ── 전투 ── 클래스×몬스터 곱(8개). 승=보물+몬스터 소멸, 무소득=재시도, 사망=종료.
-// 보상은 min(…, 30)으로 gold 상한에서 포화 — 가드 없이 오버플로를 막는다(누적식의 책임).
-// 최대 목표(wizard 30)=상한이라 클램프로 승패 손실 없음. 가드로 몬스터·상태를 엮지 않는다.
+section "전투"
+
+// ── 전투 ── 클래스×몬스터 곱(8개). 보상은 min(…, 30)으로 gold 상한에서 포화 — 가드 없이
+// 오버플로를 막는다(누적식의 책임, D24). 최대 목표(wizard 30)=상한이라 클램프로 승패 손실 없음.
 for mon in [goblin, dragon], cls in [fighter, cleric, rogue, wizard]:
     transition "fight_${mon}_${cls}":
+        desc "직업×몬스터 전투 — 2d6 판정의 확률 환산"
+        note "전투는 2d6 판정이다 — 직업×몬스터 조합마다 승리([[win]])·무소득([[miss]])·사망([[death]]) 확률이 다르다. 이기면 보상([[reward]])을 얻고 몬스터는 사라진다."
+        note "무소득이면 보상 없이 조우가 끝난다 — 실물 규칙의 재도전·후퇴는 이 모델에선 단순화했다. 사망하면 보물을 모두 잃고 게임이 끝난다."
+        note "보상은 보물액 상한(30)에서 포화된다 — 상한을 넘는 초과분은 버린다."
+        ref "던전! 2012판 — 전투 판정(2d6)"
+        tag combat
         when role == cls and monster == mon and status == exploring
         outcomes:
             win[mon][cls]   -> { gold = min(gold + reward[mon], 30); monster = none }
@@ -101,8 +139,14 @@ for mon in [goblin, dragon], cls in [fighter, cleric, rogue, wizard]:
             death[mon][cls] -> { gold = 0; room = hall; status = dead; monster = none }
 
 // ── 종료 상태 흡수 루프 ── (데드락 방지)
-transition won_absorb:  when status == won  then status = won
-transition dead_absorb: when status == dead then status = dead
+transition won_absorb:
+    desc "모델링 — 승리 상태 유지(데드락 방지용 흡수)"
+    tag modeling
+    when status == won  then status = won
+transition dead_absorb:
+    desc "모델링 — 사망 상태 유지(데드락 방지용 흡수)"
+    tag modeling
+    when status == dead then status = dead
 
 // ── 검사 ── bmc: 존재·건전성 / sim: 직업별 승률·분포(role sweep로 직업별 보고)
 check winnable

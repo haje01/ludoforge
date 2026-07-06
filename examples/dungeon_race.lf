@@ -1,35 +1,40 @@
-// 던전! 2인 레이스판 — 북극성 3단계(D28로 접힘). 먼저 목표 보물액(10)을 들고 중앙(hall)
-// 으로 귀환하는 플레이어가 승리한다. "욕심(p1) vs 안전(p2), 누가 이기나?"에 sim이 답한다.
-//
-// 10차의 수동 복제판(변수 8개·전이 12개 손으로 나열)을 **배열 + for 템플릿 한 벌**로
-// 접었다(D28): 플레이어별 상태는 배열(`gold[p1, p2]` → 스칼라 가족 gold_p1·gold_p2로
-// desugar — IR·백엔드 무변경), 플레이어별 전이는 `for p in [p1, p2]` 템플릿, 비대칭
-// 정책·턴 상대는 표(dive_pref/home_pref/other). **플레이어 추가 = 값 목록·표 한 곳 수정**
-// (3인이면 enum·배열 색인·표에 p3만 더하면 된다 — 상태공간은 커지니 bmc k·sim 지평 재조정).
-// 수동판과의 IR 등가는 tests/fixtures/race_manual.lf 골든이 영구 증명한다.
-//
-// 다인 게임의 세 요소(10차)와 비복원 덱(9차)은 그대로:
-//   ① 턴 교대 — `turn` enum + 가드/효과(태그는 스케줄러가 아니다, D27)
-//   ② 전이 소유(player 태그, D27) — 혼성 co-enabled는 sim이 명시 거부
-//   ③ 공유 몬스터 덱(D26 비복원) — 먼저 내려간 쪽이 카드를 소모(자원 경쟁 커플링)
-//
+// 던전! 2인 레이스판 — 북극성 3단계(D28로 접힘). "욕심(p1) vs 안전(p2), 누가 이기나?"에
+// sim이 답한다. 게임 규칙 산문은 문서 절(D29)로 본문에 있다. 규칙서 생성:
+//   ludoforge doc examples/dungeon_race.lf             # → examples/dungeon_race.doc.html
 // 검사:
-//   ludoforge bmc examples/dungeon_race.lf --k 14   # 양쪽 winnable·불변식·데드락(증명)
+//   ludoforge bmc examples/dungeon_race.lf --k 14      # 양쪽 winnable·불변식·데드락(증명)
 //   ludoforge sim examples/dungeon_race.lf -H 300 -n 20000   # 매치업 승률·보물 격차
+//
+// 모델링 노트(도구 문맥 — 게임 규칙 아님):
+//   - 10차의 수동 복제판(변수 8개·전이 12개)을 **배열 + for 템플릿 한 벌**로 접었다(D28):
+//     `gold[p1, p2]` → 스칼라 가족 gold_p1·gold_p2로 desugar — IR·백엔드 무변경.
+//     **플레이어 추가 = 값 목록·표 한 곳 수정**(상태공간은 커지니 bmc k·sim 지평 재조정).
+//     수동판과의 IR 등가는 tests/fixtures/race_manual.lf 골든이 영구 증명한다.
+//   - 다인 게임의 세 요소(10차)와 비복원 덱(9차): ① 턴 교대 = `turn` enum + 가드/효과
+//     (태그는 스케줄러가 아니다, D27) ② 전이 소유(player 태그) — 혼성 co-enabled는 sim이
+//     명시 거부 ③ 공유 몬스터 덱(D26 비복원) — 자원 경쟁 커플링.
+//   - role은 고정(둘 다 같은 전투 프로필) — 정책 차이만 비교한다(sweep 폭발 회피).
+
+section "레이스 개요"
 
 domain {
-    turn:       enum { p1, p2 }
-    winner:     enum { none, p1, p2 }
-    gold[p1, p2]:    int 0..30
-    room[p1, p2]:    enum { hall, l1, l2 }
-    monster[p1, p2]: enum { none, goblin, dragon }
-    l2_goblins: int 0..2        l2_dragons: int 0..2      // 공유 덱(D26 비복원)
+    turn:       enum { p1, p2 }         desc "지금 수를 두는 플레이어 — 행동마다 교대"
+    winner:     enum { none, p1, p2 }   desc "승자(none이면 레이스 진행 중)"
+    gold[p1, p2]:    int 0..30                       desc "플레이어별 보물액"
+    room[p1, p2]:    enum { hall, l1, l2 }           desc "플레이어별 위치 — 중앙 홀과 던전 1~2층"
+    monster[p1, p2]: enum { none, goblin, dragon }   desc "플레이어별 조우 몬스터(none이면 없음)"
+    l2_goblins: int 0..2        desc "공유 2층 덱에 남은 고블린 카드(비복원)"
+    l2_dragons: int 0..2        desc "공유 2층 덱에 남은 드래곤 카드(비복원)"
 }
 
+section "플레이어 성향(정책 표)"
+
 // 정책 표: p1=욕심(잠수 8:귀환 2), p2=안전(2:8). `other`는 턴 상대.
-table other     { p1: p2, p2: p1 }
-table dive_pref { p1: 8, p2: 2 }
-table home_pref { p1: 2, p2: 8 }
+table other     desc "턴 상대 — 행동 후 턴을 넘길 대상" { p1: p2, p2: p1 }
+table dive_pref desc "잠수 선호(욕심) — p1이 크다" { p1: 8, p2: 2 }
+table home_pref desc "귀환 선호(안전) — p2가 크다" { p1: 2, p2: 8 }
+
+section "턴과 행동"
 
 init: turn == p1 and winner == none
     and gold[p1] == 0 and gold[p2] == 0
@@ -41,18 +46,26 @@ init: turn == p1 and winner == none
 for p in [p1, p2]:
     transition "claim_${p}":
         desc "${p} 승리 선언 — 목표(10) 달성 + 중앙"
+        note "자기 턴에 목표 보물액(10) 이상을 들고 중앙 홀에 있으면 승리를 선언하고 레이스가 끝난다 — 먼저 달성한 쪽이 이긴다."
+        ref "던전! 2012판 — 승리 조건(레이스)"
+        tag victory
         when turn == p and winner == none and room[p] == hall and monster[p] == none and gold[p] >= 10
         player p
         then winner = p
 for p in [p1, p2]:
     transition "enter_${p}":
         desc "${p} 1층 진입(목표 미달) — 고블린 조우"
+        note "홀에서 목표가 미달이면 1층으로 들어간다 — 1층 조우는 항상 고블린. 행동 후 턴은 상대에게 넘어간다."
+        tag explore
         when turn == p and winner == none and room[p] == hall and monster[p] == none and gold[p] < 10
         player p
         then { room[p] = l1; monster[p] = goblin; turn = other[p] }
 for p in [p1, p2]:
     transition "dive_${p}":
         desc "${p} 잠수: 2층으로 — 공유 덱에서 비복원 추출(D26), 선호는 정책 표(dive_pref)"
+        note "1층을 클리어하면 더 내려갈지 귀환할지 고른다 — 성향은 정책 표([[dive_pref]]·[[home_pref]])가 정한다: p1은 욕심(잠수 우세), p2는 안전(귀환 우세)."
+        note "2층 조우는 공유 몬스터 덱에서 비복원으로 뽑는다 — 남은 카드 수([[l2_goblins]]·[[l2_dragons]])에 비례. 먼저 내려간 쪽이 카드를 소모하므로 상대의 조우 확률이 달라진다(자원 경쟁)."
+        tag choice
         when turn == p and winner == none and room[p] == l1 and monster[p] == none and l2_goblins + l2_dragons > 0
         player p
         pref dive_pref[p]
@@ -62,12 +75,18 @@ for p in [p1, p2]:
 for p in [p1, p2]:
     transition "go_home_${p}":
         desc "${p} 귀환 — 선호는 정책 표(home_pref)"
+        note "지금 보물을 들고 중앙 홀로 귀환한다 — 목표 미달이면 다시 1층으로 들어가게 된다."
+        tag choice
         when turn == p and winner == none and (room[p] == l1 or room[p] == l2) and monster[p] == none
         player p
         pref home_pref[p]
         then { room[p] = hall; turn = other[p] }
 for p in [p1, p2]:
     transition "fight_goblin_${p}":
+        desc "${p} 고블린 전투 — 2d6 판정의 확률 환산"
+        note "이기면 보물 2를 얻고(상한 30 포화), 무소득이면 보상 없이 조우가 끝난다. 지면 보물을 모두 잃고 홀로 돌아간다(레이스라 사망 대신 재시작). 행동 후 턴 교대."
+        ref "던전! 2012판 — 전투 판정(2d6)"
+        tag combat
         when turn == p and winner == none and monster[p] == goblin
         player p
         outcomes:
@@ -76,6 +95,9 @@ for p in [p1, p2]:
             0.01 -> { gold[p] = 0; room[p] = hall; monster[p] = none; turn = other[p] }
 for p in [p1, p2]:
     transition "fight_dragon_${p}":
+        desc "${p} 드래곤 전투 — 고블린보다 위험하고 보상이 크다"
+        note "이기면 보물 10 — 한 번에 목표를 채울 수 있다. 패배 위험(4%)도 고블린의 4배다."
+        tag combat
         when turn == p and winner == none and monster[p] == dragon
         player p
         outcomes:
@@ -85,6 +107,8 @@ for p in [p1, p2]:
 
 // ── 종료(무소속 환경 전이 — 승자 확정 후 흡수) ─────────────────────────────
 transition race_over:
+    desc "모델링 — 승자 확정 후 흡수(데드락 방지)"
+    tag modeling
     when winner != none
     then winner = winner
 

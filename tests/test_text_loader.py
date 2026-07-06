@@ -30,28 +30,43 @@ def _expr_eq(a: str | None, b: str | None) -> bool:
     return ast.dump(ast.parse(a, mode="eval")) == ast.dump(ast.parse(b, mode="eval"))
 
 
-def _assert_ir_equiv(native: RuleSet, yaml: RuleSet) -> None:
-    """RuleSet 골든 등가: 변수는 바이트 동일, 표현식 문자열은 ast 구조 동일."""
-    assert native.variables == yaml.variables
+def _assert_ir_equiv(native: RuleSet, yaml: RuleSet, compare_meta: bool = True) -> None:
+    """RuleSet 골든 등가: 변수는 바이트 동일, 표현식 문자열은 ast 구조 동일.
+
+    `compare_meta=False`면 문서/메타 필드(desc·author — D29 doc 계열)를 비교에서 뺀다:
+    골든의 증명 대상이 **형식부 desugar 등가**(변수·가드·효과·pref·weight·검사)일 때 쓴다
+    (race 접힘 골든 — 살아있는 예제는 문서 절을 자유롭게 저술한다). doc 필드(Doc)는 YAML로
+    표현 불가라 어느 모드에서도 비교하지 않는다(명시적 제외, PLAN 12차)."""
+    if compare_meta:
+        assert native.variables == yaml.variables
+    else:
+        from dataclasses import replace as _rep
+
+        assert tuple(_rep(v, desc=None) for v in native.variables) == tuple(
+            _rep(v, desc=None) for v in yaml.variables
+        )
     assert _expr_eq(native.init, yaml.init)
     assert len(native.constraints) == len(yaml.constraints)
     for n, y in zip(native.constraints, yaml.constraints, strict=True):
         assert n.id == y.id
         assert _expr_eq(n.when, y.when)
         assert _expr_eq(n.then, y.then)
-        assert n.desc == y.desc
-        assert n.author == y.author
+        if compare_meta:
+            assert n.desc == y.desc
+            assert n.author == y.author
     assert len(native.expects) == len(yaml.expects)
     for ne, ye in zip(native.expects, yaml.expects, strict=True):
         assert ne.id == ye.id
         assert _expr_eq(ne.that, ye.that)
-        assert ne.desc == ye.desc
+        if compare_meta:
+            assert ne.desc == ye.desc
     assert len(native.transitions) == len(yaml.transitions)
     for nt, yt in zip(native.transitions, yaml.transitions, strict=True):
         assert nt.id == yt.id
         assert _expr_eq(nt.when, yt.when)
         assert nt.pref == yt.pref
-        assert nt.desc == yt.desc
+        if compare_meta:
+            assert nt.desc == yt.desc
         assert len(nt.outcomes) == len(yt.outcomes)
         for no, yo in zip(nt.outcomes, yt.outcomes, strict=True):
             assert no.weight == yo.weight
@@ -62,7 +77,8 @@ def _assert_ir_equiv(native: RuleSet, yaml: RuleSet) -> None:
         assert nc.kind == yc.kind
         assert _expr_eq(nc.that, yc.that)  # reachable/invariant
         assert _expr_eq(nc.expr, yc.expr)  # distribution(sim 수치식)
-        assert nc.desc == yc.desc
+        if compare_meta:
+            assert nc.desc == yc.desc
 
 
 def test_domain_int_both_bounds() -> None:
@@ -945,10 +961,11 @@ def test_race_folded_equals_manual_golden() -> None:
     """접힌 레이스(배열+템플릿, D28)가 수동 복제판과 IR 등가 — 북극성 3단계 인수 테스트.
 
     배열 desugar(스칼라 가족)·for 템플릿·표(정책/상대)가 합쳐져 손으로 나열한 모델과
-    정확히 같은 IR을 냄을 영구 증명한다(펼친 이름·순서·pref·소유 태그·검사 전부)."""
+    정확히 같은 IR을 냄을 영구 증명한다(펼친 이름·순서·pref·소유 태그·검사 전부).
+    문서 절(D29 — 살아있는 예제만 저술)은 형식부가 아니라 비교에서 뺀다(compare_meta)."""
     folded = load_rule_file(_EXAMPLES / "dungeon_race.lf")
     manual = load_rule_file(Path(__file__).parent / "fixtures" / "race_manual.lf")
-    _assert_ir_equiv(folded, manual)
+    _assert_ir_equiv(folded, manual, compare_meta=False)
     # player 태그(D27)는 _assert_ir_equiv 범위 밖 — 명시 비교.
     for f, m in zip(folded.transitions, manual.transitions, strict=True):
         assert f.player == m.player
