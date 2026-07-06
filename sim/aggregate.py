@@ -197,6 +197,7 @@ class DistributionResult:
     vmax: float
     percentiles: dict[int, float] | None
     histogram: dict[float, int] | None = None  # 값→빈도(히스토그램 시각화용). 초과 시 None
+    ghost_expr: bool = False  # 식이 ghost 서술 변수(D31)를 참조 — "논리 검증 제외" 라벨용
 
 
 CheckResult = ProportionResult | DistributionResult
@@ -316,10 +317,17 @@ def merge_batches(batches: list[BatchAggregate], sim_checks: list[Check]) -> Bat
 
 
 def finalize_config(
-    config: dict[str, Any], batch: BatchAggregate, sim_checks: list[Check]
+    config: dict[str, Any],
+    batch: BatchAggregate,
+    sim_checks: list[Check],
+    ghosts: frozenset[str] = frozenset(),
 ) -> ConfigResult:
-    """배치 집계를 사람이 읽는 ConfigResult(체크별 추정값)로 마무리한다."""
-    checks = tuple(_check_result(c, batch.props, batch.dists, batch.examples) for c in sim_checks)
+    """배치 집계를 사람이 읽는 ConfigResult(체크별 추정값)로 마무리한다.
+
+    `ghosts`(D31)가 주어지면 ghost를 참조하는 distribution 결과에 서술 변수 라벨을 단다."""
+    checks = tuple(
+        _check_result(c, batch.props, batch.dists, batch.examples, ghosts) for c in sim_checks
+    )
     return ConfigResult(
         config=config,
         n_samples=batch.n,
@@ -349,7 +357,7 @@ def simulate(ruleset: RuleSet, *, samples: int, horizon: int, seed: int) -> SimR
         initial = initial_state(ruleset, constants, overrides=config)
         rng = random.Random(seed * 1_000_003 + ci)
         batch = run_batch(ruleset, constants, sim_checks, parsed, initial, rng, samples, horizon)
-        results.append(finalize_config(config, batch, sim_checks))
+        results.append(finalize_config(config, batch, sim_checks, ghost_var_names(ruleset)))
 
     return SimReport(
         samples=samples,
@@ -363,6 +371,22 @@ def simulate(ruleset: RuleSet, *, samples: int, horizon: int, seed: int) -> SimR
 
 
 # ---------- 내부 헬퍼 ----------
+
+
+def _refs_any(expr: str | None, names: frozenset[str]) -> bool:
+    """식이 주어진 이름들 중 하나라도 참조하는가(ghost 라벨 판정용, D31)."""
+    if not expr:
+        return False
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError:
+        return False
+    return any(isinstance(n, ast.Name) and n.id in names for n in ast.walk(tree))
+
+
+def ghost_var_names(ruleset: RuleSet) -> frozenset[str]:
+    """ghost 서술 변수(D31) 이름 집합 — distribution 라벨 판정용."""
+    return frozenset(v.name for v in ruleset.variables if v.ghost)
 
 
 def _parse_check_expr(c: Check) -> ast.expr:
@@ -386,6 +410,7 @@ def _check_result(
     props: dict[str, ProportionAggregate],
     dists: dict[str, DistributionAggregate],
     examples: dict[str, RunResult],
+    ghosts: frozenset[str] = frozenset(),
 ) -> CheckResult:
     if c.kind == "distribution":
         agg = dists[c.id]
@@ -400,6 +425,7 @@ def _check_result(
             vmax=agg.vmax,
             percentiles=agg.percentiles(_PERCENTILES),
             histogram=(dict(agg.counts) if not agg.histogram_overflow and agg.counts else None),
+            ghost_expr=bool(ghosts) and _refs_any(c.expr, ghosts),
         )
     agg_p = props[c.id]
     return ProportionResult(

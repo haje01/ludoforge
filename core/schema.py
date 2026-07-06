@@ -55,6 +55,7 @@ def validate(ruleset: RuleSet) -> None:
     errors.extend(_check_transition_prefs(ruleset))
     errors.extend(_check_transition_players(ruleset))
     errors.extend(_check_constraint_pinned_not_mutated(ruleset))
+    errors.extend(_check_ghost_one_way(ruleset))
     errors.extend(_check_references(ruleset))
 
     if errors:
@@ -73,6 +74,10 @@ def check_finite_state(ruleset: RuleSet) -> None:
     """
     errors: list[str] = []
     for v in ruleset.variables:
+        if v.ghost:
+            # ghost(D31)는 bmc/PRISM 소비 전에 erase_ghosts로 제거된다 — 유한 상태
+            # 게이트도 erase 후 기준이라 건너뛴다(무한 int ghost 허용).
+            continue
         if v.type == "int" and (v.min is None or v.max is None):
             errors.append(
                 f"변수 '{v.name}'(int): 유한 상태에는 min·max가 모두 필요합니다 "
@@ -121,6 +126,139 @@ def _check_transition_players(ruleset: RuleSet) -> list[str]:
         for t in ruleset.transitions
         if t.player is not None and t.player not in enum_values
     ]
+
+
+def _check_ghost_one_way(ruleset: RuleSet) -> list[str]:
+    """ghost 서술 변수(D31)의 단방향 의존 게이트 — "ghost 전부 제거 시 비-ghost 궤적 비트
+    동일"을 정적으로 강제한다.
+
+    ghost를 읽을 수 있는 곳: ① ghost 대입(`next.<ghost> == …`)의 RHS, ② distribution
+    check expr(sim 전용 리포트). 그 외 — 가드(when)·constraint·expects·reachable/invariant
+    that·pref/weight 요율·비-ghost 효과 RHS — 에서 ghost를 참조하면 백엔드 의미가 갈라지므로
+    (bmc/PRISM은 erase 후 소비, D24 계보의 조용한 분기) 거부한다. init에서 ghost는 **상수
+    고정만**(`ghost_var == 상수`) 허용하며, 모든 ghost는 init에서 고정돼야 한다(자유 sweep·
+    파생 금지).
+    """
+    ghosts = {v.name for v in ruleset.variables if v.ghost}
+    if not ghosts:
+        return []
+    var_names = {v.name for v in ruleset.variables}
+    errors: list[str] = []
+
+    def scan(subject: str, clause: str, expr: str | None) -> None:
+        for g in sorted(_expr_names(expr) & ghosts):
+            errors.append(
+                f"{subject}의 {clause}가 ghost 변수 '{g}'를 참조합니다 — ghost는 비-ghost "
+                f"궤적에 영향을 줄 수 없습니다(D31: ghost 대입의 RHS·distribution에서만 읽기)."
+            )
+
+    for con in ruleset.constraints:
+        scan(f"제약 '{con.id}'", "when", con.when)
+        scan(f"제약 '{con.id}'", "then", con.then)
+    for e in ruleset.expects:
+        scan(f"기대 '{e.id}'", "that", e.that)
+    for t in ruleset.transitions:
+        scan(f"전이 '{t.id}'", "when", t.when)
+        if isinstance(t.pref, str):
+            scan(f"전이 '{t.id}'", "pref", t.pref)
+        for i, oc in enumerate(t.outcomes):
+            if isinstance(oc.weight, str):
+                scan(f"전이 '{t.id}'", f"outcomes[{i}].weight", oc.weight)
+            # 효과: 비-ghost 대입의 RHS에서만 ghost 금지(ghost 대입의 RHS는 자유).
+            try:
+                tree = ast.parse(oc.then, mode="eval").body
+            except SyntaxError:
+                continue  # 구문 오류는 _check_references가 보고
+            for conj in _conjuncts(tree):
+                pair = _eq_pair(conj)
+                target = None
+                if pair is not None:
+                    for side in pair:
+                        if (
+                            isinstance(side, ast.Attribute)
+                            and isinstance(side.value, ast.Name)
+                            and side.value.id == "next"
+                        ):
+                            target = side.attr
+                if target in ghosts:
+                    continue  # ghost 갱신식 — 무엇이든 읽을 수 있다
+                scan(f"전이 '{t.id}'", "효과(비-ghost 대입)", ast.unparse(conj))
+    for c in ruleset.checks:
+        if c.kind in ("reachable", "invariant"):
+            scan(f"검사 '{c.id}'", "that", c.that)
+        # distribution expr(sim 전용)은 ghost 읽기 허용(D31).
+
+    # init: ghost는 상수 고정만 + 모든 ghost가 고정돼야 함(자유 sweep 금지).
+    pinned: set[str] = set()
+    if ruleset.init is not None:
+        try:
+            init_tree: ast.expr | None = ast.parse(ruleset.init, mode="eval").body
+        except SyntaxError:
+            init_tree = None  # 구문 오류는 _check_references가 보고
+        if init_tree is not None:
+            for conj in _conjuncts(init_tree):
+                hit = _expr_names(ast.unparse(conj)) & ghosts
+                if not hit:
+                    continue
+                g = _init_ghost_pin(conj, ghosts, var_names)
+                if g is None:
+                    errors.append(
+                        f"init의 '{ast.unparse(conj)}': ghost 변수는 init에서 "
+                        f"`<ghost> == 상수`로만 고정할 수 있습니다(파생·관계식 금지, D31)."
+                    )
+                else:
+                    pinned.add(g)
+    for g in sorted(ghosts - pinned):
+        errors.append(
+            f"ghost 변수 '{g}'가 init에서 상수로 고정되지 않았습니다 — ghost는 자유변수"
+            f"(sweep)가 될 수 없으니 init에 `{g} == 값`을 추가하세요(D31)."
+        )
+    return errors
+
+
+def _init_ghost_pin(node: ast.expr, ghosts: set[str], var_names: set[str]) -> str | None:
+    """init conjunct가 `<ghost> == 상수` 꼴이면 그 ghost 이름, 아니면 None.
+
+    상수 = 수치 리터럴(단항 - 포함)·enum 값 이름(변수가 아닌 Name)·True/False."""
+    pair = _eq_pair(node)
+    if pair is None:
+        return None
+    left, right = pair
+    if isinstance(right, ast.Name) and right.id in ghosts:
+        left, right = right, left
+    if not (isinstance(left, ast.Name) and left.id in ghosts):
+        return None
+    value = right
+    if isinstance(value, ast.UnaryOp) and isinstance(value.op, ast.USub):
+        value = value.operand
+    if isinstance(value, ast.Constant):
+        return left.id
+    if isinstance(value, ast.Name) and value.id not in var_names:
+        return left.id  # enum 값 이름(변수 아님) — 상수 취급
+    return None
+
+
+def _expr_names(expr: str | None) -> set[str]:
+    """식이 참조하는 Name 심볼 집합 — next.* 표지·함수명은 제외(변수 아님).
+
+    구문 오류는 빈 집합(오류 보고는 _check_references의 몫)."""
+    if not expr:
+        return set()
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError:
+        return set()
+    skip: set[int] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "next"
+        ):
+            skip.add(id(node.value))
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            skip.add(id(node.func))
+    return {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and id(n) not in skip}
 
 
 def _check_constraint_pinned_not_mutated(ruleset: RuleSet) -> list[str]:

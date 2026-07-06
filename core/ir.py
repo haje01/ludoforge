@@ -38,6 +38,8 @@ class Variable:
     - bool: 추가 필드 없음. True/False 두 상태를 자유롭게 가진다(상호 배제 등, D6).
     - real: `min`/`max`로 실수 범위를 둔다(LRA, D7). int 경계는 정수, real 경계는 실수.
     - `desc`는 용어집용 문서 주석(D29, `.lf` 전용) — 백엔드는 무시한다.
+    - `ghost`는 서술 전용 상태(D31, `.lf` 전용) — 비-ghost 궤적에 영향 불가(schema 게이트).
+      sim만 실행하고 bmc/PRISM은 `erase_ghosts`로 상태공간에서 제거한다.
     """
 
     name: str
@@ -46,6 +48,7 @@ class Variable:
     max: float | None = None
     values: tuple[str, ...] = ()
     desc: str | None = None
+    ghost: bool = False
 
 
 @dataclass(frozen=True)

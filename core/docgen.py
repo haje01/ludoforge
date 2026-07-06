@@ -172,19 +172,28 @@ def _var_type_text(node: Any) -> str:
 def _domain_entries(block: Any) -> list[VarEntry]:
     out: list[VarEntry] = []
     for vd in block.children:
-        name = str(vd.children[0])
+        name: str | None = None
         v_idx = vtype = None
         desc: str | None = None
-        for c in vd.children[1:]:
-            if isinstance(c, lark.Tree) and c.data == "v_idx":
+        ghost = False
+        for c in vd.children:
+            if isinstance(c, lark.Token):
+                name = str(c)
+            elif c.data == "ghost_mod":  # 서술 전용 상태(D31) — 규칙서에도 원문대로 표기
+                ghost = True
+            elif c.data == "v_idx":
                 v_idx = c
-            elif isinstance(c, lark.Tree) and c.data == "meta_desc":
+            elif c.data == "meta_desc":
                 desc = _unquote(c.children[0])
             else:
                 vtype = c
+        assert name is not None
         if v_idx is not None:  # 배열(D28)은 접힌 표기 그대로 — 용어집도 저자 서술을 보존
             name += "[" + ", ".join(str(t) for t in v_idx.children) + "]"
-        out.append(VarEntry(name=name, type_text=_var_type_text(vtype), desc=desc))
+        type_text = _var_type_text(vtype)
+        if ghost:
+            type_text = f"ghost {type_text} — 서술 변수(논리 검증 제외)"
+        out.append(VarEntry(name=name, type_text=type_text, desc=desc))
     return out
 
 

@@ -17,6 +17,7 @@ from __future__ import annotations
 import ast
 from dataclasses import dataclass
 
+from core.ghost import erase_ghosts
 from core.ir import RuleSet, Transition, Variable
 from core.schema import check_finite_state
 
@@ -42,8 +43,10 @@ class PrismProgram:
 def generate(ruleset: RuleSet) -> PrismProgram:
     """검증된 RuleSet을 PRISM 모델·속성으로 번역한다(D16).
 
+    ghost 서술 변수(D31)는 상태공간에서 제거하고 번역한다(erase 후 소비 — sim 전용 서술).
     유한 상태 게이트(D13)를 먼저 통과해야 한다 — 무한 int·real이면 SchemaError.
     """
+    ruleset = erase_ghosts(ruleset)
     check_finite_state(ruleset)
     return PrismProgram(model=_model_text(ruleset), properties=_properties(ruleset))
 
@@ -269,6 +272,9 @@ def _render_call(node: ast.Call) -> str:
 def _updates(then_expr: str) -> str:
     """outcome.then(`next.X == 식` 배정형)을 PRISM 갱신 `(X'=식)`으로(D16)."""
     node = _parse(then_expr)
+    if isinstance(node, ast.Constant) and node.value is True:
+        # ghost 전용 효과가 erase되어 빈 갱신이 된 분기(D31) — PRISM 항등 갱신.
+        return "true"
     conjuncts = (
         node.values if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And) else [node]
     )

@@ -26,6 +26,7 @@ from sim.aggregate import (
     ConfigResult,
     SimReport,
     finalize_config,
+    ghost_var_names,
     merge_batches,
     parse_check_exprs,
     run_batch,
@@ -72,7 +73,7 @@ def run_sim(
         ]
         batches = _run_tasks(tasks, workers)
         merged = merge_batches(batches, sim_checks)  # 청크 순서대로 합침(결정성)
-        results.append(finalize_config(config, merged, sim_checks))
+        results.append(finalize_config(config, merged, sim_checks, ghost_var_names(ruleset)))
 
     return SimReport(
         samples=samples,

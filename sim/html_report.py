@@ -159,9 +159,11 @@ def _render_proportion(index: int, r: ProportionResult) -> str:
 
 def _render_distribution(index: int, r: DistributionResult) -> str:
     lo, hi = r.ci
+    # ghost 서술 변수(D31)의 분포는 sim만 본다 — 논리 검증(bmc)에서 제거됐음을 명시.
+    ghost = " · 서술 변수(ghost — 논리 검증 제외)" if r.ghost_expr else ""
     head = (
         f'<div class="check"><div class="name">[{index}] {_esc(r.check_id)} '
-        f'<span class="kind">(distribution)</span></div>'
+        f'<span class="kind">(distribution{_esc(ghost)})</span></div>'
     )
     if r.desc:
         head += f'<div class="desc">{_esc(r.desc)}</div>'

@@ -88,9 +88,11 @@ def _format_proportion(index: int, r: ProportionResult) -> list[str]:
 
 def _format_distribution(index: int, r: DistributionResult) -> list[str]:
     desc = f" — {r.desc}" if r.desc else ""
+    # ghost 서술 변수(D31)의 분포는 sim만 본다 — 논리 검증(bmc)에서 제거됐음을 명시.
+    ghost = " · 서술 변수(ghost — 논리 검증 제외)" if r.ghost_expr else ""
     lo, hi = r.ci
     lines = [
-        f"  [{index}] '{r.check_id}' (distribution){desc}",
+        f"  [{index}] '{r.check_id}' (distribution){desc}{ghost}",
         f"      평균 = {r.mean:.4f}  95% CI [{lo:.4f}, {hi:.4f}]  "
         f"(σ={r.stddev:.4f}, 범위=[{_num(r.vmin)}, {_num(r.vmax)}], n={r.n})",
     ]

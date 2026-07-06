@@ -76,7 +76,8 @@ binding: NAME "in" "[" NAME ("," NAME)* "]"
 
 // ── 도메인 ──
 domain_block: "domain" "{" var_decl* "}"
-var_decl: NAME v_idx? ":" var_type v_desc?
+var_decl: ghost_mod? NAME v_idx? ":" var_type v_desc?
+ghost_mod: "ghost"                    // 서술 전용 상태(D31) — sim만 실행, bmc/PRISM은 erase
 v_idx: "[" NAME ("," NAME)* "]"       // 유한 색인 배열(D28) — desugar가 스칼라 가족으로 펼침
 v_desc: "desc" STRING -> meta_desc    // 용어집용 변수 설명(D29)
 ?var_type: int_type | real_type | bool_type | enum_type
@@ -422,18 +423,27 @@ class _ToIR(lark.Transformer[lark.Token, RuleSet]):
     def enum_type(self, items: list[lark.Token]) -> dict[str, Any]:
         return {"type": "enum", "values": tuple(str(t) for t in items)}
 
+    def ghost_mod(self, items: list[Any]) -> tuple[str, bool]:
+        return ("ghost", True)
+
     def var_decl(self, items: list[Any]) -> Variable:
-        # items = [NAME, 타입 dict, v_desc?(("desc", str) 튜플, D29)]. v_idx는 desugar가
-        # 이미 펼쳤으므로 여기 없다(있으면 v_idx()가 먼저 거부).
-        name_tok = items[0]
+        # items = [ghost?(("ghost", True)), NAME, 타입 dict, v_desc?(("desc", str), D29)].
+        # v_idx는 desugar가 이미 펼쳤으므로 여기 없다(있으면 v_idx()가 먼저 거부).
+        name: str | None = None
         kwargs: dict[str, Any] = {}
         desc: str | None = None
-        for it in items[1:]:
-            if isinstance(it, dict):
+        ghost = False
+        for it in items:
+            if isinstance(it, lark.Token):
+                name = str(it)
+            elif isinstance(it, dict):
                 kwargs = it
+            elif it[0] == "ghost":
+                ghost = True
             else:
                 desc = it[1]  # ("desc", 값)
-        return Variable(name=str(name_tok), desc=desc, **kwargs)
+        assert name is not None
+        return Variable(name=name, desc=desc, ghost=ghost, **kwargs)
 
     # --- 구조 마커 ---
     def domain_block(self, items: list[Variable]) -> tuple[str, Any]:
@@ -683,20 +693,24 @@ def _eval_tval(node: Any) -> Any:
     return {str(e.children[0]): _eval_tval(e.children[1]) for e in node.children}
 
 
-def _var_decl_parts(vd: Any) -> tuple[Any, Any | None, Any, Any | None]:
-    """var_decl 자식 분해 → (NAME 토큰, v_idx 트리|None, 타입 트리, desc 트리|None).
+def _var_decl_parts(vd: Any) -> tuple[Any, Any | None, Any, Any | None, Any | None]:
+    """var_decl 자식 분해 → (NAME 토큰, v_idx|None, 타입 트리, desc|None, ghost|None).
 
-    v_desc(D29)가 선택 절이라 자식 수가 가변 — 위치가 아닌 노드 종류로 판별한다."""
-    name_tok = vd.children[0]
-    v_idx = vtype = v_desc = None
-    for c in vd.children[1:]:
-        if isinstance(c, lark.Tree) and c.data == "v_idx":
+    ghost_mod(D31)·v_desc(D29)가 선택 절이라 자식 수·위치가 가변 — 노드 종류로 판별한다."""
+    name_tok = None
+    v_idx = vtype = v_desc = ghost = None
+    for c in vd.children:
+        if isinstance(c, lark.Token):
+            name_tok = c
+        elif c.data == "ghost_mod":
+            ghost = c
+        elif c.data == "v_idx":
             v_idx = c
-        elif isinstance(c, lark.Tree) and c.data == "meta_desc":
+        elif c.data == "meta_desc":
             v_desc = c
         else:
             vtype = c
-    return name_tok, v_idx, vtype, v_desc
+    return name_tok, v_idx, vtype, v_desc, ghost
 
 
 def _collect_tables(tree: Any) -> dict[str, Any]:
@@ -723,7 +737,7 @@ def _collect_domain_vars(tree: Any) -> set[str]:
     for child in tree.children:
         if isinstance(child, lark.Tree) and child.data == "domain_block":
             for vd in child.children:
-                name_tok, v_idx, _vtype, _desc = _var_decl_parts(vd)
+                name_tok, v_idx, _vtype, _desc, _ghost = _var_decl_parts(vd)
                 names.add(str(name_tok))
                 if v_idx is not None:  # 배열 선언
                     names.update(f"{name_tok}_{idx}" for idx in v_idx.children)
@@ -763,7 +777,7 @@ def _collect_enum_vars(tree: Any) -> dict[str, _EnumVar]:
         if not (isinstance(child, lark.Tree) and child.data == "domain_block"):
             continue
         for vd in child.children:
-            name_tok, v_idx, vtype, _desc = _var_decl_parts(vd)
+            name_tok, v_idx, vtype, _desc, _ghost = _var_decl_parts(vd)
             if v_idx is None and isinstance(vtype, lark.Tree) and vtype.data == "enum_type":
                 out[str(name_tok)] = _EnumVar(tuple(str(t) for t in vtype.children))
     return out
@@ -776,7 +790,7 @@ def _collect_arrays(tree: Any) -> dict[str, _Array]:
         if not (isinstance(child, lark.Tree) and child.data == "domain_block"):
             continue
         for vd in child.children:
-            name_tok, v_idx, _vtype, _desc = _var_decl_parts(vd)
+            name_tok, v_idx, _vtype, _desc, _ghost = _var_decl_parts(vd)
             if v_idx is None:
                 continue
             base = str(name_tok)
@@ -804,22 +818,23 @@ def _expand_domain(child: Any) -> Any:
 
     # 충돌은 선언 순서와 무관하게 잡아야 하므로 두 패스: 모든 최종 이름을 먼저 등록.
     for vd in child.children:
-        base_tok, v_idx, _vtype, _desc = _var_decl_parts(vd)
+        base_tok, v_idx, _vtype, _desc, _ghost = _var_decl_parts(vd)
         if v_idx is not None:
             for idx in v_idx.children:
                 _claim(f"{base_tok}_{idx}")
         else:
             _claim(str(base_tok))
     for vd in child.children:
-        base_tok, v_idx, type_tree, desc_tree = _var_decl_parts(vd)
+        base_tok, v_idx, type_tree, desc_tree, ghost_tree = _var_decl_parts(vd)
         if v_idx is None:
             out.append(vd)
             continue
-        # 배열의 desc(D29)는 펼친 원소 전부에 승계된다(용어집에 가족 공통 설명).
+        # 배열의 desc(D29)·ghost(D31)는 펼친 원소 전부에 승계된다(가족 공통 속성).
+        head = [ghost_tree] if ghost_tree is not None else []
         extra = [desc_tree] if desc_tree is not None else []
         for idx in v_idx.children:
             name_tok = lark.Token("NAME", f"{base_tok}_{idx}")
-            out.append(lark.Tree("var_decl", [name_tok, type_tree, *extra]))
+            out.append(lark.Tree("var_decl", [*head, name_tok, type_tree, *extra]))
     return lark.Tree("domain_block", out)
 
 

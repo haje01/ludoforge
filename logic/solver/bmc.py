@@ -20,11 +20,12 @@ from __future__ import annotations
 import ast
 import itertools
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import z3
 
+from core.ghost import erase_ghosts, ghost_names
 from core.ir import Constraint, RuleSet
 from logic.solver.translator import translate_expression
 
@@ -85,6 +86,8 @@ class BmcReport:
     k: int
     results: tuple[PropertyResult, ...]
     skipped_other: tuple[str, ...]
+    # ghost 서술 변수(D31) — 상태공간에서 제거하고 검사했음을 각주로 명시(조용히 숨기지 않음).
+    erased_ghosts: tuple[str, ...] = ()
 
     @property
     def has_violation(self) -> bool:
@@ -104,8 +107,13 @@ class BmcReport:
 
 
 def run_bmc(ruleset: RuleSet, k: int) -> BmcReport:
-    """전이 시스템의 checks를 깊이 k까지 BMC로 검사한다."""
-    return _Bmc(ruleset, k).run()
+    """전이 시스템의 checks를 깊이 k까지 BMC로 검사한다.
+
+    ghost 서술 변수(D31)는 상태공간에서 제거하고 검사한다(erase 후 소비 — 단방향 의존을
+    schema가 보장하므로 비-ghost 의미는 비트 동일). 제거 사실은 리포트 각주로 남는다."""
+    dropped = ghost_names(ruleset)
+    report = _Bmc(erase_ghosts(ruleset), k).run()
+    return replace(report, erased_ghosts=dropped) if dropped else report
 
 
 class _Bmc:
@@ -457,6 +465,12 @@ def format_bmc_report(report: BmcReport) -> str:
         lines.append("")
         lines.append(
             "ℹ️ 다른 백엔드 전용 검사라 건너뜀(distribution=sim): " + ", ".join(report.skipped_other)
+        )
+    if report.erased_ghosts:
+        lines.append("")
+        lines.append(
+            "ℹ️ ghost 서술 변수는 상태공간에서 제거하고 검사했습니다(D31 — sim 전용 서술): "
+            + ", ".join(report.erased_ghosts)
         )
     return "\n".join(lines)
 

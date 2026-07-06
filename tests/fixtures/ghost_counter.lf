@@ -1,0 +1,23 @@
+// D31 픽스처: ghost 서술 변수(steps) — 비-ghost 궤적에 영향 없는 카운터.
+// 쌍둥이 ghost_counter_plain.lf(ghost 제거판)와 bmc/sim 결과가 동일해야 한다.
+domain {
+    ghost steps: int 0..          // 무한 int여도 무방 — bmc/PRISM은 erase 후 소비(D31)
+    gold:   int 0..5
+    status: enum { run, done }
+}
+init: gold == 0 and status == run and steps == 0
+transition earn:
+    when status == run and gold < 5
+    outcomes:
+        0.5 -> { gold = gold + 1; steps = steps + 1 }
+        0.5 -> { steps = steps + 1 }
+transition finish:
+    when status == run and gold >= 5
+    then status = done
+transition done_absorb: when status == done then status = done
+check can_finish reachable: status == done
+check gold_ok invariant: gold >= 0
+check no_stuck no_deadlock
+check steps_dist
+    desc "종료까지의 스텝 수(서술 변수)"
+    distribution: steps
