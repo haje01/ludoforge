@@ -901,12 +901,14 @@ PRISM 생성기도 이미 **비율형**(`weight/total`, `prism_gen._prob`)으로
 
 ---
 
-## 12차 마일스톤 — 문서 메타데이터 + 규칙서 생성기(`ludoforge doc`) — 🔵 진행중 (P0~P2 ✅)
+## 12차 마일스톤 — 문서 메타데이터 + 규칙서 생성기(`ludoforge doc`) — ✅ 완료 (2026-07-06, P0~P3)
 
 > **Phase 0 완료:** 사용자 비준(2026-07-06) — 설계는 **decisions.md D29**로 승격 기록됨.
 > **Phase 1 완료(2026-07-06):** 문서 절 문법·IR `Doc` passthrough·`[[이름]]` 참조 게이트.
 > **Phase 2 완료(2026-07-06):** `core/docgen.py` + `ludoforge doc`(HTML/MD, desugar 전
 > 트리 기반 — 접힌 템플릿·표·상호링크·check 모음).
+> **Phase 3 완료(2026-07-06):** dungeon.lf·dungeon_race.lf 규칙서 저술 + CLAUDE §4.4·
+> README·examples README 정합. **12차 마감** — 다음은 13차(주사위 확률식) P0 비준.
 >
 > 설계 근거는 본 절(→ **decisions.md D29**). 한 줄: **모든 선언에 구조화된
 > 문서 절(`note`/`ref`/`tag`)과 파일 수준 `section`을 허용하고, `.lf` 하나에서 사람이
@@ -972,11 +974,14 @@ PRISM 생성기도 이미 **비율형**(`weight/total`, `prism_gen._prob`)으로
   본문은 저자 소스 순서(section 절 구분), check만 맨 끝 "검증·추정 성질"로 모음(계획의
   고정 배치를 저자 흐름 보존으로 정련). 테스트 9건(구조 단언 위주). 전체 367 통과.
 
-**Phase 3 — 예제 저술 & 문서 정합** *(문서)*
+**Phase 3 — 예제 저술 & 문서 정합** *(문서)* — ✅ 완료 (2026-07-06)
 - dungeon.lf·dungeon_race.lf에 section/note/ref 실제 저술(2012판 룰북 ref — 헤더 `//`
   주석의 산문을 문서 절로 이동), CLAUDE §4 신설 절·README(`ludoforge doc` 빠른시작).
-- **성공 기준:** 예제 규칙서 생성물을 사람이 게임 규칙으로 읽을 수 있음, bmc/sim 결과
-  무변경(골든 등가·기존 테스트 전부 통과).
+- **성공 기준 충족:** 두 예제가 section 5~4개·용어집 desc·규칙 note(모델 단순화 명시 포함)
+  ·룰북 ref로 저술되어 규칙서가 게임 규칙 설명으로 읽힘. 형식부(가드·효과·수치)는 불변 —
+  bmc(k-귀납 증명 지위)·sim(레이스 욕심 ~68%) 무변경, 전체 367 통과. race 접힘 골든은
+  `compare_meta=False`(형식부만 비교 — 문서 절은 desugar 등가의 증명 대상이 아님)로 정련.
+  CLAUDE §4.4(D29)·§6, README(기능 bullet·doc 섹션·디렉토리), examples README 갱신.
 
 ### 4. 위험 & 미해결 질문
 

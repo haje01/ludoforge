@@ -29,6 +29,10 @@
   게임 길이·직업별 분포를 *[추정](docs/concepts.md#9-4차-확장--정량-추정-증명에서-추정으로-sim-d19)*(`ludoforge sim`). 신뢰구간·미관측 사건의 rule-of-three
   상한·절단 비율을 정직하게 보고(증명 아님). [DTMC만](docs/concepts.md#94-왜-dtmc만-받나) 지원하고, real·고차원·큰 범위 모델도
   상태폭발 없이 다룬다. 병렬(`--workers`)이며 결과는 워커 수와 무관하게 재현된다(D19).
+- **규칙서 생성(doc)**: 같은 `.lf`에서 **사람이 읽는 게임 규칙서**(HTML/Markdown)를 생성
+  (`ludoforge doc`, D29). 문서 절(`note`/`ref`/`tag`/`section`·`desc`)로 절차·연출·출처
+  산문을 형식 룰 *옆에* 저술하고, 산문 속 `[[이름]]` 참조는 로더가 존재를 검사해 문서
+  부패를 막는다. 규칙서는 단방향 파생 뷰 — SSOT는 `.lf` 하나다.
 - **확률 증명 오라클(PRISM, 테스트 전용)**: 소형 유한 모델을 PRISM 확률 모델로 번역해 승리
   확률을 *정확히* 계산하고 **sim 추정을 검정**한다 — 추정기에 신뢰를 부여하는 교차검증
   오라클이다(D19). D23으로 사용자 CLI 표면에서는 내려 테스트(`tests/test_sim_oracle.py`)로만
@@ -80,8 +84,8 @@ ludoforge check warrior.lf
 ## 디렉토리 구성
 
 ```
-core/         # 공유 DSL 프론트엔드(SSOT): schema.py(검증) loader.py(확장자 디스패치) text_loader.py(.lf→IR) ir.py(중간표현)
-ludoforge/    # 우산: 통합 CLI 진입점 — cli.py (check / bmc / sim / prob)
+core/         # 공유 DSL 프론트엔드(SSOT): schema.py(검증) loader.py(확장자 디스패치) text_loader.py(.lf→IR) ir.py(중간표현) docgen.py(규칙서 생성)
+ludoforge/    # 우산: 통합 CLI 진입점 — cli.py (check / bmc / sim / doc)
 logic/        # 논리 증명 백엔드(Z3)
   solver/     # translator.py(IR→Z3) checks.py(정적 검사) bmc.py(전이 BMC) report.py(리포트)
 sim/          # 확률 추정 백엔드(Monte Carlo): engine.py(인터프리터) aggregate.py(집계) runner.py(병렬) report.py
@@ -256,6 +260,25 @@ sim이 크게 실패한다. 다인 게임은 전이에 **`player` 소유 태그*
 > **증명이 아니라 추정이다.** sim은 표집이라 희귀한 모순·도달성을 놓칠 수 있다 — 그건
 > `bmc`(Z3)가 증명으로 잡는다. sim은 *얼마나 자주/얼마나 큰가*(정량)를 신뢰구간과 함께
 > 답하고, 존재·건전성(*가능한가/항상 그런가*)은 논리 백엔드가 증명한다(D19).
+
+### 규칙서 생성 (doc)
+
+검증 모델(`.lf`)은 곧 **게임 규칙의 SSOT 문서**이기도 하다(D29). 선언에 문서 절을 달면 —
+`note`(절차·연출 산문, 반복 가능)·`ref`(룰북 출처)·`tag`(분류), 변수·표의 `desc`(용어집),
+최상위 `section`(목차) — `ludoforge doc`이 사람이 읽는 규칙서를 생성한다. 산문 속
+`[[이름]]`은 모델 요소(변수·enum 값·선언 id·표 이름)를 가리켜야 하며 미정의면 로드가
+거부된다 — 존재하지 않는 것을 서술하는 문서 부패를 기계가 잡는다.
+
+```bash
+ludoforge doc examples/dungeon.lf                    # → examples/dungeon.doc.html (자체 완결)
+ludoforge doc examples/dungeon_race.lf --md -o race.md   # Markdown으로
+```
+
+`for` 템플릿·표는 펼치지 않고 저자가 쓴 **접힌 형태**로 렌더되고(전투 8종 → 템플릿 1개 +
+확률 표), check들은 맨 끝 **"검증·추정 성질"** 절에 모인다 — 이 규칙서의 성질은 산문
+약속이 아니라 `bmc`(증명)·`sim`(추정)이 기계로 확인한다는 것이 일반 규칙서와의 차별점이다.
+규칙서는 단방향 파생 뷰다 — 수정은 항상 원본 `.lf`에서. 백엔드는 문서 절을 전부 무시하므로
+검증·추정 결과와 부하는 불변이다(D29). **종료코드:** `0` 생성 · `2` 로드/검증 오류.
 
 ### 확률 증명 오라클 (PRISM, 테스트 전용)
 

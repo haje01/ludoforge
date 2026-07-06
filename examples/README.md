@@ -46,6 +46,10 @@ weight, 뽑힌 카드는 감소 — 실물 게임의 레벨별 몬스터 카드,
 — 클래스·몬스터가 늘면 도메인 enum과 표의 행/열만 추가하면 된다(템플릿 확장 Tier 1+2,
 CLAUDE.md §4.2 / D18).
 
+`dungeon.lf`·`dungeon_race.lf`는 **문서 절**(D29 — `section`/`note`/`ref`/`tag`·`desc`)로
+게임 규칙 산문까지 담고 있다 — `ludoforge doc examples/dungeon.lf`로 사람이 읽는 규칙서
+(HTML)를 생성해 보라. 산문 속 `[[이름]]` 참조는 로더가 존재를 검사한다(문서 부패 방지).
+
 > **참고(D23):** sim↔PRISM 교차검증용 DTMC 던전판은 사용자 예제가 아니라 테스트 오라클
 > 픽스처(`tests/fixtures/oracle_dungeon.lf`)다 — `tests/test_sim_oracle.py`가 PRISM 정확값을
 > sim 추정의 신뢰구간과 대조한다(PRISM은 D23으로 사용자 표면에서 내려 테스트 오라클로만 남음).
