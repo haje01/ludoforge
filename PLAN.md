@@ -874,7 +874,7 @@ PRISM 생성기도 이미 **비율형**(`weight/total`, `prism_gen._prob`)으로
 
 ---
 
-## 규칙서 SSOT 아크 (12~14차) — 개요 — ⬜ 계획 수립 (2026-07-06, 비준 대기)
+## 규칙서 SSOT 아크 (12~14차) — 개요 — ✅ 완료 (2026-07-06, 12~14차 전부 마감)
 
 > **진단(2026-07-06 합의):** `.lf`는 검증·추정에 최적화되어 실제 게임 규칙의 서술이 두
 > 방식으로 유실된다 — ① **형식화 손실**: 규칙 원형이 DSL 밖에서 손으로 lowering됨(2d6
@@ -1073,9 +1073,15 @@ dungeon.lf의 win/miss/death 표 24칸은 실제 규칙("2d6이 격파 목표값
 
 ---
 
-## 14차 마일스톤 — `ghost` 서술 변수(검증 제외 상태) — ⬜ 비준 대기
+## 14차 마일스톤 — `ghost` 서술 변수(검증 제외 상태) — ✅ 완료 (2026-07-06, P0~P3)
 
-> 설계 근거는 본 절(착수 시 **decisions.md D31**로 승격). 한 줄: **비-ghost 궤적에 영향을
+> **Phase 0 완료:** 사용자 비준(2026-07-06) — 설계는 **decisions.md D31**로 승격 기록됨.
+> **Phase 1 완료(2026-07-06):** `ghost` 수식어·`Variable.ghost`·단방향 의존 게이트.
+> **Phase 2 완료(2026-07-06):** `core/ghost.py`(erase_ghosts) + bmc/PRISM 배선·sim 라벨.
+> **Phase 3 완료(2026-07-06):** dungeon.lf `fights` 저술·docgen 표기·CLAUDE §4.5·README.
+> **14차 마감 — 규칙서 SSOT 아크(12~14차) 종결.**
+>
+> 설계 근거는 본 절(→ **decisions.md D31**). 한 줄: **비-ghost 궤적에 영향을
 > 줄 수 없는 서술 전용 상태 변수**를 들여, 턴 수·최심 도달 층 같은 상태성 서술을 sim이
 > 실행(분포 리포트)하되 bmc/PRISM은 상태공간에서 완전 제거(`erase_ghosts`)한다 — BMC
 > 부하 0, 단방향 의존은 schema가 정적으로 강제(D24 계보).
@@ -1112,27 +1118,32 @@ dungeon.lf의 win/miss/death 표 24칸은 실제 규칙("2d6이 격파 목표값
 
 > 게이트(매 PR): `pytest` + `ruff check` + `ruff format` + `mypy`(strict).
 
-**Phase 0 — D31 기록 & 비준** *(행위 변경 없음)*
+**Phase 0 — D31 기록 & 비준** *(행위 변경 없음)* — ✅ 완료 (2026-07-06)
 - decisions.md D31. 비준 포인트: ① 단방향 의존 규칙(특히 weight/pref에서도 금지),
   ② init 상수 고정만, ③ `erase_ghosts`를 core에 두고 bmc/PRISM만 통과, ④ 리포트 라벨.
-- **성공 기준:** 사용자 비준.
+- **성공 기준 충족:** 사용자 비준(2026-07-06).
 
-**Phase 1 — 문법·IR·schema 게이트** *(구조+행위)*
+**Phase 1 — 문법·IR·schema 게이트** *(구조+행위)* — ✅ 완료 (2026-07-06)
 - `ghost` 수식어 문법·`Variable.ghost`·참조 위치 게이트(`_check_ghost_one_way`).
-- **성공 기준:** 위반 픽스처(가드/weight/pref/constraint/비-ghost RHS의 ghost 참조)
-  전부 위치 보고 거부, ghost 없는 전 코퍼스 골든 IR 무회귀.
+- **성공 기준 충족:** 위반 픽스처(가드/weight/pref/constraint/reachable that/비-ghost 효과
+  RHS/init 파생·미고정) 전부 거부(선언·절 짚음), ghost 대입 RHS는 전부 읽기 허용, 배열
+  ghost 승계, ghost 없는 전 코퍼스 골든 IR 무회귀. var_decl 파츠 헬퍼를 ghost 대응으로 확장.
 
-**Phase 2 — `erase_ghosts` + 백엔드 배선** *(행위적 변경, 핵심)*
+**Phase 2 — `erase_ghosts` + 백엔드 배선** *(행위적 변경, 핵심)* — ✅ 완료 (2026-07-06)
 - core 순수 변환 + bmc/PRISM 소비 전 적용, sim은 원본. distribution의 ghost 참조 허용.
-- **성공 기준(핵심 회귀):** ghost 단 모델에서 ① bmc 리포트가 ghost 제거판과 **동일**
-  (증명 지위 불변), ② sim 비-ghost 추정 **비트 동일**(rng 미소비 확인), ③ ghost
-  distribution 신규 동작(평균·CI·백분위).
+- **성공 기준 충족:** 픽스처 쌍(ghost_counter ↔ 손으로 걷어낸 plain 쌍둥이)으로 ① bmc
+  검사 지위 동일 + erased_ghosts 각주, ② sim 비-ghost 추정 **비트 동일**(ProportionResult
+  완전 동등 — rng 미소비), ③ ghost distribution 신규 동작 + "서술 변수(ghost — 논리 검증
+  제외)" 라벨(텍스트·HTML). 전부-ghost 효과 분기는 `True`(bmc)·`true`(PRISM 항등 갱신)로
+  보존. `check_finite_state`는 ghost 스킵(무한 int ghost 허용).
 
-**Phase 3 — 예제·문서** *(행위+문서)*
-- dungeon.lf에 ghost 추가(예: `turns` 게임 길이·`max_depth` 최심 층) + distribution
-  check("평균 게임 길이·최심 도달 분포"), docgen "서술 변수" 표기(12차 후행 연계),
-  CLAUDE §4 신설 절·concepts·README.
-- **성공 기준:** 기존 bmc 9검사 지위 불변 + sim 신규 분포 리포트, 문서·예제 일관.
+**Phase 3 — 예제·문서** *(행위+문서)* — ✅ 완료 (2026-07-06)
+- dungeon.lf에 ghost `fights`(전투 횟수 — 계획의 turns/max_depth 대신 전투 노출량이
+  직업 밸런스에 더 유의미해 대체) + `fight_count` distribution check, docgen 용어집
+  "서술 변수(논리 검증 제외)" 표기, CLAUDE §4.5 신설·§6, README·examples README.
+  concepts.md는 미갱신(후속 — 아크 전체 개념 절을 한 번에 쓰는 것이 낫다).
+- **성공 기준 충족:** dungeon bmc 9검사 지위 불변(ghost는 각주로만) + sim 직업별 전투
+  횟수 분포 신규(rogue 평균 ~6.8 vs cleric ~5.2 등), 문서·예제 일관. 전체 392 통과.
 
 ### 4. 위험 & 미해결 질문
 

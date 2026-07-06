@@ -1067,6 +1067,38 @@
   교차검증(닫힌형 ∈ sim CI).
 ---
 
+## D31. `ghost` 서술 변수 — 검증 제외 상태(단방향 의존)
+
+- **상태:** 확정 (2026-07-06, 사용자 비준) — 14차 마일스톤(규칙서 SSOT 아크의 셋째·마지막).
+- **맥락:** "게임이 보통 몇 번의 전투를 거치나" 같은 서술적 정량은 규칙서·튜닝에 유용하나,
+  상태 변수로 넣는 순간 BMC/PRISM 상태공간이 곱으로 커진다(k-귀납·데드락 증명 저하).
+  ghost가 게임 진행에 몰래 영향을 주면 두 백엔드 의미가 갈라진다(D24와 동종의 조용한
+  불일치) — 그래서 **단방향 의존을 schema가 정적으로 강제하는 게이트가 본체**다.
+- **결정:**
+  - **선언:** `ghost turns: int 0..` 수식어(`.lf` 전용, 배열 D28과 결합 가능). IR
+    `Variable.ghost: bool = False`(기본 False → 골든 무회귀).
+  - **단방향 의존(핵심 불변식): "ghost 전부 제거 시 비-ghost 궤적 비트 동일".** ghost를
+    읽을 수 있는 곳 = ① ghost 대입의 RHS, ② `distribution` check expr(sim 전용 리포트),
+    ③ 문서 절 `[[..]]`(D29). **가드·constraint·expects·reachable/invariant that·
+    pref/weight 요율·비-ghost 효과 RHS에서 ghost 참조는 schema가 거부**
+    (`_check_ghost_one_way`). init에서 ghost는 **상수 고정 필수**(자유 sweep·파생 금지).
+  - **`erase_ghosts(ruleset)` — core의 순수 IR→IR 변환:** ghost 선언·ghost 대입·init의
+    ghost conjunct 제거(효과가 전부 ghost면 `True`로 — 프레임이 유지하는 자기 분기).
+    **bmc·PRISM 오라클은 소비 전 erase**(상태공간 완전 제거 — 증명 지위 불변), **sim은
+    원본 실행**(ghost 대입은 rng 미소비 → 비-ghost 추정 비트 동일). `check_finite_state`는
+    ghost를 건너뛴다(erase 후 기준 — ghost는 무한 int여도 PRISM 게이트에 무해).
+  - **리포트 정직성:** sim distribution의 ghost 식 결과에 "서술 변수(ghost — 논리 검증
+    제외)" 라벨. bmc 리포트에 ghost 제거를 각주로 명시(조용히 숨기지 않음).
+- **기각한 대안:** ghost의 가드/weight 참조 허용(백엔드 의미 분기 — D24 교훈), bmc가
+  ghost를 그대로 태우기(상태공간 낭비 — 이 마일스톤의 존재 이유 부정), 별도 관측 전용
+  파일(SSOT 분리 — 아크 개요에서 기각한 상세/추상 분리와 동종).
+- **영향:** `core/ir.py`(ghost)·`core/text_loader.py`(수식어)·`core/schema.py`(게이트·
+  finite 스킵)·`core/ghost.py`(erase, 신설)·`logic/solver/bmc.py`(erase+각주)·
+  `prob/prism_gen.py`(erase)·`sim/aggregate.py`(라벨)·`examples/dungeon.lf`·CLAUDE §4.
+- **성공 기준:** ghost 단 모델에서 bmc 리포트가 ghost 제거판과 동일(증명 지위 불변),
+  sim 비-ghost 추정 비트 동일, ghost distribution 신규 동작, 위반 참조는 위치 짚는 거부.
+---
+
 ## 참고
 - 결정의 도메인 배경: [concepts.md](concepts.md) (특히 §4 — 도달 가능성 검사)
 - 살아있는 계획·진행: [../PLAN.md](../PLAN.md) / [../PROGRESS.md](../PROGRESS.md)

@@ -383,6 +383,32 @@ constraint cap:
   (깨진 모델의 규칙서는 안 만든다). 자체 완결 HTML(외부 의존 0)·결정론·단방향 파생 뷰
   (수정은 항상 원본 `.lf`). 참조 예제: `examples/dungeon.lf`·`dungeon_race.lf`(저술 완료).
 
+### 4.5 ghost 서술 변수 — 검증 제외 상태 (D31)
+
+"게임당 전투 횟수" 같은 **서술적 정량**을 상태 변수로 넣으면 BMC/PRISM 상태공간이 곱으로
+커진다. `ghost` 수식어(`.lf` 전용, 14차)는 이 트레이드오프를 끊는다 — **sim만 실행**하고
+**bmc/PRISM 오라클은 소비 전에 `erase_ghosts`(core/ghost.py)로 상태공간에서 완전 제거**한다
+(k-귀납 증명 지위 불변, 리포트 각주로 제거를 명시).
+
+```text
+domain { ghost fights: int 0.. }        // 무한 int여도 무방 — erase 후 소비라 PRISM 게이트 무해
+init: … and fights == 0                 // ghost는 init 상수 고정 필수(자유 sweep·파생 금지)
+transition fight:
+    …
+    then { gold = gold + 2; fights = fights + 1 }   // ghost 대입은 실제 효과에 병기
+check fight_count distribution: fights  // sim 전용 — "서술 변수(논리 검증 제외)" 라벨
+```
+
+- **단방향 의존(핵심 불변식): "ghost 전부 제거 시 비-ghost 궤적 비트 동일."** ghost를 읽을
+  수 있는 곳 = ghost 대입의 RHS·`distribution` expr·문서 절뿐. **가드·constraint·expects·
+  reachable/invariant that·pref/weight·비-ghost 효과 RHS의 ghost 참조는 schema가 거부**
+  (`_check_ghost_one_way` — D24 계보의 조용한 백엔드 분기 차단). 게임에 영향을 줘야 하는
+  값이면 ghost를 떼라(거부 메시지가 안내).
+- ghost 대입은 rng를 소비하지 않아 sim의 비-ghost 추정이 **비트 동일**하게 보존된다. 배열
+  (D28)과 결합 가능(`ghost visits[p1, p2]: …` — 원소 전부 승계). `check_finite_state`는
+  ghost를 건너뛴다(erase 후 기준). 효과가 전부 ghost인 분기는 erase 후 `True`(항등 효과 —
+  분기 구조 보존). 참조 예제: `examples/dungeon.lf`의 `fights`.
+
 ---
 
 ## 5. 기술 스택 / 환경
@@ -414,6 +440,7 @@ core/          # 공유 DSL 프론트엔드(SSOT) — 세 백엔드가 같은 IR
   schema.py          # 스키마·참조 검증 + check_finite_state(PRISM 게이트) + check_dtmc(sim 게이트)
   htmlviz.py         # HTML 리포트 인터랙션(의존성 없는 호버 툴팁 CSS·JS) — sim --html 전용(bmc는 값을 인라인 노출해 미사용)
   docgen.py          # .lf → 규칙서(HTML/MD) 생성 — desugar 전 트리 기반(D29), ludoforge doc
+  ghost.py           # ghost 서술 변수 제거(D31) — bmc/PRISM 소비 전 순수 IR→IR 변환(sim은 원본)
 ludoforge/           # 우산: 통합 CLI 진입점·프로젝트 버전
   cli.py             # ludoforge check / bmc / sim / doc  (PRISM은 테스트 오라클, CLI 미노출/D23)
 logic/           # 논리 증명 백엔드 (Z3/BMC)

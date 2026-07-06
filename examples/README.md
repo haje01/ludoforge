@@ -46,6 +46,8 @@ weight, 뽑힌 카드는 감소 — 실물 게임의 레벨별 몬스터 카드,
 — 클래스·몬스터가 늘면 도메인 enum과 표의 행/열만 추가하면 된다(템플릿 확장 Tier 1+2,
 CLAUDE.md §4.2 / D18).
 
+`dungeon.lf`는 **ghost 서술 변수**(D31 — `ghost fights`)로 게임당 전투 횟수 분포를
+sim 전용으로 추정한다(bmc/PRISM 상태공간에선 제거 — 검증 부하 0의 서술 지표).
 `dungeon.lf`·`dungeon_race.lf`는 **문서 절**(D29 — `section`/`note`/`ref`/`tag`·`desc`)로
 게임 규칙 산문까지 담고 있다 — `ludoforge doc examples/dungeon.lf`로 사람이 읽는 규칙서
 (HTML)를 생성해 보라. 산문 속 `[[이름]]` 참조는 로더가 존재를 검사한다(문서 부패 방지).
