@@ -51,7 +51,7 @@ h1 { font-size: 1.5rem; margin: 0 0 .5rem; }
 .head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
   padding-bottom: .5rem; margin-bottom: .5rem; border-bottom: 1px solid var(--border); }
 .title { font-size: 1.15rem; font-weight: 700; color: var(--cfg); }
-.title .kind { color: var(--muted); font-weight: 400; font-size: .8rem; }
+.title .kind { color: var(--muted); font-weight: 400; font-size: .95rem; }
 .badge { font-size: .8rem; font-weight: 600; padding: .15rem .55rem; border-radius: 999px;
   white-space: nowrap; border: 1px solid transparent; }
 .badge.ok { color: var(--ok); border-color: var(--ok); }
