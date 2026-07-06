@@ -498,9 +498,26 @@ class _ToIR(lark.Transformer[lark.Token, RuleSet]):
         )
 
 
-_PARSER = lark.Lark(_GRAMMAR, parser="lalr")
+# propagate_positions: 규칙서 생성(docgen, D29 P2)이 트리 노드의 원문 조각을 잘라 쓰기
+# 위해 meta(start_pos/end_pos)를 보존한다 — IR 변환 경로에는 영향 없음(메타는 부가 정보).
+_PARSER = lark.Lark(_GRAMMAR, parser="lalr", propagate_positions=True)
 _TRANSFORMER = _ToIR()
 _TMPL = re.compile(r"\$\{([^}]+)\}")
+
+
+def parse_doc_tree(src: str, source: str | None = None) -> lark.Tree[lark.Token]:
+    """규칙서 생성용(D29 P2) — desugar *전* 파스 트리(위치 보존)를 돌려준다.
+
+    docgen은 저자가 쓴 접힌 형태(for 템플릿·표·section)를 렌더해야 하므로 IR이 아니라
+    이 트리를 소비한다. 검증(스키마·참조 게이트)은 별도로 `parse_rule_text`가 담당한다."""
+    prefix = f"{source}: " if source else ""
+    try:
+        return _PARSER.parse(src)
+    except lark.exceptions.UnexpectedInput as exc:
+        loc = f"line {exc.line} col {exc.column}"
+        raise TextLoaderError(f"{prefix}구문 오류 ({loc}): {exc}") from exc
+    except lark.exceptions.LarkError as exc:
+        raise TextLoaderError(f"{prefix}파싱 실패: {exc}") from exc
 
 
 # ── 데구거(S5): table 수집 → for 곱 펼치기 → loop var·색인·${} 해소(D18) ──────────
@@ -919,13 +936,7 @@ def parse_rule_text(src: str, source: str | None = None) -> RuleSet:
     구문 오류·경계 타입 오류·템플릿 오류는 위치 정보와 함께 `TextLoaderError`로 보고한다.
     """
     prefix = f"{source}: " if source else ""
-    try:
-        tree = _PARSER.parse(src)
-    except lark.exceptions.UnexpectedInput as exc:
-        loc = f"line {exc.line} col {exc.column}"
-        raise TextLoaderError(f"{prefix}구문 오류 ({loc}): {exc}") from exc
-    except lark.exceptions.LarkError as exc:
-        raise TextLoaderError(f"{prefix}파싱 실패: {exc}") from exc
+    tree = parse_doc_tree(src, source)
 
     try:
         tables = _collect_tables(tree)

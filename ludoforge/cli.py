@@ -4,6 +4,7 @@
   ludoforge check <path>   정적 모순 검사 (논리 백엔드/Z3)
   ludoforge bmc   <path>   전이 시스템 BMC (논리 백엔드/Z3·BMC)
   ludoforge sim   <path>   Monte Carlo 추정 (sim 백엔드, 주 정량 경로/D19)
+  ludoforge doc   <path>   규칙서 생성 (.lf → HTML/Markdown, D29 — 검증 아님·문서 뷰)
 
 (PRISM은 D23으로 사용자 표면에서 내려 테스트 전용 교차검증 오라클로만 남는다.)
 
@@ -17,8 +18,10 @@ from pathlib import Path
 
 import typer
 
-from core.loader import LoaderError, load_rules
+from core.docgen import render_doc_html, render_doc_markdown
+from core.loader import LoaderError, load_rule_file, load_rules
 from core.schema import SchemaError, validate
+from core.text_loader import TextLoaderError
 from logic.solver.bmc import format_bmc_report, run_bmc
 from logic.solver.checks import check as run_checks
 from logic.solver.html_report import render_bmc_html
@@ -149,6 +152,46 @@ def sim(
         out_path = Path(html_out)
         out_path.write_text(render_sim_html(report), encoding="utf-8")
         typer.echo(f"HTML 리포트를 저장했습니다: {out_path}")
+    raise typer.Exit(_EXIT_OK)
+
+
+@app.command()
+def doc(
+    path: str = typer.Argument(..., help="규칙서를 만들 .lf 파일"),
+    out: str | None = typer.Option(
+        None, "--out", "-o", help="출력 경로(기본: <입력>.doc.html 또는 .doc.md)"
+    ),
+    md: bool = typer.Option(False, "--md", help="HTML 대신 Markdown으로 출력"),
+) -> None:
+    """`.lf`에서 사람이 읽는 게임 규칙서를 생성한다(D29 — 단방향 파생 뷰).
+
+    검증이 아니라 문서화다. 생성 전에 로드·스키마·`[[이름]]` 참조 게이트를 통과해야
+    한다(깨진 모델의 규칙서는 만들지 않는다). 종료코드: 0=생성 · 2=로드/검증 오류.
+    """
+    in_path = Path(path)
+    if in_path.suffix != ".lf":
+        typer.echo(
+            "규칙서 생성은 자체 문법(.lf) 전용입니다 — YAML(.rule)은 디프리케이트(D21).",
+            err=True,
+        )
+        raise typer.Exit(_EXIT_ERROR)
+    try:
+        ruleset = load_rule_file(in_path)  # .lf 로드 = 파싱 + [[이름]] 참조 게이트(D29)
+        validate(ruleset)
+        src = in_path.read_text(encoding="utf-8")
+        title = f"{in_path.stem} 규칙서"
+        rendered = (
+            render_doc_markdown(src, title, source=in_path.name)
+            if md
+            else render_doc_html(src, title, source=in_path.name)
+        )
+    except (OSError, LoaderError, SchemaError, TextLoaderError) as e:
+        typer.echo(f"규칙서를 생성할 수 없습니다:\n{e}", err=True)
+        raise typer.Exit(_EXIT_ERROR) from e
+
+    out_path = Path(out) if out else in_path.with_suffix(".doc.md" if md else ".doc.html")
+    out_path.write_text(rendered, encoding="utf-8")
+    typer.echo(f"규칙서를 생성했습니다: {out_path}")
     raise typer.Exit(_EXIT_OK)
 
 
