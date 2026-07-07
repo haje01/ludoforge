@@ -53,7 +53,7 @@ GRAMMAR SUMMARY
         outcomes:                          // probabilistic branches (weights)
             0.7 -> gold = gold + 5
             0.3 -> status = dead
-    check winnable  reachable: gold >= 30
+    check winnable  reachable: gold >= 30  // kind keyword REQUIRED before the colon
     check gold_ok   invariant: gold >= 0
     check no_stuck  no_deadlock
     check gold_dist distribution: gold     // numeric expr, sim only
@@ -79,6 +79,12 @@ HARD RULES
    verifies the designer's intent.
 8. Add `desc "..."` (Korean) to constraints/transitions/checks so a generated
    rulebook stays readable.
+9. `check` syntax is `check <id> <kind>: <predicate>` — the kind keyword
+   (reachable | invariant | no_deadlock | distribution) is REQUIRED between the
+   id and the colon. `check <id>: <predicate>` is a syntax error.
+10. `init`/`transition`/`check` are for DYNAMIC models only (state that changes
+    over turns). For a purely static model (constraints over one snapshot),
+    express every "should be possible" intent with `expect`, never `check`.
 
 OUTPUT: return ONLY the `.lf` source, in a single fenced code block.
 """
@@ -87,10 +93,24 @@ _REPAIR_PROMPT = """\
 Your `.lf` failed the loader/schema gate with this error:
 
 {error}
-
+{offending}
 Fix the model and return the FULL corrected `.lf` source in one fenced code
 block. Do not drop declarations that were correct.
 """
+
+_LINE_IN_ERROR = re.compile(r"line (\d+)")
+
+
+def _offending_line(candidate: str, error: str) -> str:
+    """오류가 짚는 줄의 원문을 인용한다 — 위치만 주면 모델이 같은 실수를 반복한다(H3)."""
+    m = _LINE_IN_ERROR.search(error)
+    if m is None:
+        return ""
+    lines = candidate.splitlines()
+    line_no = int(m.group(1))
+    if not 1 <= line_no <= len(lines):
+        return ""
+    return f"\nLine {line_no} of your output was:\n    {lines[line_no - 1].strip()}\n"
 
 
 @dataclass(frozen=True)
@@ -137,7 +157,8 @@ def translate_prose(
         if error is None:
             return TranslateResult(ok=True, lf_text=candidate, attempts=tuple(attempts))
         messages.append({"role": "assistant", "content": response})
-        messages.append({"role": "user", "content": _REPAIR_PROMPT.format(error=error)})
+        repair = _REPAIR_PROMPT.format(error=error, offending=_offending_line(candidate, error))
+        messages.append({"role": "user", "content": repair})
 
     return TranslateResult(ok=False, lf_text=candidate, attempts=tuple(attempts))
 

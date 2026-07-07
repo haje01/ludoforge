@@ -27,7 +27,7 @@ ludoforge web --port 9000 --config configs/web.yaml
 
 | 키 | 의미 | 기본 |
 |----|------|------|
-| `model` | 번역용 Claude 모델 | `claude-sonnet-5` |
+| `model` | 번역용 Claude 모델 | `claude-opus-4-8` |
 | `max_translate_attempts` | 수리 루프 상한 | 3 |
 | `bmc_k_max` | BMC 깊이 상한(요청 클램프) | 30 |
 | `sim_samples_max` / `sim_horizon_max` | sim 표집/지평 상한 | 200000 / 10000 |

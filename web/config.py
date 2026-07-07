@@ -16,7 +16,7 @@ DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "configs" / "web.
 
 @dataclass(frozen=True)
 class WebConfig:
-    model: str = "claude-sonnet-5"  # 번역용 Claude 모델
+    model: str = "claude-opus-4-8"  # 번역용 Claude 모델(기본 Opus — 번역 품질 우선)
     max_translate_attempts: int = 3  # LLM 수리 루프 상한
     bmc_k_max: int = 30  # BMC 언롤링 깊이 상한
     sim_samples_max: int = 200_000  # sim 설정당 표집 상한

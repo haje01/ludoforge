@@ -85,6 +85,38 @@ def test_tables_prepended_and_validated_together() -> None:
     assert "reward" in result.lf_text
 
 
+def test_repair_prompt_quotes_offending_line() -> None:
+    """실사용 회귀(2026-07-07): kind 없는 check로 3회 전패 — 수리 피드백이 위치(줄/열)만
+    줘서 모델이 같은 실수를 반복했다. 오류가 짚는 줄의 원문을 인용해 되먹여야 한다."""
+    bad_check = "domain { hp: int 0..1000 }\ncheck hp_ok: hp <= 1000\n"  # kind 누락(2행)
+
+    calls: list[list[dict[str, str]]] = []
+
+    def complete(system: str, messages: list[dict[str, str]]) -> str:
+        calls.append([dict(m) for m in messages])
+        return bad_check if len(calls) == 1 else _VALID_LF
+
+    result = translate_prose("HP 상한", complete=complete, max_attempts=2)
+    assert result.ok
+    repair_msg = calls[1][-1]["content"]
+    assert "check hp_ok: hp <= 1000" in repair_msg  # 문제 줄 원문 인용
+
+
+def test_system_prompt_teaches_check_kind_and_static_expect() -> None:
+    """프롬프트 계약 고정(실사용 회귀의 원인 H1·H2): check kind 필수·정적 모델은 expect."""
+    captured: list[str] = []
+
+    def complete(system: str, messages: list[dict[str, str]]) -> str:
+        captured.append(system)
+        return _VALID_LF
+
+    assert translate_prose("아무거나", complete=complete).ok
+    system = captured[0]
+    assert "check <id> <kind>" in system
+    assert "REQUIRED" in system
+    assert "expect" in system and "never `check`" in system
+
+
 def test_schema_error_also_triggers_repair() -> None:
     # 구문은 통과하나 미정의 변수를 참조 — 스키마 게이트가 잡아 재시도로 이어져야 한다.
     bad_schema = "domain { hp: int 0.. }\nconstraint c: then mana <= 100\n"
