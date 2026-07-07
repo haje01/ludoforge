@@ -37,6 +37,7 @@ EXAMPLE_EXPECTED = {
     "dungeon": False,  # 전이 시스템 예제 — 정적 check는 모순 없음(동역학은 ludoforge bmc)
     "dungeon_race": False,  # 2인 레이스(D27) — 정적 check는 모순 없음(동역학은 bmc/sim)
     "market_sim": False,  # real·다변수 시연(sim 백엔드/D19) — 정적 check는 모순 없음
+    "terraforming_mars": False,  # TM 수치 서브시스템(D32 범위 시연) — 정적 check는 모순 없음
 }
 
 
