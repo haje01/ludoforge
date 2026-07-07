@@ -1,0 +1,90 @@
+// 테라포밍 마즈 — 글로벌 파라미터·TR 경제 서브시스템 (D32 범위 시연)
+//
+// 카드 200여 장(카드별 고유 메커니즘)은 명시적 비목표(D32·CLAUDE §1)다. 이 모델은
+// TM에서 검증 가능한 **수치·경제 부분계**만 담는다: 세 글로벌 파라미터(온도·산소·바다),
+// 테라포밍 등급(TR), 세대 소득, 표준 프로젝트 비용. 웹 인터페이스의 기획 입력 예제
+// (산문+시트 3장)와 짝을 이루는 참조 번역이다.
+//
+//   ludoforge check examples/terraforming_mars.lf          # 정적 모순 없음
+//   ludoforge bmc  examples/terraforming_mars.lf --k 10    # 불변식 k-귀납 증명·무데드락
+//   ludoforge bmc  examples/terraforming_mars.lf --k 45    # 완주 도달성 증인(깊이 43, ~5분)
+//   ludoforge sim  examples/terraforming_mars.lf -H 300 -n 20000   # 게임 길이·잔고 분포
+//
+// 모델링 노트: 세 파라미터는 "단계 +1, TR +1" 구조가 동형이라 배열(D28) + for 템플릿
+// (D18)로 접었다 — 상한·비용·정책만 표로 갈린다(시트 3장과 1:1). 한 전이 = 한 세대
+// (소득 수령 후 프로젝트 1개 또는 저축). 세대 수는 ghost(D31)로 센다.
+
+section "지구화 단계"
+
+domain {
+    level[temp, oxy, ocean]: int 0..19  desc "글로벌 파라미터 단계 — 온도(0=-30°C, 19=+8°C·2°C/단계), 산소(%), 바다 타일 수"
+    tr:     int 20..62                  desc "테라포밍 등급 — 초기 20, 파라미터 1단계당 +1(최대 62)"
+    mc:     int 0..3000                 desc "보유 메가크레딧 — 상한 3000에서 포화"
+    status: enum { playing, done }      desc "게임 진행 상태"
+    ghost gens: int 0..                 desc "지난 세대 수 — 게임 길이의 서술 지표(논리 검증 제외)"
+}
+
+section "표준 프로젝트 데이터"
+
+// 파라미터별 상한·표준 프로젝트 비용·정책 성향 — 웹 입력에선 시트(CSV) 3장이 이 표가 된다.
+table cap  desc "파라미터 단계 상한(온도 19단계·산소 14%·바다 9개)" { temp: 19, oxy: 14, ocean: 9 }
+table cost desc "표준 프로젝트 비용(MC) — 소행성(온도)·녹지(산소)·대수층(바다)" { temp: 14, oxy: 23, ocean: 18 }
+table policy desc "플레이어 성향(상대 가중치) — 온도 우선, 바다, 산소 순" { temp: 4, oxy: 2, ocean: 3 }
+
+section "세대 진행"
+
+init: level[temp] == 0 and level[oxy] == 0 and level[ocean] == 0
+    and tr == 20 and mc == 40 and status == playing and gens == 0
+
+// 한 세대 = 소득(TR만큼 MC) 수령 후 표준 프로젝트 1개 수행. 비용은 소득 포함 잔고에서
+// 지불(가드가 지불 가능성 보장), MC는 상한 3000에서 포화(가드 없는 오버플로 회피, D24 관례).
+for p in [temp, oxy, ocean]:
+    transition "raise_${p}":
+        desc "표준 프로젝트 — 파라미터 1단계 상승, TR +1"
+        note "파라미터가 상한([[cap]]) 미만이고 소득 포함 잔고가 비용([[cost]]) 이상이면 수행할 수 있다. 수행 시 해당 파라미터 +1, [[tr]] +1."
+        when status == playing and level[p] < cap[p] and mc + tr >= cost[p]
+        pref policy[p]
+        then { level[p] = level[p] + 1; tr = tr + 1; mc = min(mc + tr - cost[p], 3000); gens = gens + 1 }
+
+transition save_up:
+    desc "저축 세대 — 프로젝트 없이 소득만 수령"
+    note "지구화가 끝나기 전이라면 언제든 소득([[tr]]과 같은 MC)만 받고 세대를 넘길 수 있다."
+    when status == playing
+        and not (level[temp] == 19 and level[oxy] == 14 and level[ocean] == 9)
+    pref 1
+    then { mc = min(mc + tr, 3000); gens = gens + 1 }
+
+transition finish:
+    desc "지구화 완료 — 세 파라미터 모두 최대"
+    note "온도·산소·바다가 전부 상한이면 게임이 끝난다."
+    when status == playing
+        and level[temp] == 19 and level[oxy] == 14 and level[ocean] == 9
+    then status = done
+transition done_absorb:
+    desc "모델링 — 종료 상태 유지(데드락 방지용 흡수)"
+    when status == done
+    then status = done
+
+section "검증·추정 성질"
+
+check terraformable
+    desc "지구화 완주가 가능해야 한다(세 파라미터 모두 최대 도달)"
+    reachable: status == done
+check tr_floor
+    desc "TR은 초기값(20) 아래로 내려가지 않는다"
+    invariant: tr >= 20
+check tr_cap
+    desc "TR은 이론 최대(20+19+14+9=62)를 넘지 않는다"
+    invariant: tr <= 62
+check mc_nonneg
+    desc "잔고는 음수가 되지 않는다(프로젝트는 지불 가능할 때만)"
+    invariant: mc >= 0
+check no_stuck
+    desc "막다른 상태가 없어야 한다(저축이 항상 가능 → 종료 전 데드락 없음)"
+    no_deadlock
+check game_length
+    desc "게임 길이(세대 수) 분포 — [[gens]]는 ghost(D31)라 논리 검증 부하 0"
+    distribution: gens
+check final_mc
+    desc "종료 시점 잔고(MC) 분포 — 정책의 소비 성향에 따라 갈린다"
+    distribution: mc
