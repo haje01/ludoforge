@@ -28,4 +28,4 @@
 **결과:** 실험 1+2 적용(2026-07-07). 회귀 테스트로 고정:
 `test_repair_prompt_quotes_offending_line`(문제 줄 인용 되먹임)·
 `test_system_prompt_teaches_check_kind_and_static_expect`(프롬프트 계약).
-실제 API 재검증은 키가 있는 환경에서 같은 산문 재입력으로 확인 필요(미완).
+같은 산문 재입력으로 실사용 재검증 완료(2026-07-07, 사용자 확인) — **해결.**
