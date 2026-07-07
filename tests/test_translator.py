@@ -31,7 +31,7 @@ def _solver_with(t: Translation, *extra: Any) -> z3.Solver:
 
 
 def test_translate_produces_vars_and_rule_constraints() -> None:
-    t = translate(load_rule_file(FIXTURES / "warrior_hp.rule"))
+    t = translate(load_rule_file(FIXTURES / "warrior_hp.lf"))
     assert isinstance(t, Translation)
     assert set(t.z3_vars) == {"level", "hp", "role"}
     assert set(t.rule_constraints) == {"warrior_hp_formula", "global_hp_cap"}
@@ -39,7 +39,7 @@ def test_translate_produces_vars_and_rule_constraints() -> None:
 
 def test_enum_values_map_to_sort_constants() -> None:
     # D8: 정수 인코딩 대신 z3 EnumSort 상수로 매핑한다.
-    t = translate(load_rule_file(FIXTURES / "warrior_hp.rule"))
+    t = translate(load_rule_file(FIXTURES / "warrior_hp.lf"))
     enc = t.enum_encoding["role"]
     assert set(enc) == {"warrior", "mage", "archer"}
     role = t.z3_vars["role"]
@@ -49,7 +49,7 @@ def test_enum_values_map_to_sort_constants() -> None:
 
 def test_arithmetic_and_implies_semantics() -> None:
     # 전사(role==0), 레벨 51 → hp는 5100이어야 하고, 상한 5000과 모순이라 unsat.
-    t = translate(load_rule_file(FIXTURES / "warrior_hp.rule"))
+    t = translate(load_rule_file(FIXTURES / "warrior_hp.lf"))
     warrior = t.enum_encoding["role"]["warrior"]
     s = _solver_with(t, t.z3_vars["role"] == warrior, t.z3_vars["level"] == 51)
     assert s.check() == z3.unsat
@@ -57,7 +57,7 @@ def test_arithmetic_and_implies_semantics() -> None:
 
 def test_when_clause_only_fires_for_matching_case() -> None:
     # 마법사(role==1)는 전사 공식의 영향을 받지 않는다 → 레벨 100에도 sat.
-    t = translate(load_rule_file(FIXTURES / "warrior_hp.rule"))
+    t = translate(load_rule_file(FIXTURES / "warrior_hp.lf"))
     mage = t.enum_encoding["role"]["mage"]
     s = _solver_with(t, t.z3_vars["role"] == mage, t.z3_vars["level"] == 100)
     assert s.check() == z3.sat
@@ -65,7 +65,7 @@ def test_when_clause_only_fires_for_matching_case() -> None:
 
 def test_warrior_hp_is_forced_by_formula() -> None:
     # 전사 레벨 30 → hp는 정확히 3000으로 강제됨 (hp != 3000 이면 unsat).
-    t = translate(load_rule_file(FIXTURES / "warrior_hp.rule"))
+    t = translate(load_rule_file(FIXTURES / "warrior_hp.lf"))
     warrior = t.enum_encoding["role"]["warrior"]
     s = _solver_with(
         t,

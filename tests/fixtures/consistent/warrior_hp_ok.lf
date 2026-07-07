@@ -1,0 +1,13 @@
+// 정합: HP 상한이 10000이라 전사 레벨 100(hp=10000)도 도달 가능 → 모순 없음.
+domain {
+    level: int 1..100
+    hp:    int 0..
+    role:  enum { warrior, mage, archer }
+}
+
+constraint warrior_hp_formula:
+    when role == warrior
+    then hp == level * 100
+
+constraint global_hp_cap:
+    then hp <= 10000

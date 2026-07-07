@@ -78,7 +78,7 @@ def test_property_mapping() -> None:
 
 
 def test_no_deadlock_property_skipped() -> None:
-    rs = load_rule_file(Path(__file__).parent / "fixtures" / "bmc_deadlock.rule")
+    rs = load_rule_file(Path(__file__).parent / "fixtures" / "bmc_deadlock.lf")
     program = generate(rs)
     # no_deadlock는 prop으로 생성하지 않는다(PRISM 자동 탐지, D16)
     assert program.properties == ()

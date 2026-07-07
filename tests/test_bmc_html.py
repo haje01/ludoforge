@@ -57,9 +57,9 @@ def test_html_renders_reachable_trace() -> None:
 
 def test_html_marks_violation_and_deadlock() -> None:
     # 불변식 위반·데드락은 bad 배지로 표시되고 반례 경로가 들어간다.
-    inv = render_bmc_html(run_bmc(load_rule_file(FIXTURES / "bmc_counter.rule"), k=10))
+    inv = render_bmc_html(run_bmc(load_rule_file(FIXTURES / "bmc_counter.lf"), k=10))
     assert 'class="badge bad"' in inv  # never4 위반
-    dead = render_bmc_html(run_bmc(load_rule_file(FIXTURES / "bmc_deadlock.rule"), k=10))
+    dead = render_bmc_html(run_bmc(load_rule_file(FIXTURES / "bmc_deadlock.lf"), k=10))
     assert 'class="badge bad"' in dead
     assert 'class="trace"' in dead
 

@@ -27,7 +27,7 @@ def _domain() -> tuple[Variable, ...]:
 
 
 def test_valid_ruleset_passes() -> None:
-    rs = load_rule_file(FIXTURES / "warrior_hp.rule")
+    rs = load_rule_file(FIXTURES / "warrior_hp.lf")
     validate(rs)  # 예외 없이 통과해야 한다
 
 

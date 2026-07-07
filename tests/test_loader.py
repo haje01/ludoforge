@@ -1,7 +1,7 @@
-"""S2: 로더 테스트. .rule(YAML) → IR(RuleSet).
+"""S2: 로더 진입점 테스트. 확장자 디스패치·디렉토리 병합(.lf 전용, D32).
 
-로더는 구조적 파싱만 담당한다(YAML 형식, 필수 키, 필드 타입).
-참조 무결성(미정의 심볼, 중복 id 등)은 S3 스키마 검증의 몫이다.
+구조적 파싱(문법·필드)은 text_loader의 몫이라 test_text_loader.py가 검증한다.
+여기서는 진입점 책임만 본다: 파일/디렉토리 로드, YAML(.rule) 거부, 병합 규칙.
 실패 시 어떤 파일/필드가 문제인지 명시한 LoaderError를 던진다(CLAUDE.md §7).
 """
 
@@ -12,13 +12,13 @@ from pathlib import Path
 import pytest
 
 from core.ir import RuleSet
-from core.loader import LoaderError, load_rule_file
+from core.loader import LoaderError, load_rule_file, load_rules
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def test_loads_section4_example() -> None:
-    rs = load_rule_file(FIXTURES / "warrior_hp.rule")
+    rs = load_rule_file(FIXTURES / "warrior_hp.lf")
     assert isinstance(rs, RuleSet)
 
     level = rs.variable("level")
@@ -36,100 +36,48 @@ def test_loads_section4_example() -> None:
 
 def test_missing_file_raises_loader_error(tmp_path: Path) -> None:
     with pytest.raises(LoaderError, match="없"):
-        load_rule_file(tmp_path / "nope.rule")
+        load_rule_file(tmp_path / "nope.lf")
 
 
-def test_malformed_yaml_raises_loader_error(tmp_path: Path) -> None:
-    bad = tmp_path / "bad.rule"
-    bad.write_text("domain: [unclosed\n", encoding="utf-8")
-    with pytest.raises(LoaderError, match="YAML"):
+def test_yaml_rule_format_rejected(tmp_path: Path) -> None:
+    # D32: YAML 프론트엔드 제거 — 조용한 무시가 아니라 .lf 안내와 함께 거부한다.
+    legacy = tmp_path / "legacy.rule"
+    legacy.write_text("domain:\n  variables:\n    hp: { type: int }\n", encoding="utf-8")
+    with pytest.raises(LoaderError, match=r"\.lf"):
+        load_rule_file(legacy)
+
+
+def test_parse_error_reports_source_file(tmp_path: Path) -> None:
+    bad = tmp_path / "bad.lf"
+    bad.write_text("domain { hp: int 0.. \n", encoding="utf-8")  # 블록 미닫힘
+    with pytest.raises(LoaderError):
         load_rule_file(bad)
 
 
-def test_rule_without_then_names_the_rule(tmp_path: Path) -> None:
-    f = tmp_path / "no_then.rule"
-    f.write_text(
-        "domain:\n  variables:\n    hp: { type: int }\n"
-        "constraints:\n  - id: r1\n    when: 'hp > 0'\n",
-        encoding="utf-8",
-    )
-    with pytest.raises(LoaderError, match="r1"):
-        load_rule_file(f)
+def test_directory_without_lf_files_rejected(tmp_path: Path) -> None:
+    with pytest.raises(LoaderError, match=r"\.lf"):
+        load_rules(tmp_path)
 
 
-def test_unknown_variable_type_names_the_variable(tmp_path: Path) -> None:
-    f = tmp_path / "bad_type.rule"
-    f.write_text(
-        "domain:\n  variables:\n    hp: { type: float }\nconstraints: []\n",
-        encoding="utf-8",
+def test_directory_merges_lf_files(tmp_path: Path) -> None:
+    (tmp_path / "a.lf").write_text(
+        "domain { hp: int 0..100 }\nconstraint cap: then hp <= 100\n", encoding="utf-8"
     )
+    (tmp_path / "b.lf").write_text("constraint floor: then hp >= 0\n", encoding="utf-8")
+    rs = load_rules(tmp_path)
+    assert [c.id for c in rs.constraints] == ["cap", "floor"]
+    assert [c.source for c in rs.constraints] == ["a.lf", "b.lf"]
+
+
+def test_merge_conflicting_variable_declaration_rejected(tmp_path: Path) -> None:
+    (tmp_path / "a.lf").write_text("domain { hp: int 0..100 }\n", encoding="utf-8")
+    (tmp_path / "b.lf").write_text("domain { hp: int 0..200 }\n", encoding="utf-8")
     with pytest.raises(LoaderError, match="hp"):
-        load_rule_file(f)
+        load_rules(tmp_path)
 
 
-def test_loads_bool_variable(tmp_path: Path) -> None:
-    f = tmp_path / "b.rule"
-    f.write_text(
-        "domain:\n  variables:\n    stealthed: { type: bool }\nconstraints: []\n",
-        encoding="utf-8",
-    )
-    rs = load_rule_file(f)
-    v = rs.variable("stealthed")
-    assert (v.type, v.min, v.max, v.values) == ("bool", None, None, ())
-
-
-def test_loads_real_variable(tmp_path: Path) -> None:
-    f = tmp_path / "r.rule"
-    f.write_text(
-        "domain:\n  variables:\n    prob: { type: real, min: 0, max: 1 }\nconstraints: []\n",
-        encoding="utf-8",
-    )
-    rs = load_rule_file(f)
-    v = rs.variable("prob")
-    assert (v.type, v.min, v.max) == ("real", 0.0, 1.0)
-
-
-def test_real_accepts_float_bounds(tmp_path: Path) -> None:
-    f = tmp_path / "r2.rule"
-    f.write_text(
-        "domain:\n  variables:\n    drop: { type: real, min: 0.05, max: 0.5 }\nconstraints: []\n",
-        encoding="utf-8",
-    )
-    v = load_rule_file(f).variable("drop")
-    assert (v.min, v.max) == (0.05, 0.5)
-
-
-def test_loads_expects_section(tmp_path: Path) -> None:
-    f = tmp_path / "e.rule"
-    f.write_text(
-        "domain:\n  variables:\n    level: { type: int, min: 1, max: 100 }\n"
-        "constraints: []\n"
-        "expects:\n"
-        "  - id: lvl_max\n    desc: '레벨 100 도달 가능'\n    that: 'level == 100'\n",
-        encoding="utf-8",
-    )
-    rs = load_rule_file(f)
-    assert len(rs.expects) == 1
-    e = rs.expects[0]
-    assert (e.id, e.that, e.desc) == ("lvl_max", "level == 100", "레벨 100 도달 가능")
-
-
-def test_expect_without_that_names_it(tmp_path: Path) -> None:
-    f = tmp_path / "bad_expect.rule"
-    f.write_text(
-        "domain:\n  variables:\n    level: { type: int }\nconstraints: []\n"
-        "expects:\n  - id: e1\n    desc: '설명만 있음'\n",
-        encoding="utf-8",
-    )
-    with pytest.raises(LoaderError, match="e1"):
-        load_rule_file(f)
-
-
-def test_enum_without_values_names_the_variable(tmp_path: Path) -> None:
-    f = tmp_path / "bad_enum.rule"
-    f.write_text(
-        "domain:\n  variables:\n    role: { type: enum }\nconstraints: []\n",
-        encoding="utf-8",
-    )
-    with pytest.raises(LoaderError, match="role"):
-        load_rule_file(f)
+def test_merge_duplicate_init_rejected(tmp_path: Path) -> None:
+    (tmp_path / "a.lf").write_text("domain { x: int 0..5 }\ninit: x == 0\n", encoding="utf-8")
+    (tmp_path / "b.lf").write_text("init: x == 1\n", encoding="utf-8")
+    with pytest.raises(LoaderError, match="init"):
+        load_rules(tmp_path)

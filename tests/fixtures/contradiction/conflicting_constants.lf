@@ -1,0 +1,11 @@
+// 모순(전역 over-constraint): 두 룰이 level을 서로 다른 값으로 고정 → 전역 도달 불가.
+// 범인 룰: set_low, set_high.
+domain {
+    level: int 1..100
+}
+
+constraint set_low:
+    then level == 10
+
+constraint set_high:
+    then level == 20

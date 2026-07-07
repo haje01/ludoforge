@@ -1,0 +1,17 @@
+// CLAUDE.md §4 예시 룰셋 (로더 테스트용)
+domain {
+    level: int 1..100
+    hp:    int 0..
+    role:  enum { warrior, mage, archer }
+}
+
+constraint warrior_hp_formula:
+    author "planner_A"
+    desc "전사 최대 HP는 레벨당 100"
+    when role == warrior
+    then hp == level * 100
+
+constraint global_hp_cap:
+    author "planner_B"
+    desc "모든 캐릭터 HP는 5000을 넘지 않는다"
+    then hp <= 5000

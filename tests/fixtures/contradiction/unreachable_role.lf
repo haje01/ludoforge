@@ -1,0 +1,13 @@
+// 모순(unreachable enum): ghost는 hp==0인데 전역 룰이 hp>=1을 요구 → ghost 도달 불가.
+// 범인 룰: ghost_no_hp, must_have_hp.
+domain {
+    hp:   int 0..100
+    role: enum { normal, ghost }
+}
+
+constraint ghost_no_hp:
+    when role == ghost
+    then hp == 0
+
+constraint must_have_hp:
+    then hp >= 1

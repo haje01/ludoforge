@@ -23,7 +23,7 @@ def test_chunk_counts_partition_evenly() -> None:
 
 
 def test_run_sim_reproducible_same_seed() -> None:
-    rs = load_rule_file(FIXTURES / "arena.rule")
+    rs = load_rule_file(FIXTURES / "arena.lf")
     r1 = run_sim(rs, samples=2000, horizon=20, seed=5, workers=1)
     r2 = run_sim(rs, samples=2000, horizon=20, seed=5, workers=1)
     assert r1 == r2
@@ -31,14 +31,14 @@ def test_run_sim_reproducible_same_seed() -> None:
 
 def test_run_sim_identical_across_worker_counts() -> None:
     # 워커 1개와 4개의 결과가 비트 단위로 동일해야 한다(D19 — 청크 시드·병합 순서 고정).
-    rs = load_rule_file(FIXTURES / "arena.rule")
+    rs = load_rule_file(FIXTURES / "arena.lf")
     serial = run_sim(rs, samples=3000, horizon=20, seed=9, workers=1)
     parallel = run_sim(rs, samples=3000, horizon=20, seed=9, workers=4)
     assert serial == parallel
 
 
 def test_run_sim_class_win_rates_match_theory() -> None:
-    rs = load_rule_file(FIXTURES / "arena.rule")
+    rs = load_rule_file(FIXTURES / "arena.lf")
     report = run_sim(rs, samples=5000, horizon=20, seed=1, workers=2)
     by_role = {cfg.config["role"]: {r.check_id: r for r in cfg.checks} for cfg in report.configs}
     fighter = by_role["fighter"]["survives"]
@@ -56,7 +56,7 @@ def test_cli_sim_runs_and_labels_estimate() -> None:
     from ludoforge.cli import app
 
     result = CliRunner().invoke(
-        app, ["sim", str(FIXTURES / "arena.rule"), "--samples", "500", "--seed", "1"]
+        app, ["sim", str(FIXTURES / "arena.lf"), "--samples", "500", "--seed", "1"]
     )
     assert result.exit_code == 0
     assert "증명 아님" in result.stdout
@@ -68,7 +68,7 @@ def test_cli_sim_rejects_nondeterministic_model() -> None:
 
     from ludoforge.cli import app
 
-    result = CliRunner().invoke(app, ["sim", str(FIXTURES / "nondet.rule"), "--samples", "10"])
+    result = CliRunner().invoke(app, ["sim", str(FIXTURES / "nondet.lf"), "--samples", "10"])
     assert result.exit_code == 2  # 미선언 비결정 → 친절한 거부
     assert "비결정" in result.stderr
 
