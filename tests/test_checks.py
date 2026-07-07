@@ -22,7 +22,7 @@ def _check(rs: RuleSet):  # type: ignore[no-untyped-def]
 
 
 def test_warrior_hp_contradiction_pins_level_and_culprits() -> None:
-    rs = load_rule_file(FIXTURES / "warrior_hp.rule")
+    rs = load_rule_file(FIXTURES / "warrior_hp.lf")
     report = _check(rs)
 
     assert report.has_contradiction
@@ -128,7 +128,7 @@ def test_unconditionally_pinned_enum_is_not_false_positive() -> None:
 def test_bool_state_blocked_by_mutex_is_reported() -> None:
     # D6: attacking이 항상 강제되고 상호 배제이므로 stealthed=true는 도달 불가.
     # attacking은 무조건 강제(종속)라 검사 대상에서 빠지고, 자유 bool인 stealthed만 잡힌다.
-    rs = load_rule_file(FIXTURES / "contradiction" / "stealth_blocked.rule")
+    rs = load_rule_file(FIXTURES / "contradiction" / "stealth_blocked.lf")
     report = _check(rs)
     assert report.has_contradiction
     assert len(report.unreachable_states) == 1
@@ -140,7 +140,7 @@ def test_bool_state_blocked_by_mutex_is_reported() -> None:
 
 def test_free_bool_with_mutex_has_no_false_positive() -> None:
     # D6 거짓양성 회귀: 상호 배제만 있고 둘 다 자유면 각 상태가 도달 가능 → 모순 없음.
-    rs = load_rule_file(FIXTURES / "consistent" / "stealth_mutex_ok.rule")
+    rs = load_rule_file(FIXTURES / "consistent" / "stealth_mutex_ok.lf")
     report = _check(rs)
     assert not report.has_contradiction
     assert report.unknowns == ()
@@ -148,7 +148,7 @@ def test_free_bool_with_mutex_has_no_false_positive() -> None:
 
 def test_real_probability_over_constraint_is_reported() -> None:
     # LRA(D7): 실수 확률 합=1과 두 하한(0.7)이 충돌 → 전역 도달 불가, 세 룰이 범인.
-    rs = load_rule_file(FIXTURES / "contradiction" / "prob_sum.rule")
+    rs = load_rule_file(FIXTURES / "contradiction" / "prob_sum.lf")
     report = _check(rs)
     assert report.has_contradiction
     assert len(report.unreachable_states) == 1
@@ -159,7 +159,7 @@ def test_real_probability_over_constraint_is_reported() -> None:
 
 
 def test_real_probability_consistent_has_no_contradiction() -> None:
-    rs = load_rule_file(FIXTURES / "consistent" / "prob_ok.rule")
+    rs = load_rule_file(FIXTURES / "consistent" / "prob_ok.lf")
     report = _check(rs)
     assert not report.has_contradiction
     assert report.unknowns == ()
@@ -272,5 +272,5 @@ def test_met_expectation_has_no_contradiction() -> None:
 
 
 def test_no_unknowns_in_linear_cases() -> None:
-    report = _check(load_rule_file(FIXTURES / "warrior_hp.rule"))
+    report = _check(load_rule_file(FIXTURES / "warrior_hp.lf"))
     assert report.unknowns == ()

@@ -108,7 +108,7 @@ def test_apply_outcome_saturates_gold() -> None:
 
 
 def test_initial_state_from_pinned_init() -> None:
-    rs = load_rule_file(FIXTURES / "coin.rule")
+    rs = load_rule_file(FIXTURES / "coin.lf")
     state = initial_state(rs, enum_constants(rs))
     assert state == {"gold": 0, "flips": 0, "status": "playing"}
 
@@ -124,7 +124,7 @@ def test_initial_state_rejects_free_var_without_overrides() -> None:
 
 
 def test_apply_outcome_keeps_unchanged_vars() -> None:
-    rs = load_rule_file(FIXTURES / "coin.rule")
+    rs = load_rule_file(FIXTURES / "coin.lf")
     constants = enum_constants(rs)
     state = {"gold": 2, "flips": 1, "status": "playing"}
     # 앞면 outcome: gold+1, flips+1. status는 건드리지 않으니 유지(프레임, D15).
@@ -137,14 +137,14 @@ def test_apply_outcome_keeps_unchanged_vars() -> None:
 
 
 def test_run_once_is_deterministic_for_same_seed() -> None:
-    rs = load_rule_file(FIXTURES / "coin.rule")
+    rs = load_rule_file(FIXTURES / "coin.lf")
     r1 = run_once(rs, random.Random(42), horizon=10)
     r2 = run_once(rs, random.Random(42), horizon=10)
     assert r1 == r2  # 같은 seed → 동일 궤적(D19 재현성)
 
 
 def test_run_once_trajectory_structure() -> None:
-    rs = load_rule_file(FIXTURES / "coin.rule")
+    rs = load_rule_file(FIXTURES / "coin.lf")
     r = run_once(rs, random.Random(7), horizon=20)
     # flips<5 동안 flip만, flips==5에서 finish, status=done 도달 → done_absorb는 흡수라
     # 자연 종료(stutter 안 펼침).
@@ -156,7 +156,7 @@ def test_run_once_trajectory_structure() -> None:
 
 
 def test_run_once_different_seeds_can_differ() -> None:
-    rs = load_rule_file(FIXTURES / "coin.rule")
+    rs = load_rule_file(FIXTURES / "coin.lf")
     golds = {run_once(rs, random.Random(s), horizon=10).states[-1]["gold"] for s in range(20)}
     assert len(golds) > 1  # 표집이라 seed에 따라 최종 gold가 달라진다
 
@@ -165,7 +165,7 @@ def test_run_once_different_seeds_can_differ() -> None:
 
 
 def test_dtmc_violation_rejected_with_friendly_message() -> None:
-    rs = load_rule_file(FIXTURES / "nondet.rule")
+    rs = load_rule_file(FIXTURES / "nondet.lf")
     with pytest.raises(DtmcViolation) as exc:
         run_once(rs, random.Random(0), horizon=10)
     msg = str(exc.value)
@@ -193,7 +193,7 @@ def _build_choice_set(pref_a: float | None, pref_b: float | None) -> RuleSet:
 
 def test_choice_sampling_matches_declared_pref() -> None:
     """모든 co-enabled가 pref 선언 시 enabled끼리 정규화 표집 — 도달 분포가 pref(0.3)에 수렴."""
-    rs = load_rule_file(FIXTURES / "policy_choice.rule")
+    rs = load_rule_file(FIXTURES / "policy_choice.lf")
     n = 4000
     a_count = sum(
         1 for s in range(n) if run_once(rs, random.Random(s), horizon=10).states[-1]["pick"] == "a"
@@ -205,7 +205,7 @@ def test_choice_sampling_matches_declared_pref() -> None:
 
 def test_choice_sampling_is_reproducible() -> None:
     """선택 표집도 같은 seed → 동일 궤적(D19 재현성, RNG 추가 draw 1회는 결정적)."""
-    rs = load_rule_file(FIXTURES / "policy_choice.rule")
+    rs = load_rule_file(FIXTURES / "policy_choice.lf")
     r1 = run_once(rs, random.Random(123), horizon=10)
     r2 = run_once(rs, random.Random(123), horizon=10)
     assert r1 == r2

@@ -1,0 +1,14 @@
+// BMC 테스트용 작은 카운터: x를 0에서 1씩 올린다(상한 5에서 멈춤).
+domain {
+    x: int 0..5
+}
+
+init: x == 0
+
+transition inc:
+    when x < 5
+    then x = x + 1
+
+check reach3 reachable: x == 3    // 깊이 3에서 도달
+check le5 invariant: x <= 5       // 항상 유지
+check never4 invariant: x != 4    // 깊이 4에서 위반

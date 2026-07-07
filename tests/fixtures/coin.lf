@@ -1,0 +1,29 @@
+// DTMC 픽스처(sim Phase 1) — 동전 누적. 도달 상태마다 enabled 전이가 정확히 1개라
+// DTMC 게이트(D19)를 통과한다. init이 모든 변수를 고정(자유변수 없음).
+//
+//   flips<5 & playing  → flip만   (0.5 앞=gold+1 / 0.5 뒤=무변화)
+//   flips>=5 & playing → finish만  (status=done)
+//   done               → done_absorb만 (흡수 — 지평까지 절단)
+domain {
+    gold:   int 0..5
+    flips:  int 0..5
+    status: enum { playing, done }
+}
+
+init: gold == 0 and flips == 0 and status == playing
+
+transition flip:
+    when status == playing and flips < 5
+    outcomes:
+        0.5 -> { gold = gold + 1; flips = flips + 1 }
+        0.5 -> flips = flips + 1
+transition finish:
+    when status == playing and flips >= 5
+    then status = done
+transition done_absorb:
+    when status == done
+    then status = done
+
+check rich
+    desc "5번 던져 4 이상 모을 수 있는가"
+    reachable: gold >= 4

@@ -1,0 +1,9 @@
+// 정합: 독립 변수들의 선언 범위가 룰에 의해 봉쇄되지 않는다.
+domain {
+    gold:  int 0..1000
+    level: int 1..50
+}
+
+constraint reward_cap:
+    when level >= 10
+    then gold <= 1000

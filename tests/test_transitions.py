@@ -16,11 +16,11 @@ from core.schema import SchemaError, check_finite_state, validate
 
 FIXTURES = Path(__file__).parent / "fixtures"
 EXAMPLES = Path(__file__).parent.parent / "examples"
-_DOM = "domain: {variables: {g: {type: int, min: 0, max: 9}}}\n"
+_DOM = "domain { g: int 0..9 }\n"
 
 
 def _write(tmp_path: Path, body: str) -> Path:
-    p = tmp_path / "t.rule"
+    p = tmp_path / "t.lf"
     p.write_text(body, encoding="utf-8")
     return p
 
@@ -97,30 +97,23 @@ def test_transition_source_is_filename() -> None:
 
 
 def test_transition_with_both_then_and_outcomes_rejected(tmp_path: Path) -> None:
-    body = (
-        "domain: {variables: {g: {type: int, min: 0, max: 9}}}\n"
-        "transitions:\n"
-        "  - id: t\n"
-        "    then: 'next.g == 0'\n"
-        "    outcomes: [{weight: 1, then: 'next.g == 1'}]\n"
-    )
-    with pytest.raises(LoaderError, match="하나만"):
+    # 전이 효과는 then 또는 outcomes 중 하나 — 문법이 둘의 병기를 거부한다.
+    body = _DOM + "transition t:\n    then g = 0\n    outcomes:\n        1 -> g = 1\n"
+    with pytest.raises(LoaderError):
         load_rule_file(_write(tmp_path, body))
 
 
 def test_transition_with_neither_then_nor_outcomes_rejected(tmp_path: Path) -> None:
-    body = "domain: {variables: {g: {type: int, min: 0, max: 9}}}\ntransitions:\n  - id: t\n"
-    with pytest.raises(LoaderError, match="then.*outcomes"):
+    body = _DOM + "transition t:\n"
+    with pytest.raises(LoaderError):
         load_rule_file(_write(tmp_path, body))
 
 
-def test_negative_weight_rejected(tmp_path: Path) -> None:
-    body = (
-        "domain: {variables: {g: {type: int, min: 0, max: 9}}}\n"
-        "transitions:\n  - id: t\n    outcomes: [{weight: -0.5, then: 'next.g == 0'}]\n"
-    )
-    with pytest.raises(LoaderError, match="음수"):
-        load_rule_file(_write(tmp_path, body))
+def test_negative_weight_rejected_by_schema(tmp_path: Path) -> None:
+    # 음수는 문법이 아니라 스키마가 거부한다(D26 상태 식 weight 허용으로 파서는 식만 본다).
+    body = _DOM + "init: g == 0\ntransition t:\n    outcomes:\n        -0.5 -> g = 0\n"
+    with pytest.raises(SchemaError, match="음수"):
+        validate(load_rule_file(_write(tmp_path, body)))
 
 
 # ---------- 로더: 전이 선호도 pref (D20, 무작위 정책) ----------
@@ -128,10 +121,7 @@ def test_negative_weight_rejected(tmp_path: Path) -> None:
 
 def test_transition_pref_defaults_to_none(tmp_path: Path) -> None:
     """pref 미선언 전이는 None(=미선언, D20) — co-enabled에 섞이면 sim이 거부한다."""
-    body = (
-        "domain: {variables: {g: {type: int, min: 0, max: 9}}}\n"
-        "transitions:\n  - id: t\n    then: 'next.g == 1'\n"
-    )
+    body = _DOM + "transition t:\n    then g = 1\n"
     rs = load_rule_file(_write(tmp_path, body))
     assert rs.transitions[0].pref is None
 
@@ -139,43 +129,27 @@ def test_transition_pref_defaults_to_none(tmp_path: Path) -> None:
 def test_transition_pref_parsed(tmp_path: Path) -> None:
     """pref가 IR에 실린다 — 플레이어 선택의 상대 가중치(D20)."""
     body = (
-        "domain: {variables: {g: {type: int, min: 0, max: 9}}}\n"
-        "transitions:\n"
-        "  - id: a\n    pref: 0.3\n    then: 'next.g == 1'\n"
-        "  - id: b\n    pref: 0.7\n    then: 'next.g == 2'\n"
+        _DOM
+        + "transition a:\n    pref 0.3\n    then g = 1\n"
+        + "transition b:\n    pref 0.7\n    then g = 2\n"
     )
     rs = load_rule_file(_write(tmp_path, body))
     assert (rs.transitions[0].pref, rs.transitions[1].pref) == (0.3, 0.7)
 
 
-def test_negative_pref_rejected(tmp_path: Path) -> None:
+def test_negative_pref_rejected_by_schema(tmp_path: Path) -> None:
+    # 음수는 스키마가 거부한다(D26 상태 식 pref 허용으로 파서는 식만 본다).
+    body = _DOM + "init: g == 0\ntransition t:\n    pref -1\n    then g = 0\n"
+    with pytest.raises(SchemaError, match="음수"):
+        validate(load_rule_file(_write(tmp_path, body)))
+
+
+def test_pref_from_table_stays_float(tmp_path: Path) -> None:
+    """표 색인 pref는 desugar가 수치로 해소한다(D18) — 표에서 정책을 끌어올 수 있다."""
     body = (
-        "domain: {variables: {g: {type: int, min: 0, max: 9}}}\n"
-        "transitions:\n  - id: t\n    pref: -1\n    then: 'next.g == 0'\n"
-    )
-    with pytest.raises(LoaderError, match="음수"):
-        load_rule_file(_write(tmp_path, body))
-
-
-def test_non_numeric_pref_rejected(tmp_path: Path) -> None:
-    body = (
-        "domain: {variables: {g: {type: int, min: 0, max: 9}}}\n"
-        "transitions:\n  - id: t\n    pref: high\n    then: 'next.g == 0'\n"
-    )
-    with pytest.raises(LoaderError, match="pref"):
-        load_rule_file(_write(tmp_path, body))
-
-
-def test_pref_template_type_preserved(tmp_path: Path) -> None:
-    """전체-`${expr}` pref는 값 타입 보존(D18) — 표에서 정책을 끌어올 수 있다."""
-    body = (
-        "domain: {variables: {g: {type: int, min: 0, max: 9}}}\n"
-        "tables: {policy: {go: 0.4}}\n"
-        "transitions:\n"
-        "  - id: 't_${k}'\n"
-        "    for: {k: [go]}\n"
-        "    pref: '${policy[k]}'\n"
-        "    then: 'next.g == 1'\n"
+        _DOM
+        + "table policy { go: 0.4 }\n"
+        + 'for k in [go]:\n    transition "t_${k}":\n        pref policy[k]\n        then g = 1\n'
     )
     rs = load_rule_file(_write(tmp_path, body))
     assert rs.transitions[0].pref == 0.4
@@ -192,21 +166,15 @@ def test_schema_rejects_negative_pref() -> None:
 
 
 def test_property_invalid_kind_rejected(tmp_path: Path) -> None:
-    body = _DOM + "checks:\n  - {id: p, kind: bogus}\n"
-    with pytest.raises(LoaderError, match="kind"):
+    # kind 어휘는 문법이 고정한다(reachable/invariant/no_deadlock/distribution).
+    body = _DOM + "check p bogus: g == 0\n"
+    with pytest.raises(LoaderError):
         load_rule_file(_write(tmp_path, body))
 
 
 def test_reachable_property_requires_that(tmp_path: Path) -> None:
-    body = _DOM + "checks:\n  - {id: p, kind: reachable}\n"
-    with pytest.raises(LoaderError, match="that"):
-        load_rule_file(_write(tmp_path, body))
-
-
-def test_prob_kind_rejected(tmp_path: Path) -> None:
-    # PCTL `prob` check은 D23으로 제거 — kind가 잘못됨으로 거부(PRISM은 테스트 오라클만).
-    body = _DOM + 'checks:\n  - {id: p, kind: prob, spec: "Pmax=? [ F (g==0) ]"}\n'
-    with pytest.raises(LoaderError, match="kind"):
+    body = _DOM + "check p reachable:\n"
+    with pytest.raises(LoaderError):
         load_rule_file(_write(tmp_path, body))
 
 
@@ -290,7 +258,7 @@ def test_duplicate_property_id_rejected() -> None:
 
 def test_existing_static_fixture_still_validates() -> None:
     # 하위 호환: 전이 시스템이 없는 기존 정적 룰셋은 그대로 통과해야 한다.
-    validate(load_rule_file(FIXTURES / "warrior_hp.rule"))
+    validate(load_rule_file(FIXTURES / "warrior_hp.lf"))
 
 
 # ---------- 유한 상태(확률 백엔드 게이트, D13) ----------

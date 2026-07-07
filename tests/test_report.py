@@ -83,10 +83,10 @@ def test_culprit_shows_source_file_when_known() -> None:
     )
     text = format_report(
         report,
-        {"warrior_hp_formula": "a.rule", "global_hp_cap": "b.rule"},
+        {"warrior_hp_formula": "a.lf", "global_hp_cap": "b.lf"},
     )
-    assert "warrior_hp_formula (a.rule)" in text
-    assert "global_hp_cap (b.rule)" in text
+    assert "warrior_hp_formula (a.lf)" in text
+    assert "global_hp_cap (b.lf)" in text
 
 
 def test_culprit_falls_back_to_id_without_source() -> None:

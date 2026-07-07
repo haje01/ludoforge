@@ -1,9 +1,10 @@
 """외부 DSL(자체 문법) 텍스트 로더 테스트 — 6차 마일스톤(D21).
 
-S1: `domain { ... }` 블록 → 기존 Variable 튜플.
-S2: `init`·`constraints`·`expects`의 `==` 술어 → 기존 IR 문자열(파이썬-식).
-새 프론트엔드의 산출 IR이 YAML 로더와 일치함을 골든 등가로 고정한다(§8). 표현식 문자열은
-공백·괄호 차이에 무관하게 **ast 구조**로 비교한다(렌더링 표기는 자유).
+S1: `domain { ... }` 블록 → Variable 튜플.
+S2: `init`·`constraints`·`expects`의 `==` 술어 → IR 문자열(파이썬-식).
+표현식 문자열은 공백·괄호 차이에 무관하게 **ast 구조**로 비교한다(렌더링 표기는 자유).
+(초기 YAML 프론트엔드와의 이관 등가 하니스는 D32에서 YAML 제거와 함께 은퇴 —
+접힘 문법의 골든 등가는 수동 복제판 픽스처와의 비교로 계속 고정한다.)
 """
 
 from __future__ import annotations
@@ -14,13 +15,11 @@ from pathlib import Path
 import pytest
 
 from core.ir import RuleSet, Variable
-from core.loader import LoaderError, load_rule_file, load_rules
+from core.loader import load_rule_file, load_rules
 from core.schema import SchemaError, validate
 from core.text_loader import TextLoaderError, parse_rule_text
 
 _EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
-# 디프리케이트된 YAML(.rule) 골든 참조는 old_examples/로 분리(이관 회귀 하니스 전용).
-_OLD_EXAMPLES = Path(__file__).resolve().parent.parent / "old_examples"
 
 
 def _expr_eq(a: str | None, b: str | None) -> bool:
@@ -30,38 +29,39 @@ def _expr_eq(a: str | None, b: str | None) -> bool:
     return ast.dump(ast.parse(a, mode="eval")) == ast.dump(ast.parse(b, mode="eval"))
 
 
-def _assert_ir_equiv(native: RuleSet, yaml: RuleSet, compare_meta: bool = True) -> None:
+def _assert_ir_equiv(native: RuleSet, expected: RuleSet, compare_meta: bool = True) -> None:
     """RuleSet 골든 등가: 변수는 바이트 동일, 표현식 문자열은 ast 구조 동일.
 
+    접힘 문법(배열·for 템플릿)이 수동 복제판과 같은 IR을 냄을 고정하는 데 쓴다.
     `compare_meta=False`면 문서/메타 필드(desc·author — D29 doc 계열)를 비교에서 뺀다:
     골든의 증명 대상이 **형식부 desugar 등가**(변수·가드·효과·pref·weight·검사)일 때 쓴다
-    (race 접힘 골든 — 살아있는 예제는 문서 절을 자유롭게 저술한다). doc 필드(Doc)는 YAML로
-    표현 불가라 어느 모드에서도 비교하지 않는다(명시적 제외, PLAN 12차)."""
+    (race 접힘 골든 — 살아있는 예제는 문서 절을 자유롭게 저술한다). doc 필드(Doc)는
+    어느 모드에서도 비교하지 않는다(명시적 제외, PLAN 12차)."""
     if compare_meta:
-        assert native.variables == yaml.variables
+        assert native.variables == expected.variables
     else:
         from dataclasses import replace as _rep
 
         assert tuple(_rep(v, desc=None) for v in native.variables) == tuple(
-            _rep(v, desc=None) for v in yaml.variables
+            _rep(v, desc=None) for v in expected.variables
         )
-    assert _expr_eq(native.init, yaml.init)
-    assert len(native.constraints) == len(yaml.constraints)
-    for n, y in zip(native.constraints, yaml.constraints, strict=True):
+    assert _expr_eq(native.init, expected.init)
+    assert len(native.constraints) == len(expected.constraints)
+    for n, y in zip(native.constraints, expected.constraints, strict=True):
         assert n.id == y.id
         assert _expr_eq(n.when, y.when)
         assert _expr_eq(n.then, y.then)
         if compare_meta:
             assert n.desc == y.desc
             assert n.author == y.author
-    assert len(native.expects) == len(yaml.expects)
-    for ne, ye in zip(native.expects, yaml.expects, strict=True):
+    assert len(native.expects) == len(expected.expects)
+    for ne, ye in zip(native.expects, expected.expects, strict=True):
         assert ne.id == ye.id
         assert _expr_eq(ne.that, ye.that)
         if compare_meta:
             assert ne.desc == ye.desc
-    assert len(native.transitions) == len(yaml.transitions)
-    for nt, yt in zip(native.transitions, yaml.transitions, strict=True):
+    assert len(native.transitions) == len(expected.transitions)
+    for nt, yt in zip(native.transitions, expected.transitions, strict=True):
         assert nt.id == yt.id
         assert _expr_eq(nt.when, yt.when)
         assert nt.pref == yt.pref
@@ -71,8 +71,8 @@ def _assert_ir_equiv(native: RuleSet, yaml: RuleSet, compare_meta: bool = True) 
         for no, yo in zip(nt.outcomes, yt.outcomes, strict=True):
             assert no.weight == yo.weight
             assert _expr_eq(no.then, yo.then)
-    assert len(native.checks) == len(yaml.checks)
-    for nc, yc in zip(native.checks, yaml.checks, strict=True):
+    assert len(native.checks) == len(expected.checks)
+    for nc, yc in zip(native.checks, expected.checks, strict=True):
         assert nc.id == yc.id
         assert nc.kind == yc.kind
         assert _expr_eq(nc.that, yc.that)  # reachable/invariant
@@ -149,32 +149,6 @@ def test_syntax_error_reports_position() -> None:
         parse_rule_text("domain { gold: int 0..30 ")  # 닫는 중괄호 누락
     # 위치(줄/열)를 포함해 보고한다(파서 직접 소유의 이점, §7).
     assert "1" in str(exc.value)
-
-
-def test_golden_equivalence_with_yaml_domain(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    """같은 도메인을 YAML과 자체 문법으로 두면 IR Variable 튜플이 바이트 동일해야 한다."""
-    yaml_src = """
-domain:
-  variables:
-    gold:  { type: int, min: 0, max: 30 }
-    room:  { type: enum, values: [hall, l1, l2] }
-    drop:  { type: real, min: 0, max: 1 }
-    flag:  { type: bool }
-"""
-    yaml_file = tmp_path / "d.rule"
-    yaml_file.write_text(yaml_src, encoding="utf-8")
-    yaml_rs = load_rule_file(yaml_file)
-
-    native_src = """
-    domain {
-        gold: int 0..30
-        room: enum { hall, l1, l2 }
-        drop: real 0..1
-        flag: bool
-    }
-    """
-    native_rs = parse_rule_text(native_src)
-    assert native_rs.variables == yaml_rs.variables
 
 
 # ── S2: 정적 표현식(init·constraints·expects) ──────────────────────────────
@@ -262,47 +236,6 @@ def test_assignment_equals_rejected_in_predicate() -> None:
 def test_duplicate_init_rejected() -> None:
     with pytest.raises(TextLoaderError):
         parse_rule_text("domain { g: int 0..9 } init: g == 0 init: g == 1")
-
-
-def test_golden_equivalence_static(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    """도메인+init+constraints+expects를 YAML과 자체 문법으로 두면 IR이 등가여야 한다."""
-    yaml_src = """
-domain:
-  variables:
-    level: { type: int, min: 1, max: 100 }
-    hp:    { type: int, min: 0 }
-    role:  { type: enum, values: [warrior, mage] }
-init: "hp == 0"
-constraints:
-  - id: warrior_hp
-    when: "role == warrior"
-    then: "hp == level * 100"
-  - id: global_cap
-    then: "hp <= 5000"
-expects:
-  - id: warrior_max
-    that: "role == warrior and level == 100"
-"""
-    yaml_file = tmp_path / "s.rule"
-    yaml_file.write_text(yaml_src, encoding="utf-8")
-    yaml_rs = load_rule_file(yaml_file)
-
-    native_src = """
-    domain {
-        level: int 1..100
-        hp:    int 0..
-        role:  enum { warrior, mage }
-    }
-    init: hp == 0
-    constraint warrior_hp:
-        when role == warrior
-        then hp == level * 100
-    constraint global_cap:
-        then hp <= 5000
-    expect warrior_max: role == warrior and level == 100
-    """
-    native_rs = parse_rule_text(native_src)
-    _assert_ir_equiv(native_rs, yaml_rs)
 
 
 # ── S3: 전이(transitions·outcomes·pref, `=` 대입/`==` 비교 판별) ───────────────
@@ -412,58 +345,6 @@ def test_guard_assignment_rejected() -> None:
         parse_rule_text(src)
 
 
-def test_golden_equivalence_transitions(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    """전이 시스템을 YAML과 자체 문법으로 두면 IR이 등가여야 한다(가드·outcomes·pref·프레임)."""
-    yaml_src = """
-domain:
-  variables:
-    gold:   { type: int, min: 0, max: 30 }
-    room:   { type: enum, values: [hall, l1, l2] }
-    status: { type: enum, values: [exploring, won, dead] }
-init: "gold == 0 and room == hall and status == exploring"
-transitions:
-  - id: enter_l1
-    when: "room == hall and status == exploring"
-    then: "next.room == l1"
-  - id: fight
-    when: "room == l1 and status == exploring"
-    outcomes:
-      - { weight: 0.7, then: "next.gold == gold + 10" }
-      - { weight: 0.3, then: "next.status == dead and next.gold == 0" }
-  - id: dive
-    when: "room == l1"
-    pref: 0.3
-    then: "next.room == l2"
-checks: []
-"""
-    yaml_file = tmp_path / "t.rule"
-    yaml_file.write_text(yaml_src, encoding="utf-8")
-    yaml_rs = load_rule_file(yaml_file)
-
-    native_src = """
-    domain {
-        gold:   int 0..30
-        room:   enum { hall, l1, l2 }
-        status: enum { exploring, won, dead }
-    }
-    init: gold == 0 and room == hall and status == exploring
-    transition enter_l1:
-        when room == hall and status == exploring
-        then room = l1
-    transition fight:
-        when room == l1 and status == exploring
-        outcomes:
-            0.7 -> gold = gold + 10
-            0.3 -> { status = dead; gold = 0 }
-    transition dive:
-        when room == l1
-        pref 0.3
-        then room = l2
-    """
-    native_rs = parse_rule_text(native_src)
-    _assert_ir_equiv(native_rs, yaml_rs)
-
-
 # ── S4: checks(reachable/invariant/no_deadlock/distribution) ─────────────
 
 
@@ -503,37 +384,6 @@ def test_check_distribution_is_sim_expr() -> None:
     assert c.kind == "distribution"
     assert _expr_eq(c.expr, "gold")
     assert c.that is None
-
-
-def test_golden_equivalence_checks(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    """다섯 가지 check kind를 YAML과 자체 문법으로 두면 IR이 등가여야 한다(dialect 보존)."""
-    yaml_src = """
-domain:
-  variables:
-    gold: { type: int, min: 0, max: 30 }
-    room: { type: enum, values: [hall, center] }
-checks:
-  - { id: winnable,  kind: reachable, that: "gold >= 20 and room == center" }
-  - { id: gold_ok,   kind: invariant, that: "gold >= 0" }
-  - { id: no_stuck,  kind: no_deadlock }
-  - { id: gold_dist, kind: distribution, expr: "gold" }
-"""
-    yaml_file = tmp_path / "c.rule"
-    yaml_file.write_text(yaml_src, encoding="utf-8")
-    yaml_rs = load_rule_file(yaml_file)
-
-    native_src = """
-    domain {
-        gold: int 0..30
-        room: enum { hall, center }
-    }
-    check winnable  reachable: gold >= 20 and room == center
-    check gold_ok   invariant: gold >= 0
-    check no_stuck  no_deadlock
-    check gold_dist distribution: gold
-    """
-    native_rs = parse_rule_text(native_src)
-    _assert_ir_equiv(native_rs, yaml_rs)
 
 
 # ── S5: 템플릿(table·for·${} desugar) ─────────────────────────────────────────
@@ -628,75 +478,16 @@ def test_undefined_index_param_rejected() -> None:
         parse_rule_text(src)
 
 
-def test_golden_equivalence_templates(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    """for/tables/${}를 YAML과 자체 문법으로 두면 펼친 IR이 등가여야 한다(D18 동형)."""
-    yaml_src = """
-domain:
-  variables:
-    gold:    { type: int, min: 0, max: 30 }
-    monster: { type: enum, values: [goblin, dragon] }
-    role:    { type: enum, values: [fighter, rogue] }
-    status:  { type: enum, values: [exploring, dead] }
-tables:
-  reward: { goblin: 2, dragon: 10 }
-  cap:    { goblin: 28, dragon: 20 }
-  win:
-    goblin: { fighter: 0.9, rogue: 0.7 }
-    dragon: { fighter: 0.6, rogue: 0.2 }
-transitions:
-  - id: "fight_${mon}_${cls}"
-    for: { mon: [goblin, dragon], cls: [fighter, rogue] }
-    when: "role == ${cls} and monster == ${mon} and gold <= ${cap[mon]}"
-    outcomes:
-      - { weight: "${win[mon][cls]}", then: "next.gold == gold + ${reward[mon]}" }
-      - { weight: 0.1, then: "next.status == dead" }
-"""
-    yaml_file = tmp_path / "tmpl.rule"
-    yaml_file.write_text(yaml_src, encoding="utf-8")
-    yaml_rs = load_rule_file(yaml_file)
-
-    native_src = """
-    domain {
-        gold:    int 0..30
-        monster: enum { goblin, dragon }
-        role:    enum { fighter, rogue }
-        status:  enum { exploring, dead }
-    }
-    table reward { goblin: 2, dragon: 10 }
-    table cap    { goblin: 28, dragon: 20 }
-    table win {
-        goblin: { fighter: 0.9, rogue: 0.7 }
-        dragon: { fighter: 0.6, rogue: 0.2 }
-    }
-    for mon in [goblin, dragon], cls in [fighter, rogue]:
-        transition "fight_${mon}_${cls}":
-            when role == cls and monster == mon and gold <= cap[mon]
-            outcomes:
-                win[mon][cls] -> gold = gold + reward[mon]
-                0.1 -> status = dead
-    """
-    native_rs = parse_rule_text(native_src)
-    _assert_ir_equiv(native_rs, yaml_rs)
-
-
-# ── S6: 전체 코퍼스 골든 등가 + loop-var 충돌 감지 ──────────────────────────────
+# ── S6: 전체 코퍼스 로드 게이트 + loop-var 충돌 감지 ──────────────────────────────
 
 
 @pytest.mark.parametrize("lf_path", sorted(_EXAMPLES.glob("*.lf")), ids=lambda p: p.stem)
-def test_example_lf_matches_yaml(lf_path: Path) -> None:
-    """이관된 examples/*.lf는 같은 이름의 *.rule(YAML)과 IR 등가여야 한다(이관 회귀 하니스).
+def test_example_lf_loads_and_validates(lf_path: Path) -> None:
+    """examples/*.lf 전부가 로드·스키마 게이트를 통과해야 한다(살아있는 예제 무부패).
 
-    새 .lf를 추가하면 자동으로 등가가 검증된다. 대응 YAML이 없으면 건너뛴다.
-    YAML로 표현 불가한 `.lf` 전용 기능(D26 상태 식 pref/weight)을 쓰도록 진화한 예제는
-    old_examples/에 이관 시점 `.lf` 스냅샷을 동결해 그 쌍으로 비교한다(dungeon 사례 —
-    test_full_dungeon_golden_equivalence)."""
-    frozen = _OLD_EXAMPLES / lf_path.name
-    if frozen.exists():
-        lf_path = frozen  # 살아있는 예제가 .lf 전용 기능으로 진화 — 동결 스냅샷으로 비교
-    yaml_path = _OLD_EXAMPLES / (lf_path.stem + ".rule")
-    if not yaml_path.exists():
-        pytest.skip(f"대응 YAML 없음: {yaml_path.name}")
-    _assert_ir_equiv(load_rule_file(lf_path), load_rule_file(yaml_path))
+    새 .lf를 추가하면 자동으로 검증된다. 산출 IR의 세부 골든은 개별 테스트가 고정한다."""
+    rs = load_rule_file(lf_path)
+    validate(rs)
 
 
 def test_loop_var_domain_collision_rejected() -> None:
@@ -711,24 +502,13 @@ def test_loop_var_domain_collision_rejected() -> None:
         parse_rule_text(src)
 
 
-def test_full_dungeon_golden_equivalence() -> None:
-    """6차 이관 시점의 dungeon.{rule,lf} 스냅샷이 IR 등가여야 한다(이관 회귀 하니스).
+def test_full_dungeon_template_expansion() -> None:
+    """대표 통합 예제(dungeon.lf)의 for-template 펼치기 골든(순서 포함).
 
-    전 기능을 한 번에 검증: 도메인·정적 constraints·5개 table·init·이동/조우/전투(8-way
-    for-template)/흡수 전이·5종 check kind·괄호-or 가드·다중 대입·표 색인 가중치·desc 메타데이터.
-    .lf는 로더 디스패치(확장자)로 읽는다.
-
-    D26 이후 examples/dungeon.lf는 YAML로 표현 불가한 상태 의존 pref/weight를 쓰므로
-    (`.lf` 전용), 이관 등가는 old_examples/의 동결 스냅샷 쌍으로 고정한다 — 살아있는
-    예제는 자유롭게 진화하고, 이관 무회귀 증명은 스냅샷이 계속 지킨다.
-    """
-    yaml_rs = load_rule_file(_OLD_EXAMPLES / "dungeon.rule")
-    native_rs = load_rule_file(_OLD_EXAMPLES / "dungeon.lf")
-    _assert_ir_equiv(native_rs, yaml_rs)
-    # 자체 IR이 백엔드가 거치는 스키마 게이트(참조 무결성·next.* 규칙·중복 id)를 통과하는가
-    # — 골든 등가에 더해 백엔드-준비 상태를 확인(IR 동일 ⇒ BMC/sim/PRISM 동작 동일).
+    전 기능이 한 파일에 모인 예제가 로드·스키마 게이트를 통과하고, 전투 for-template이
+    데카르트 곱 순서대로 8개로 펼쳐짐을 고정한다(생성 id 추적 가능성, 원칙 4)."""
+    native_rs = load_rule_file(_EXAMPLES / "dungeon.lf")
     validate(native_rs)
-    # 전투 for-template이 8개로 펼쳐졌는지(순서 포함) 명시 확인.
     fight_ids = [t.id for t in native_rs.transitions if t.id.startswith("fight_")]
     assert fight_ids == [
         "fight_goblin_fighter",
@@ -782,16 +562,6 @@ def test_loader_dispatches_lf_extension(tmp_path) -> None:  # type: ignore[no-un
     f.write_text("domain { g: int 0..9 }", encoding="utf-8")
     rs = load_rule_file(f)
     assert rs.variables == (Variable(name="g", type="int", min=0, max=9),)
-
-
-def test_yaml_load_emits_deprecation_warning(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    import core.loader as loader_mod
-
-    loader_mod._warned_yaml = False  # 1회-경고 플래그 리셋(프로세스 공유)
-    f = tmp_path / "d.rule"
-    f.write_text("domain:\n  variables:\n    g: { type: int, min: 0, max: 9 }\n", encoding="utf-8")
-    with pytest.warns(DeprecationWarning, match="디프리케이트"):
-        loader_mod.load_rule_file(f)
 
 
 # ---------- 상태 의존 pref/weight (D26) ----------
@@ -869,21 +639,6 @@ def test_player_tag_undeclared_enum_value_rejected() -> None:
     )
     with pytest.raises(SchemaError, match="player 'p3'.*enum 값이 아닙니다"):
         validate(rs)
-
-
-def test_player_key_in_yaml_rejected(tmp_path: Path) -> None:
-    # player는 .lf 전용(D27) — 디프리케이트 YAML에선 조용한 무시 대신 명확히 거부.
-    body = (
-        "domain: {variables: {x: {type: int, min: 0, max: 3}}}\n"
-        "transitions:\n"
-        "  - id: t\n"
-        "    player: p1\n"
-        "    then: 'next.x == 1'\n"
-    )
-    f = tmp_path / "t.rule"
-    f.write_text(body, encoding="utf-8")
-    with pytest.raises(LoaderError, match="player.*자체 문법"):
-        load_rule_file(f)
 
 
 # ---------- 배열/인덱스 변수 (D28) ----------

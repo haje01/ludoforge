@@ -99,7 +99,7 @@ def test_distribution_histogram_overflow_drops_percentiles() -> None:
 
 
 def test_sweep_enumerates_free_enum() -> None:
-    rs = load_rule_file(FIXTURES / "arena.rule")
+    rs = load_rule_file(FIXTURES / "arena.lf")
     configs = sweep_configs(rs, enum_constants(rs))
     roles = {c["role"] for c in configs}
     assert roles == {"fighter", "rogue", "wizard"}
@@ -109,7 +109,7 @@ def test_sweep_enumerates_free_enum() -> None:
 
 
 def test_simulate_class_win_rates() -> None:
-    rs = load_rule_file(FIXTURES / "arena.rule")
+    rs = load_rule_file(FIXTURES / "arena.lf")
     validate(rs)
     report = simulate(rs, samples=5000, horizon=20, seed=1)
     by_role = {cfg.config["role"]: _by_id(cfg) for cfg in report.configs}
@@ -131,7 +131,7 @@ def test_simulate_class_win_rates() -> None:
 
 
 def test_simulate_unobserved_event_uses_rule_of_three() -> None:
-    rs = load_rule_file(FIXTURES / "arena.rule")
+    rs = load_rule_file(FIXTURES / "arena.lf")
     report = simulate(rs, samples=2000, horizon=20, seed=1)
     impossible = _by_id(report.configs[0])["impossible_round"]
     assert isinstance(impossible, ProportionResult)
@@ -140,7 +140,7 @@ def test_simulate_unobserved_event_uses_rule_of_three() -> None:
 
 
 def test_simulate_distribution_of_progress() -> None:
-    rs = load_rule_file(FIXTURES / "arena.rule")
+    rs = load_rule_file(FIXTURES / "arena.lf")
     report = simulate(rs, samples=3000, horizon=20, seed=2)
     fighter = next(c for c in report.configs if c.config["role"] == "fighter")
     final = _by_id(fighter)["final_progress"]
@@ -152,7 +152,7 @@ def test_simulate_distribution_of_progress() -> None:
 
 
 def test_simulate_is_reproducible() -> None:
-    rs = load_rule_file(FIXTURES / "arena.rule")
+    rs = load_rule_file(FIXTURES / "arena.lf")
     r1 = simulate(rs, samples=1000, horizon=20, seed=7)
     r2 = simulate(rs, samples=1000, horizon=20, seed=7)
     p1 = [r.successes for cfg in r1.configs for r in cfg.checks if isinstance(r, ProportionResult)]
@@ -164,7 +164,7 @@ def test_simulate_is_reproducible() -> None:
 
 
 def test_report_has_proof_disclaimer_and_estimates() -> None:
-    rs = load_rule_file(FIXTURES / "arena.rule")
+    rs = load_rule_file(FIXTURES / "arena.lf")
     report = simulate(rs, samples=1000, horizon=20, seed=1)
     text = format_sim_report(report)
     assert "증명 아님" in text
@@ -175,7 +175,7 @@ def test_report_has_proof_disclaimer_and_estimates() -> None:
 
 def test_report_shows_policy_label_when_pref_used() -> None:
     """pref(무작위 정책, D20)를 쓰는 모델은 'Pmax 아님' 정책 라벨을 노출한다."""
-    rs = load_rule_file(FIXTURES / "policy_choice.rule")
+    rs = load_rule_file(FIXTURES / "policy_choice.lf")
     report = simulate(rs, samples=500, horizon=10, seed=1)
     assert report.uses_policy is True
     text = format_sim_report(report)
@@ -185,7 +185,7 @@ def test_report_shows_policy_label_when_pref_used() -> None:
 
 def test_report_omits_policy_label_without_pref() -> None:
     """pref 없는 순수 DTMC 모델은 정책 라벨을 띄우지 않는다(오해 방지·기존 출력 불변)."""
-    rs = load_rule_file(FIXTURES / "arena.rule")
+    rs = load_rule_file(FIXTURES / "arena.lf")
     report = simulate(rs, samples=500, horizon=20, seed=1)
     assert report.uses_policy is False
     assert "최적(Pmax) 아님" not in format_sim_report(report)

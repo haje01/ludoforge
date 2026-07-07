@@ -1,18 +1,23 @@
 # Ludoforge
 
-> 게임 기획 검증 툴킷 — 게임 룰을 하나의 [DSL](docs/concepts.md#dsl-domain-specific-language-도메인-특화-언어)로 작성하면, 논리는 [SMT solver](docs/concepts.md#smt-solver--z3)(Z3/[BMC](docs/concepts.md#bmc-bounded-model-checking-유계-모델-검사))로
-> **결정론적으로 증명**하고(논리 백엔드), 정량 속성(승률·기대값·분포)은 Monte Carlo로
+> **게임 수치·경제 시스템 검증기** — 성장 공식·드랍률·재화 싱크/소스·상한 규칙을 하나의
+> [DSL](docs/concepts.md#dsl-domain-specific-language-도메인-특화-언어)(`.lf`)로 작성하면, 논리는 [SMT solver](docs/concepts.md#smt-solver--z3)(Z3/[BMC](docs/concepts.md#bmc-bounded-model-checking-유계-모델-검사))로
+> **결정론적으로 증명**하고(논리 백엔드), 정량 속성(기대값·분포·확률)은 Monte Carlo로
 > **추정**한다(sim 백엔드; 소형 모델은 PRISM으로 교차검증).
 
-여러 기획자가 각자 합리적으로 쓴 룰이 함께 두면 모순되는 일(예: "전사 HP =
+여러 기획자가 각자 합리적으로 쓴 수치 룰이 함께 두면 모순되는 일(예: "전사 HP =
 레벨×100" + "HP 상한 5000" + "레벨 상한 100" → 레벨 51부터 모순)을,
 시뮬레이션처럼 우연히 마주치는 게 아니라 **수학적으로 증명**한다.
 
-정적 모순뿐 아니라 턴·이동·누적이 있는 **동역학**도 다룬다 — 하나의 DSL을 공유하며
-**논리는 Z3/BMC로 증명**(`ludoforge bmc`), **정량은 Monte Carlo로 추정**(`ludoforge sim`,
-소형 모델은 PRISM 테스트 오라클로 교차검증)하는 [다중 백엔드](docs/concepts.md#86-다중-백엔드-아키텍처--모델은-하나-질문은-여럿) 구조다. *존재·건전성은
-결정론적 증명, 정량 크기는 정직한 추정*(신뢰구간·"증명 아님" 라벨)으로 나눈다(D19). 배경은
-[개념 문서 §8](docs/concepts.md)을 참고.
+정적 모순뿐 아니라 누적·소모·확률 보상이 있는 경제 **동역학**도 다룬다 — 하나의 DSL을
+공유하며 **논리는 Z3/BMC로 증명**(`ludoforge bmc`), **정량은 Monte Carlo로 추정**
+(`ludoforge sim`, 소형 모델은 PRISM 테스트 오라클로 교차검증)하는 [다중 백엔드](docs/concepts.md#86-다중-백엔드-아키텍처--모델은-하나-질문은-여럿) 구조다.
+*존재·건전성은 결정론적 증명, 정량 크기는 정직한 추정*(신뢰구간·"증명 아님" 라벨)으로
+나눈다(D19). 배경은 [개념 문서 §8](docs/concepts.md)을 참고.
+
+**범위(D32):** 게임 *전체*를 기술하는 기획 언어가 아니다 — 카드별 고유 메커니즘·서사·연출은
+범위 밖이고, 기획 사고가 실제로 반복되는 **수치·경제 부분계**의 검증에 집중한다. 보드게임
+통합 예제(`examples/dungeon.lf` 등)는 전 기능 시연용으로 유지된다.
 
 ## 주요 기능
 
@@ -37,6 +42,11 @@
   확률을 *정확히* 계산하고 **sim 추정을 검정**한다 — 추정기에 신뢰를 부여하는 교차검증
   오라클이다(D19). D23으로 사용자 CLI 표면에서는 내려 테스트(`tests/test_sim_oracle.py`)로만
   쓴다. PRISM 설치 시 동작([설치 안내](#prism-설치-테스트-오라클-선택)).
+- **웹 인터페이스(`ludoforge web`, D32)**: 기획자가 DSL을 배우지 않아도 되는 표면 —
+  산문/시트(CSV)를 넣으면 **AI가 `.lf`로 번역**(로더·스키마 오류를 되먹이는 수리 루프)하고,
+  기획자는 **규칙서(산문) 미리보기를 읽고 승인**한 뒤 check/bmc/sim을 실행한다. 시트는
+  LLM 없이 `table` 절로 결정론 변환. 판정은 항상 solver — 자세한 내용은
+  [`web/README.md`](web/README.md).
 
 ## 한눈에 보기
 
@@ -76,7 +86,7 @@ ludoforge check warrior.lf
 ## 실행 환경
 
 - Python 3.11+ / 패키지 관리자 `uv`
-- 핵심 의존성(자동 설치): `z3-solver`, `lark`, `pyyaml`, `typer`, `pytest`, `ruff`, `mypy`
+- 핵심 의존성(자동 설치): `z3-solver`, `lark`, `typer`, `pytest`, `ruff`, `mypy`
 - **외부 도구 — PRISM(선택)**: sim↔정확값 교차검증 테스트가 호출하는 확률 [모델검사기](docs/concepts.md#모델-검사-model-checking).
   미설치 시 해당 오라클 테스트만 skip되고 본 도구 사용엔 지장 없다([설치 안내](#prism-설치-테스트-오라클-선택)).
   논리 검사(`check`·`bmc`)만 쓸 때는 없어도 된다.

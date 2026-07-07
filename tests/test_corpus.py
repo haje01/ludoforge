@@ -18,8 +18,8 @@ from logic.solver.report import format_report
 from logic.solver.translator import translate
 
 FIXTURES = Path(__file__).parent / "fixtures"
-CONSISTENT = sorted((FIXTURES / "consistent").glob("*.rule"))
-CONTRADICTION = sorted((FIXTURES / "contradiction").glob("*.rule"))
+CONSISTENT = sorted((FIXTURES / "consistent").glob("*.lf"))
+CONTRADICTION = sorted((FIXTURES / "contradiction").glob("*.lf"))
 
 # docs용 예제(examples/)도 회귀로 잠근다 — README/예제가 실제 동작과 어긋나지 않게.
 EXAMPLES = Path(__file__).parent.parent / "examples"
@@ -67,7 +67,7 @@ def test_corpus_directories_are_not_empty() -> None:
 
 
 def test_warrior_level_cap_pins_exact_culprits() -> None:
-    report = _run(FIXTURES / "contradiction" / "warrior_level_cap.rule")
+    report = _run(FIXTURES / "contradiction" / "warrior_level_cap.lf")
     assert len(report.violations) == 1
     v = report.violations[0]
     assert (v.variable, v.bound, v.declared, v.achievable) == ("level", "max", 100, 50)
@@ -76,12 +76,12 @@ def test_warrior_level_cap_pins_exact_culprits() -> None:
 
 def test_dependent_variable_not_flagged_regression() -> None:
     # D5 회귀: 종속 변수 hp(=level*100)는 hp=0 미달로 거짓양성 모순이 되면 안 된다.
-    report = _run(FIXTURES / "contradiction" / "warrior_level_cap.rule")
+    report = _run(FIXTURES / "contradiction" / "warrior_level_cap.lf")
     assert all(v.variable != "hp" for v in report.violations)
 
 
 def test_unreachable_role_pins_culprits() -> None:
-    report = _run(FIXTURES / "contradiction" / "unreachable_role.rule")
+    report = _run(FIXTURES / "contradiction" / "unreachable_role.lf")
     assert len(report.unreachable_states) == 1
     ue = report.unreachable_states[0]
     assert ue.assignment == {"role": "ghost"}
@@ -103,7 +103,7 @@ def test_examples_directory_matches_expected_set() -> None:
 
 def test_real_cap_blocks_declared_max() -> None:
     # D9: real 끝점 검사 — 선언 max=1.0이 룰(<=0.3)로 봉쇄됨을 정확히 짚는다.
-    report = _run(FIXTURES / "contradiction" / "real_cap_blocks_max.rule")
+    report = _run(FIXTURES / "contradiction" / "real_cap_blocks_max.lf")
     assert len(report.bound_unreachables) == 1
     b = report.bound_unreachables[0]
     assert (b.variable, b.bound, b.declared) == ("drop_rate", "max", 1.0)
@@ -111,7 +111,7 @@ def test_real_cap_blocks_declared_max() -> None:
 
 
 def test_conflicting_constants_global_infeasibility() -> None:
-    report = _run(FIXTURES / "contradiction" / "conflicting_constants.rule")
+    report = _run(FIXTURES / "contradiction" / "conflicting_constants.lf")
     assert len(report.unreachable_states) == 1
     ue = report.unreachable_states[0]
     assert ue.assignment == {}  # enum 없음 → 전역 도달 불가

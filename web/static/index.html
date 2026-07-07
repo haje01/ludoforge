@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ludoforge — 수치·경제 시스템 검증기</title>
+<style>
+  :root { --line:#d0d4da; --muted:#5b6470; --accent:#2456c4; --bad:#b3261e; --ok:#1a7f37; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
+         color:#1c2128; background:#f6f7f9; line-height:1.55; }
+  header { padding:20px 28px; background:#fff; border-bottom:1px solid var(--line); }
+  header h1 { margin:0; font-size:20px; }
+  header p { margin:4px 0 0; color:var(--muted); font-size:13px; }
+  main { max-width:1200px; margin:0 auto; padding:20px 28px 60px; }
+  section { background:#fff; border:1px solid var(--line); border-radius:8px;
+            padding:18px 20px; margin-top:18px; }
+  h2 { margin:0 0 4px; font-size:15px; }
+  .hint { color:var(--muted); font-size:12.5px; margin:0 0 12px; }
+  textarea { width:100%; border:1px solid var(--line); border-radius:6px; padding:10px;
+             font:12.5px/1.5 'SF Mono',Consolas,monospace; resize:vertical; }
+  textarea.prose { font-family:inherit; font-size:14px; }
+  input[type=text], input[type=number], select {
+      border:1px solid var(--line); border-radius:6px; padding:6px 8px; font-size:13px; }
+  button { border:1px solid var(--line); border-radius:6px; padding:7px 14px;
+           background:#fff; font-size:13px; cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+  .status { font-size:13px; }
+  .status.ok { color:var(--ok); }
+  .status.bad { color:var(--bad); white-space:pre-wrap; }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width: 900px) { .cols { grid-template-columns:1fr; } }
+  iframe { width:100%; height:480px; border:1px solid var(--line); border-radius:6px;
+           background:#fff; }
+  pre.result { background:#0f1115; color:#e6e9ef; padding:14px; border-radius:6px;
+               font-size:12.5px; overflow-x:auto; white-space:pre-wrap; }
+  .sheet { border:1px dashed var(--line); border-radius:6px; padding:10px; margin-top:8px; }
+  .sheet .row { margin-top:6px; }
+  label { font-size:12.5px; color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ludoforge <span style="color:var(--muted);font-weight:400">— 게임 수치·경제 시스템 검증기</span></h1>
+  <p>산문 기획과 스프레드시트를 넣으면 AI가 검증 모델(.lf)로 번역하고, 판정은 항상 solver가 한다 —
+     모순은 Z3가 증명하고(check/bmc), 분포는 Monte Carlo가 추정한다(sim).</p>
+</header>
+<main>
+
+<section>
+  <h2>① 기획 입력</h2>
+  <p class="hint">산문으로 수치·경제 룰을 쓰고, 수치 표는 CSV로 붙인다(표는 AI를 거치지 않고 그대로 변환된다).</p>
+  <textarea id="prose" class="prose" rows="7" placeholder="예: 전사의 최대 HP는 레벨당 100이다. 모든 캐릭터의 HP는 5000을 넘지 않는다. 레벨 상한은 100이고, 전사는 레벨 100까지 성장할 수 있어야 한다."></textarea>
+  <div id="sheets"></div>
+  <div class="row">
+    <button id="addSheet">+ 시트(CSV) 추가</button>
+    <button id="translate" class="primary">.lf로 번역</button>
+    <span id="translateStatus" class="status"></span>
+  </div>
+</section>
+
+<section>
+  <h2>② 모델 확인 — 사람 게이트</h2>
+  <p class="hint">왼쪽은 생성된 검증 모델(.lf, 수정 가능), 오른쪽은 같은 모델의 규칙서(산문)다.
+     <b>규칙서를 읽고 기획 의도와 맞는지 확인한 뒤</b> 실행으로 넘어간다.</p>
+  <div class="cols">
+    <div>
+      <textarea id="lf" rows="24" spellcheck="false" placeholder="// 번역 결과가 여기 나타난다. 직접 작성/수정해도 된다."></textarea>
+      <div class="row">
+        <button id="validate">검증(로더·스키마)</button>
+        <button id="renderDoc">규칙서 미리보기 갱신</button>
+        <span id="validateStatus" class="status"></span>
+      </div>
+    </div>
+    <iframe id="docFrame" title="규칙서 미리보기"></iframe>
+  </div>
+</section>
+
+<section>
+  <h2>③ 실행 — 증명(check·bmc) / 추정(sim)</h2>
+  <p class="hint">check: 정적 모순 증명(unsat core) · bmc: 동역학 도달성/불변식/데드락 증명 ·
+     sim: 분포/확률 추정(증명 아님 · 신뢰구간 동봉).</p>
+  <div class="row">
+    <select id="backend">
+      <option value="check">check — 정적 모순 검사</option>
+      <option value="bmc">bmc — 전이 시스템 검증</option>
+      <option value="sim">sim — Monte Carlo 추정</option>
+    </select>
+    <span id="bmcParams" hidden><label>깊이 k <input id="k" type="number" value="10" min="1" style="width:70px"></label></span>
+    <span id="simParams" hidden>
+      <label>표집 <input id="samples" type="number" value="10000" min="100" style="width:90px"></label>
+      <label>지평 <input id="horizon" type="number" value="100" min="1" style="width:80px"></label>
+      <label>시드 <input id="seed" type="number" value="0" style="width:60px"></label>
+    </span>
+    <button id="run" class="primary">실행</button>
+    <span id="runStatus" class="status"></span>
+  </div>
+  <pre id="runText" class="result" hidden></pre>
+  <iframe id="reportFrame" title="시각화 리포트" hidden></iframe>
+</section>
+
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+
+async function api(path, body) {
+  const res = await fetch(path, {
+    method: body === undefined ? "GET" : "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || res.statusText);
+  return data;
+}
+
+function setStatus(el, msg, ok) {
+  el.textContent = msg;
+  el.className = "status " + (ok === undefined ? "" : ok ? "ok" : "bad");
+}
+
+// ── 시트 ──
+$("addSheet").onclick = () => {
+  const div = document.createElement("div");
+  div.className = "sheet";
+  div.innerHTML = `
+    <div class="row"><label>표 이름 <input type="text" class="sheetName" placeholder="reward"></label>
+    <button class="rmSheet">삭제</button></div>
+    <textarea class="sheetCsv" rows="4" placeholder=",fighter,rogue&#10;goblin,0.92,0.72&#10;dragon,0.58,0.08"></textarea>`;
+  div.querySelector(".rmSheet").onclick = () => div.remove();
+  $("sheets").appendChild(div);
+};
+
+function collectSheets() {
+  return [...document.querySelectorAll(".sheet")].map((s) => ({
+    name: s.querySelector(".sheetName").value.trim(),
+    csv: s.querySelector(".sheetCsv").value,
+  })).filter((s) => s.name || s.csv.trim());
+}
+
+// ── 번역 ──
+$("translate").onclick = async () => {
+  const st = $("translateStatus");
+  setStatus(st, "번역 중… (오류 시 자동 수리 루프)");
+  $("translate").disabled = true;
+  try {
+    const data = await api("/api/translate", { prose: $("prose").value, sheets: collectSheets() });
+    $("lf").value = data.lf;
+    if (data.ok) {
+      setStatus(st, `번역 완료 (${data.attempts.length}회 시도) — 아래에서 규칙서를 확인하세요.`, true);
+      await refreshDoc(); await runValidate();
+    } else {
+      setStatus(st, `게이트 통과 실패 (${data.attempts.length}회):\n` + data.attempts.at(-1).error, false);
+    }
+  } catch (e) { setStatus(st, e.message, false); }
+  $("translate").disabled = false;
+};
+
+// ── 검증·규칙서 ──
+async function runValidate() {
+  const st = $("validateStatus");
+  try {
+    const data = await api("/api/validate", { lf: $("lf").value });
+    setStatus(st, data.ok ? "✅ 로더·스키마 통과" : data.error, data.ok);
+    return data.ok;
+  } catch (e) { setStatus(st, e.message, false); return false; }
+}
+async function refreshDoc() {
+  try {
+    const data = await api("/api/doc", { lf: $("lf").value });
+    $("docFrame").srcdoc = data.html;
+  } catch (e) { $("docFrame").srcdoc = `<pre style="color:#b3261e">${e.message}</pre>`; }
+}
+$("validate").onclick = runValidate;
+$("renderDoc").onclick = refreshDoc;
+
+// ── 실행 ──
+$("backend").onchange = () => {
+  $("bmcParams").hidden = $("backend").value !== "bmc";
+  $("simParams").hidden = $("backend").value !== "sim";
+};
+$("run").onclick = async () => {
+  const st = $("runStatus");
+  $("runText").hidden = true; $("reportFrame").hidden = true;
+  if (!(await runValidate())) { setStatus(st, "검증을 먼저 통과해야 한다.", false); return; }
+  $("run").disabled = true;
+  setStatus(st, "실행 중…");
+  try {
+    const req = { lf: $("lf").value, backend: $("backend").value,
+      k: +$("k").value, samples: +$("samples").value, horizon: +$("horizon").value, seed: +$("seed").value };
+    const { job_id, params } = await api("/api/run", req);
+    const clamp = Object.keys(params).length ? ` (적용 파라미터: ${JSON.stringify(params)})` : "";
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 700));
+      const job = await api(`/api/jobs/${job_id}`);
+      if (job.status === "done") {
+        const r = job.result;
+        const label = { 0: "✅ 정상/정합", 1: "❌ 모순/위반 증명", 2: "⚠️ 오류", 3: "❓ 미확인(unknown)" }[r.exit];
+        setStatus(st, label + clamp, r.exit === 0);
+        $("runText").textContent = r.text; $("runText").hidden = false;
+        if (r.html) { $("reportFrame").srcdoc = r.html; $("reportFrame").hidden = false; }
+        break;
+      }
+      if (job.status === "error") { setStatus(st, "실행 실패: " + job.error, false); break; }
+      setStatus(st, `실행 중… (${job.status})`);
+    }
+  } catch (e) { setStatus(st, e.message, false); }
+  $("run").disabled = false;
+};
+</script>
+</body>
+</html>

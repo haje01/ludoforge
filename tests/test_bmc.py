@@ -23,7 +23,7 @@ def _by_id(report: object) -> dict[str, object]:
 
 
 def test_reachable_finds_shortest_trace() -> None:
-    rs = load_rule_file(FIXTURES / "bmc_counter.rule")
+    rs = load_rule_file(FIXTURES / "bmc_counter.lf")
     report = run_bmc(rs, k=10)
     r = _by_id(report)["reach3"]
     assert r.status == "reachable"  # type: ignore[attr-defined]
@@ -35,7 +35,7 @@ def test_reachable_finds_shortest_trace() -> None:
 
 
 def test_reachable_unconfirmed_within_small_k() -> None:
-    rs = load_rule_file(FIXTURES / "bmc_counter.rule")
+    rs = load_rule_file(FIXTURES / "bmc_counter.lf")
     report = run_bmc(rs, k=2)  # 깊이 3 필요한데 k=2
     r = _by_id(report)["reach3"]
     # 실제로는 도달 가능(깊이 3)이므로 ¬that 귀납은 실패해야 한다(건전성) — 미확인 유지
@@ -68,7 +68,7 @@ def test_reachable_stays_unconfirmed_when_k_below_induction_depth() -> None:
 
 def test_invariant_domain_implied_is_proved_immediately() -> None:
     """도메인 상한에서 직접 따라오는 불변식은 j=0 귀납으로 무한 지평 증명된다(D25)."""
-    rs = load_rule_file(FIXTURES / "bmc_counter.rule")
+    rs = load_rule_file(FIXTURES / "bmc_counter.lf")
     report = run_bmc(rs, k=10)
     r = _by_id(report)["le5"]
     assert r.status == "holds"  # type: ignore[attr-defined]
@@ -95,7 +95,7 @@ def test_invariant_stays_bounded_when_k_below_induction_depth() -> None:
 
 
 def test_invariant_violation_gives_trace() -> None:
-    rs = load_rule_file(FIXTURES / "bmc_counter.rule")
+    rs = load_rule_file(FIXTURES / "bmc_counter.lf")
     report = run_bmc(rs, k=10)
     r = _by_id(report)["never4"]
     assert r.status == "violated"  # type: ignore[attr-defined]
@@ -108,7 +108,7 @@ def test_invariant_violation_gives_trace() -> None:
 
 
 def test_deadlock_detected() -> None:
-    rs = load_rule_file(FIXTURES / "bmc_deadlock.rule")
+    rs = load_rule_file(FIXTURES / "bmc_deadlock.lf")
     report = run_bmc(rs, k=10)
     r = _by_id(report)["live"]
     assert r.status == "deadlock"  # type: ignore[attr-defined]
@@ -127,7 +127,7 @@ def test_no_deadlock_proved_when_always_enabled() -> None:
 
 def test_no_deadlock_stays_bounded_when_not_inductive() -> None:
     """bmc_deadlock은 깊이 2에 실제 데드락 — k=1이면 base 통과·비귀납 → 유계 유지(건전성)."""
-    rs = load_rule_file(FIXTURES / "bmc_deadlock.rule")
+    rs = load_rule_file(FIXTURES / "bmc_deadlock.lf")
     report = run_bmc(rs, k=1)
     r = _by_id(report)["live"]
     assert r.status == "no_deadlock_up_to_k"  # type: ignore[attr-defined]
@@ -165,7 +165,7 @@ def test_dungeon_winning_trace_ends_at_hall_with_target_gold() -> None:
 
 def test_report_mentions_k_bound_for_unproved() -> None:
     # k=2: never4(비귀납·위반은 깊이 4)와 reach3(깊이 3 필요)이 유계 결과로 남는다.
-    rs = load_rule_file(FIXTURES / "bmc_counter.rule")
+    rs = load_rule_file(FIXTURES / "bmc_counter.lf")
     text = format_bmc_report(run_bmc(rs, k=2))
     assert "k 한계" in text  # k-bound 정직성 명시(미증명 항목)
     assert "k=2" in text
@@ -173,14 +173,14 @@ def test_report_mentions_k_bound_for_unproved() -> None:
 
 def test_report_marks_proof_without_k_bound_note() -> None:
     # k=10: le5는 증명 승격 — 증명 항목에는 k-bound 각주가 붙지 않는다.
-    rs = load_rule_file(FIXTURES / "bmc_counter.rule")
+    rs = load_rule_file(FIXTURES / "bmc_counter.lf")
     text = format_bmc_report(run_bmc(rs, k=10))
     assert "무한 지평" in text
     assert "j=0" in text
 
 
 def test_report_shows_violation_trace() -> None:
-    rs = load_rule_file(FIXTURES / "bmc_counter.rule")
+    rs = load_rule_file(FIXTURES / "bmc_counter.lf")
     text = format_bmc_report(run_bmc(rs, k=10))
     assert "불변식 위반" in text
     assert "경로:" in text

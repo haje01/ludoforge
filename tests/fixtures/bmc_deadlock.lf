@@ -1,0 +1,12 @@
+// BMC 데드락 테스트: x<2 동안만 증가 가능 → x==2에서 어떤 전이도 못 함(데드락).
+domain {
+    x: int 0..5
+}
+
+init: x == 0
+
+transition inc:
+    when x < 2
+    then x = x + 1
+
+check live no_deadlock
