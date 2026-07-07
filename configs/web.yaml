@@ -1,0 +1,10 @@
+# Ludoforge 웹 인터페이스 설정 (web/config.py가 로드 — 없으면 코드 기본값과 동일)
+
+model: claude-sonnet-5          # 산문→.lf 번역용 Claude 모델
+max_translate_attempts: 3       # LLM 수리 루프 상한(로더·스키마 오류 되먹임 횟수)
+
+# 실행 자원 상한 — 요청이 넘으면 서버가 클램프한다(.lf는 비-튜링완전이라 그 외 샌드박스 불필요)
+bmc_k_max: 30                   # BMC 언롤링 깊이 상한
+sim_samples_max: 200000         # sim 설정당 표집 상한
+sim_horizon_max: 10000          # sim run당 스텝 상한
+sim_workers: 1                  # sim 병렬 워커 수(결과는 워커 수 무관)

@@ -5,6 +5,7 @@
   ludoforge bmc   <path>   전이 시스템 BMC (논리 백엔드/Z3·BMC)
   ludoforge sim   <path>   Monte Carlo 추정 (sim 백엔드, 주 정량 경로/D19)
   ludoforge doc   <path>   규칙서 생성 (.lf → HTML/Markdown, D29 — 검증 아님·문서 뷰)
+  ludoforge web            웹 인터페이스 (산문/시트 → LLM 번역 → 사람 게이트 → 실행, D32)
 
 (PRISM은 D23으로 사용자 표면에서 내려 테스트 전용 교차검증 오라클로만 남는다.)
 
@@ -193,6 +194,33 @@ def doc(
     out_path.write_text(rendered, encoding="utf-8")
     typer.echo(f"규칙서를 생성했습니다: {out_path}")
     raise typer.Exit(_EXIT_OK)
+
+
+@app.command()
+def web(
+    host: str = typer.Option("127.0.0.1", "--host", help="바인딩 주소"),
+    port: int = typer.Option(8321, "--port", help="포트"),
+    config: str | None = typer.Option(
+        None, "--config", "-c", help="설정 yaml 경로(기본: configs/web.yaml, 없으면 내장 기본값)"
+    ),
+) -> None:
+    """웹 인터페이스를 띄운다(D32) — 산문/시트 입력 → LLM 번역 → 사람 게이트 → check/bmc/sim.
+
+    번역에는 ANTHROPIC_API_KEY 환경변수가 필요하다(검증·실행은 키 없이도 동작).
+    """
+    import uvicorn
+
+    from web.app import create_app
+    from web.config import ConfigError, load_config
+
+    try:
+        cfg = load_config(config)
+    except ConfigError as e:
+        typer.echo(f"설정을 읽을 수 없습니다:\n{e}", err=True)
+        raise typer.Exit(_EXIT_ERROR) from e
+
+    typer.echo(f"Ludoforge 웹: http://{host}:{port}  (모델: {cfg.model})")
+    uvicorn.run(create_app(cfg), host=host, port=port, log_level="warning")
 
 
 if __name__ == "__main__":

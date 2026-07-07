@@ -454,7 +454,14 @@ core/          # 공유 DSL 프론트엔드(SSOT) — 세 백엔드가 같은 IR
   docgen.py          # .lf → 규칙서(HTML/MD) 생성 — desugar 전 트리 기반(D29), ludoforge doc
   ghost.py           # ghost 서술 변수 제거(D31) — bmc/PRISM 소비 전 순수 IR→IR 변환(sim은 원본)
 ludoforge/           # 우산: 통합 CLI 진입점·프로젝트 버전
-  cli.py             # ludoforge check / bmc / sim / doc  (PRISM은 테스트 오라클, CLI 미노출/D23)
+  cli.py             # ludoforge check / bmc / sim / doc / web  (PRISM은 테스트 오라클, CLI 미노출/D23)
+web/             # 웹 인터페이스 (D32 P3) — 산문/시트 → LLM 번역 → 사람 게이트 → 실행
+  sheet_import.py    # CSV → table 절 결정론 변환(LLM 불개입)
+  translate.py       # 산문 → .lf LLM 번역 — 로더·스키마 오류 되먹임 수리 루프(판정은 solver, 원칙 1)
+  runs.py            # check/bmc/sim 실행 함수형 코어(CLI와 같은 파이프라인)
+  jobs.py            # 인메모리 잡(스레드) — bmc/sim 폴링
+  app.py             # FastAPI 셸 + web/static/index.html(단일 페이지, 규칙서 병렬 확인)
+  config.py          # configs/web.yaml 로드(모델·수리 루프·자원 상한 클램프)
 logic/           # 논리 증명 백엔드 (Z3/BMC)
   solver/
     translator.py    # IR → Z3 제약식
@@ -474,6 +481,7 @@ prob/           # 확률 증명 오라클 (PRISM — 소형 모델 교차검증,
 rules/               # 실제 기획 룰 (.lf), git SSOT
 examples/            # 모순/정합/전이 시스템 예제 (.lf)
 tests/               # 단위 + 모순/정합 코퍼스 + BMC/sim/PRISM
+configs/             # 설정 yaml (web.yaml — 웹 모델·자원 상한)
 docs/                # concepts.md / decisions.md / 슬라이드
 CLAUDE.md  PLAN.md  PROGRESS.md  pyproject.toml
 ```

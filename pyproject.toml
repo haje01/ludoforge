@@ -7,8 +7,12 @@ requires-python = ">=3.11"
 dependencies = [
     "z3-solver>=4.13",
     "typer>=0.12",
-    "numpy>=1.26,<2.2",  # 2.2+ 스텁은 PEP695 type 문법 → mypy(target 3.11) 파싱 실패
-    "lark>=1.1",  # 외부 DSL(자체 문법) 파서 — D21·6차 마일스톤
+    "numpy>=1.26,<2.2", # 2.2+ 스텁은 PEP695 type 문법 → mypy(target 3.11) 파싱 실패
+    "lark>=1.1", # 외부 DSL(자체 문법) 파서 — D21·6차 마일스톤
+    "fastapi>=0.111", # 웹 인터페이스(D32 P3)
+    "uvicorn>=0.30", # 웹 서버(ludoforge web)
+    "anthropic>=0.40", # 산문→.lf LLM 번역(web/translate)
+    "pyyaml>=6.0", # configs/*.yaml 로드(web/config) — DSL 프론트엔드 아님(D32)
 ]
 
 [project.scripts]
@@ -19,6 +23,8 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.6",
     "mypy>=1.11",
+    "httpx>=0.27",
+    "types-pyyaml>=6.0",
 ]
 
 [build-system]
@@ -26,7 +32,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["core", "ludoforge", "logic", "sim", "prob"]
+packages = ["core", "ludoforge", "logic", "sim", "prob", "web"]
 
 [tool.ruff]
 line-length = 100
@@ -45,7 +51,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 python_version = "3.11"
 strict = true
 warn_unused_configs = true
-files = ["core", "ludoforge", "logic", "sim", "prob", "tests"]
+files = ["core", "ludoforge", "logic", "sim", "prob", "web", "tests"]
 
 # z3-solver는 타입 스텁(py.typed)을 제공하지 않으므로 import 검사만 완화한다.
 [[tool.mypy.overrides]]

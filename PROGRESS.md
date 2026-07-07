@@ -166,9 +166,21 @@ concepts.md 아크 개념 절 등 — 트리거 명시).
 | P0 D32 기록·비준 | 도메인 재정의·YAML 제거·인터페이스 전환 방향 | ✅ | 2026-07-07 사용자 비준 |
 | P1 YAML 프론트엔드 제거 | loader YAML 분기·old_examples·이관 하니스 은퇴, 픽스처 .lf 이관 | ✅ | IR 등가 19/19 확인·pyyaml 의존 제거 |
 | P2 문서 재포지셔닝 | CLAUDE §1·§4~6, README, D32 ADR | ✅ | |
-| P3 웹 MVP | 시트→table 임포터·LLM 번역(수리 루프)·FastAPI+단일 페이지 | 진행 중 | 판정은 solver — 원칙 1 불변 |
+| P3 웹 MVP | 시트→table 임포터·LLM 번역(수리 루프)·FastAPI+단일 페이지 | ✅ | `ludoforge web` — 판정은 solver, 원칙 1 불변 |
 
 ## 작업 로그
+- 2026-07-07: **15차 P3 완료 — 웹 MVP(D32).** 새 `web/` 패키지: ① `sheet_import.py` —
+  CSV(2열 평면·격자)→`table` 절 결정론 변환(LLM 불개입, 왕복 파싱 보증·행 위치 오류).
+  ② `translate.py` — 산문→`.lf` LLM 번역(영어 프롬프트·문법 요약·expect 동반 생성 계약)
+  + **수리 루프**: 후보마다 로더·스키마 게이트, 실패 메시지를 그대로 되먹여 재시도(상한
+  설정), `complete` 주입식이라 LLM 없이 루프 검증. ③ `runs.py` — check/bmc/sim 함수형
+  코어(CLI와 동일 파이프라인·종료코드). ④ `jobs.py` 인메모리 잡 + `app.py` FastAPI 셸
+  (sheet/translate/validate/doc/run/jobs API, 자원 상한 클램프) + 단일 페이지 UI(생성
+  `.lf` ↔ docgen 규칙서 병렬 확인 = 사람 게이트, 기존 자체 완결 HTML 리포트 srcdoc 임베드).
+  ⑤ `ludoforge web` CLI·`configs/web.yaml`·`web/README.md`. anthropic SDK 키 부재를
+  구성 시점에 실패시켜 503 안내(수리 루프 밖 폭발 방지). 테스트 27건(시트 11·번역 5·
+  API 11) — 실서버 스모크(페이지·시트·sim 잡·"증명 아님" 라벨) 실측. 전체 394 통과
+  (+5 skip), ruff/format/mypy(strict) clean. **15차 마감.**
 - 2026-07-07: **15차 P0~P2 완료 — 도메인 축소 피벗(D32).** ① 진단 비준: 전체 게임 기술
   SSOT 목표는 표현력(카드별 고유 메커니즘)·상태공간 두 벽에 막힘 — 도메인을 **수치·경제
   시스템 검증기**로 재정의(예제 13개 중 11개가 이미 이 부류 — 현상 인정). ② YAML(.rule)
