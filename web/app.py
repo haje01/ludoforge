@@ -21,7 +21,7 @@ from web.config import WebConfig, load_config
 from web.jobs import JobStore
 from web.runs import run_bmc_text, run_check_text, run_sim_text
 from web.sheet_import import SheetImportError, csv_to_table
-from web.translate import CompleteFn, anthropic_complete, translate_prose
+from web.translate import CompleteFn, anthropic_complete, make_reviewer, translate_prose
 
 _STATIC = Path(__file__).resolve().parent / "static"
 
@@ -98,10 +98,12 @@ def create_app(config: WebConfig | None = None, complete: CompleteFn | None = No
         """산문(+시트) → `.lf`. ok=false여도 마지막 후보와 오류를 돌려준다(사람이 이어서 수정)."""
         tables_lf = _sheets_to_tables(body.sheets)
         try:
+            comp = get_complete()
             result = translate_prose(
                 body.prose,
                 tables_lf=tables_lf,
-                complete=get_complete(),
+                complete=comp,
+                review=make_reviewer(comp) if cfg.review_translation else None,
                 max_attempts=cfg.max_translate_attempts,
             )
         except HTTPException:
