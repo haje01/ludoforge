@@ -66,7 +66,24 @@ def run_bmc_text(lf_text: str, k: int) -> dict[str, Any]:
     except TranslationError as e:
         return {"exit": 2, "text": f"번역 오류:\n{e}", "html": None}
     exit_code = 1 if report.has_violation else (3 if report.has_unconfirmed else 0)
-    return {"exit": exit_code, "text": format_bmc_report(report), "html": render_bmc_html(report)}
+    return {
+        "exit": exit_code,
+        "text": format_bmc_report(report),
+        "html": render_bmc_html(report),
+        "summary": _bmc_summary(report.counts()),
+    }
+
+
+def _bmc_summary(counts: dict[str, int]) -> str:
+    """개수 요약 라벨 — 0인 항목은 생략(예: '증명 4 · 미확인 1 · 건너뜀 2'). 요약 라벨이
+    종료코드 한 글자보다 많은 맥락을 준다(k 한계로 인한 정상적 미확인을 덜 놀랍게)."""
+    order = [
+        ("proven", "증명"),
+        ("violated", "위반"),
+        ("unconfirmed", "미확인"),
+        ("skipped", "건너뜀"),
+    ]
+    return " · ".join(f"{label} {counts[key]}" for key, label in order if counts[key])
 
 
 def run_sim_text(

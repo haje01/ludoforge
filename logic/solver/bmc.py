@@ -81,6 +81,11 @@ class PropertyResult:
     detail: str | None = None
 
 
+# 상태 → 종료코드 분할의 단일 소스(has_violation·has_unconfirmed·counts가 공유).
+_VIOLATION_STATUSES = frozenset({"violated", "deadlock", "unreachable"})
+_UNCONFIRMED_STATUSES = frozenset({"unreachable_within_k", "unknown"})
+
+
 @dataclass(frozen=True)
 class BmcReport:
     k: int
@@ -95,12 +100,24 @@ class BmcReport:
 
         `unreachable`은 reachable 검사의 **실패 확정**(어떤 깊이에서도 불가, D25 비준)이라
         "아직 k가 작아 미도달"(미확인, 종료코드 3)과 구분해 위반으로 취급한다."""
-        return any(r.status in ("violated", "deadlock", "unreachable") for r in self.results)
+        return any(r.status in _VIOLATION_STATUSES for r in self.results)
 
     @property
     def has_unconfirmed(self) -> bool:
         """k 한계로 미확인이거나 unknown인 속성이 있는가 — 종료코드 3."""
-        return any(r.status in ("unreachable_within_k", "unknown") for r in self.results)
+        return any(r.status in _UNCONFIRMED_STATUSES for r in self.results)
+
+    def counts(self) -> dict[str, int]:
+        """상태별 개수(요약 라벨용) — 종료코드 분할과 동일 기준: 위반/미확인/그 외(=증명·통과).
+        skipped는 다른 백엔드 전용이라 건너뛴 검사 수다(증명 대상 아님)."""
+        violated = sum(1 for r in self.results if r.status in _VIOLATION_STATUSES)
+        unconfirmed = sum(1 for r in self.results if r.status in _UNCONFIRMED_STATUSES)
+        return {
+            "proven": len(self.results) - violated - unconfirmed,
+            "violated": violated,
+            "unconfirmed": unconfirmed,
+            "skipped": len(self.skipped_other),
+        }
 
 
 # ---------- BMC 엔진 ----------

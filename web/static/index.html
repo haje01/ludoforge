@@ -198,7 +198,8 @@ $("run").onclick = async () => {
       if (job.status === "done") {
         const r = job.result;
         const label = { 0: "✅ 정상/정합", 1: "❌ 모순/위반 증명", 2: "⚠️ 오류", 3: "❓ 미확인(unknown)" }[r.exit];
-        setStatus(st, label + clamp, r.exit === 0);
+        const summary = r.summary ? " — " + r.summary : "";
+        setStatus(st, label + summary + clamp, r.exit === 0);
         $("runText").textContent = r.text; $("runText").hidden = false;
         if (r.html) { $("reportFrame").srcdoc = r.html; $("reportFrame").hidden = false; }
         break;

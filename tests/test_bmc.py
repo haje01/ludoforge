@@ -160,6 +160,22 @@ def test_dungeon_winning_trace_ends_at_hall_with_target_gold() -> None:
     assert int(last["gold"]) >= int(last["win_gold"])
 
 
+# ---------- 개수 요약(counts) ----------
+
+
+def test_counts_partition_matches_exit_semantics() -> None:
+    """counts()는 종료코드 분할과 동일 기준으로 상태를 증명/위반/미확인/건너뜀으로 센다.
+    TM(k=10): 불변식·데드락 4종 증명, 완주 도달성 1종은 k 한계로 미확인, 분포 2종은 sim 전용
+    건너뜀 — 사용자가 웹에서 본 '증명 4·미확인 1·건너뜀 2' 요약의 근거."""
+    rs = load_rule_file(EXAMPLES / "terraforming_mars.lf")
+    report = run_bmc(rs, k=10)
+    c = report.counts()
+    assert c == {"proven": 4, "violated": 0, "unconfirmed": 1, "skipped": 2}
+    # proven+violated+unconfirmed는 실제 검사 수와 일치(skipped는 별도 집계).
+    assert c["proven"] + c["violated"] + c["unconfirmed"] == len(report.results)
+    assert c["skipped"] == len(report.skipped_other)
+
+
 # ---------- 리포트 포맷 ----------
 
 

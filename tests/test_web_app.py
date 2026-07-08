@@ -131,6 +131,9 @@ def test_run_bmc_job_clamps_k_and_returns_html() -> None:
     assert job["status"] == "done"
     assert job["result"]["exit"] in (0, 3)
     assert job["result"]["html"]
+    # 개수 요약 라벨(증명/위반/미확인/건너뜀) — coin은 도달성 1종 증명 + 분포 1종 건너뜀.
+    summary = job["result"]["summary"]
+    assert "증명 1" in summary and "건너뜀 1" in summary
 
 
 def test_run_sim_job_clamps_samples_and_returns_html() -> None:
